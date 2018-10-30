@@ -1,27 +1,25 @@
-# Navigation2
+# Nav2 Map Server
 
-ROS2 Navigation System
+The map server in the navigation2 stack is responsible for loading a map from an image file and providing a map message across 
+the ROS2 Interface for potential clients. In comparison to the ROS1 navigation map server, the nav2 map server intends to support
+a variety of potential map types, and thus some aspects of the original code have been refactored to support this extensible 
+framework.
 
-[![Build Status](https://travis-ci.org/ros-planning/navigation2.svg?branch=master)](https://travis-ci.org/ros-planning/navigation2)
+## Overview of changes from ROS1 Navigation Map Server
+- Implementation of the Map Server has been refactored into an abstract base class for map server and its respective map type-specific 
+implementations (i.e. nav_msgs/msg/OccupancyGrids)
+- Loading and Parsing of YAML file (path currently provided as command line argument) and loading of the directed image file have
+been refactored into function implementations from the map server abstract base class. 
+- A factory pattern has been introduced to decide at launch time which map type to use
+- It is optional whether the map is connected to the ROS Interface or is initialized as an object in another module (by
+instantiating the map type-specific class)
+- Map Saver not (yet) ported
 
-# Overview
-The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
+## Currently Supported Map Types
+- Occupancy Grid (nav_msgs/msg/OccupancyGrid)
 
-# Contributing
-We are currently in the pre-release development phase, contributions are welcome. To contribute, see the [documentation README](doc/README.md).
-
-# Building the source
-For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
-
-# Creating a docker image
-To build an image from the Dockerfile in the navigation2 folder: 
-First, clone the repo to your local system (or see Building the source above)
-```
-sudo docker build -t nav2/latest .
-```
-If proxies are needed:
-```
-sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
-```
-Note: You may also need to configure your docker for DNS to work. See article here for details:
-https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
+## Future Plans
+- Make abstract base class for map server derive from rclcpp::Node (https://github.com/ros-planning/navigation2/issues/189)
+- Support new map types, e.g. GridMap (https://github.com/ros-planning/navigation2/issues/191)
+- Load & Parse YAML file as ROS2 parameters via launch (https://github.com/ros-planning/navigation2/issues/190)
+- Port and refactor Map Saver (https://github.com/ros-planning/navigation2/issues/188)
