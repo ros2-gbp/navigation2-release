@@ -1,27 +1,16 @@
-# Navigation2
+# nav2_bringup
 
-ROS2 Navigation System
+The `nav2_bringup` package is an example bringup system for navigation2 applications.
 
-[![Build Status](https://travis-ci.org/ros-planning/navigation2.svg?branch=master)](https://travis-ci.org/ros-planning/navigation2)
+## system_test.rviz
 
-# Overview
-The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
+There is an rviz configuration for testing base navigation2 systems.
 
-# Contributing
-We are currently in the pre-release development phase, contributions are welcome. To contribute, see the [documentation README](doc/README.md).
+## map
 
-# Building the source
-For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
+There is also an example map (pgm and yaml) for system level tests.
 
-# Creating a docker image
-To build an image from the Dockerfile in the navigation2 folder: 
-First, clone the repo to your local system (or see Building the source above)
-```
-sudo docker build -t nav2/latest .
-```
-If proxies are needed:
-```
-sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
-```
-Note: You may also need to configure your docker for DNS to work. See article here for details:
-https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
+## Future Work
+
+* adding configuration files for the example bringup
+* a more complete map for system level testing
