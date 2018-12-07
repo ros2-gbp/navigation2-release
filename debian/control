@@ -1,0 +1,12 @@
+Source: ros-crystal-costmap-queue
+Section: misc
+Priority: extra
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-crystal-ament-cmake, ros-crystal-ament-cmake-gtest, ros-crystal-ament-lint-auto, ros-crystal-ament-lint-common, ros-crystal-nav2-costmap-2d, ros-crystal-rclcpp, ros-crystal-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-crystal-costmap-queue
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-crystal-nav2-costmap-2d, ros-crystal-rclcpp, ros-crystal-ros-workspace
+Description: The costmap_queue package
