@@ -12,33 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef nav2_dwb_controller__DWB_CONTROLLER_HPP_
-#define nav2_dwb_controller__DWB_CONTROLLER_HPP_
+#ifndef DWB_CONTROLLER__DWB_CONTROLLER_HPP_
+#define DWB_CONTROLLER__DWB_CONTROLLER_HPP_
 
 #include <memory>
 #include <string>
 #include "nav2_tasks/follow_path_task.hpp"
-#include "dwb_core/dwb_core.h"
-#include "dwb_core/common_types.h"
+#include "dwb_core/dwb_core.hpp"
+#include "dwb_core/common_types.hpp"
 #include "nav_2d_msgs/msg/pose2_d_stamped.hpp"
-#include "nav_2d_utils/odom_subscriber.h"
+#include "nav_2d_utils/odom_subscriber.hpp"
 
 namespace nav2_dwb_controller
 {
 
-class DwbController : public nav2_tasks::FollowPathTaskServer
+class DwbController : public rclcpp::Node
 {
 public:
-  DwbController();
+  explicit DwbController(rclcpp::executor::Executor & executor);
   ~DwbController();
 
-  nav2_tasks::TaskStatus execute(const nav2_tasks::FollowPathCommand::SharedPtr path) override;
+  nav2_tasks::TaskStatus followPath(const nav2_tasks::FollowPathCommand::SharedPtr path);
 
 protected:
   bool isGoalReached(const nav_2d_msgs::msg::Pose2DStamped & pose2d);
   void publishVelocity(const nav_2d_msgs::msg::Twist2DStamped & velocity);
   void publishZeroVelocity();
   bool getRobotPose(nav_2d_msgs::msg::Pose2DStamped & pose2d);
+
+  std::unique_ptr<nav2_tasks::FollowPathTaskServer> task_server_;
   dwb_core::CostmapROSPtr cm_;
   dwb_core::DWBLocalPlanner planner_;
   std::shared_ptr<nav_2d_utils::OdomSubscriber> odom_sub_;
@@ -49,4 +51,4 @@ protected:
 
 }  // namespace nav2_dwb_controller
 
-#endif  // nav2_dwb_controller__DWB_CONTROLLER_HPP_
+#endif  // DWB_CONTROLLER__DWB_CONTROLLER_HPP_

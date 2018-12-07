@@ -32,13 +32,13 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dwb_critics/map_grid.h"
+#include "dwb_critics/map_grid.hpp"
 #include <cmath>
 #include <string>
 #include <algorithm>
 #include <memory>
-#include "dwb_core/exceptions.h"
-#include "nav2_costmap_2d/cost_values.h"
+#include "dwb_core/exceptions.hpp"
+#include "nav2_costmap_2d/cost_values.hpp"
 
 using std::abs;
 using costmap_queue::CellData;
@@ -70,7 +70,7 @@ void MapGridCritic::onInit()
   stop_on_failure_ = true;
 
   std::string aggro_str;
-  nh_->get_parameter_or("aggregation_type", aggro_str, std::string("last"));
+  nh_->get_parameter_or(name_ + ".aggregation_type", aggro_str, std::string("last"));
   std::transform(aggro_str.begin(), aggro_str.end(), aggro_str.begin(), ::tolower);
   if (aggro_str == "last") {
     aggregationType_ = ScoreAggregationType::Last;

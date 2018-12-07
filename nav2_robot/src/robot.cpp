@@ -21,18 +21,17 @@
 namespace nav2_robot
 {
 
-Robot::Robot(rclcpp::Node * node)
+Robot::Robot(rclcpp::Node::SharedPtr & node)
 : node_(node), initial_pose_received_(false), initial_odom_received_(false)
 {
   // TODO(mhpanah): Topic names for pose and odom should should be configured with parameters
-
   pose_sub_ = node_->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
     "amcl_pose", std::bind(&Robot::onPoseReceived, this, std::placeholders::_1));
 
   odom_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
     "odom", std::bind(&Robot::onOdomReceived, this, std::placeholders::_1));
 
-  vel_pub_ = node_->create_publisher<geometry_msgs::msg::Twist>("/cmdVelocity", 1);
+  vel_pub_ = node_->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
 }
 
 void
@@ -58,7 +57,8 @@ bool
 Robot::getCurrentPose(geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr & robot_pose)
 {
   if (!initial_pose_received_) {
-    RCLCPP_WARN(node_->get_logger(), "Can't return current pose: Initial pose not yet received.");
+    RCLCPP_WARN(node_->get_logger(),
+      "Robot: Can't return current pose: Initial pose not yet received.");
     return false;
   }
 
@@ -70,8 +70,8 @@ bool
 Robot::getCurrentVelocity(nav_msgs::msg::Odometry::SharedPtr & robot_velocity)
 {
   if (!initial_odom_received_) {
-    RCLCPP_WARN(node_->get_logger(), "Can't return current velocity: Initial odometry not yet"
-      " received.");
+    RCLCPP_WARN(node_->get_logger(),
+      "Robot: Can't return current velocity: Initial odometry not yet received.");
     return false;
   }
 

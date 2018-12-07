@@ -35,8 +35,8 @@
  * Author: Eitan Marder-Eppstein
  *         David V. Lu!!
  *********************************************************************/
-#include <nav2_costmap_2d/costmap_2d_publisher.h>
-#include <nav2_costmap_2d/cost_values.h>
+#include <nav2_costmap_2d/costmap_2d_publisher.hpp>
+#include <nav2_costmap_2d/cost_values.hpp>
 
 namespace nav2_costmap_2d
 {
@@ -125,10 +125,10 @@ void Costmap2DPublisher::prepareGrid()
 
 void Costmap2DPublisher::publishCostmap()
 {
- if(node_->count_subscribers(topic_name_))
+ if(node_->count_subscribers(topic_name_) == 0)
  {
     // No subscribers, so why do any work?
-    return;   
+    return;
  }
 
   float resolution = costmap_->getResolution();

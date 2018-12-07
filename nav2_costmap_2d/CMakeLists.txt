@@ -8,6 +8,7 @@ endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   #add_compile_options(-Wall -Wextra -Wpedantic)
+  add_compile_options(-fPIC)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -24,15 +25,13 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_sensor_msgs REQUIRED)
-find_package(xmlrpcpp REQUIRED)
 find_package(laser_geometry REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(nav2_dynamic_params)
 find_package(nav2_util)
-
-# TODO(bpwilcox): port remaining packages
-#find_package(voxel_grid REQUIRED)
+find_package(nav2_voxel_grid REQUIRED)
+find_package(nav2_msgs REQUIRED)
 
 remove_definitions(-DDISABLE_LIBUSB-1.0)
 find_package(Eigen3 REQUIRED)
@@ -41,18 +40,12 @@ include_directories(
   include
   ${ament_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
+  ${laser_geometry_INCLUDE_DIRS}
 )
 
 add_definitions(${EIGEN3_DEFINITIONS})
 
-# TODO(bpwilcox): Separate msgs generation into separate package
-#rosidl_generate_interfaces(${PROJECT_NAME}
-#  "msg/VoxelGrid.msg"
-#
-#	DEPENDENCIES std_msgs geometry_msgs map_msgs
-#)
-
-add_library(nav2_costmap_2d SHARED
+add_library(nav2_costmap_2d_core SHARED
   src/array_parser.cpp
   src/costmap_2d.cpp
   src/layer.cpp
@@ -72,62 +65,57 @@ set(dependencies
   map_msgs
   tf2_ros
   tf2
-  xmlrpcpp
   pluginlib
   tf2_geometry_msgs
   tf2_sensor_msgs
   message_filters
   nav2_dynamic_params
+  laser_geometry
   nav2_util
+  nav2_voxel_grid
+  nav2_msgs
+  visualization_msgs
 )
 
-ament_target_dependencies(nav2_costmap_2d
+ament_target_dependencies(nav2_costmap_2d_core
   ${dependencies}
 )
 
 add_library(layers SHARED
   plugins/inflation_layer.cpp
   plugins/static_layer.cpp
-  
-  #	TODO(bpwilcox): port additional plugin layers
-  #plugins/obstacle_layer.cpp
+  plugins/obstacle_layer.cpp
   src/observation_buffer.cpp
-
-  # TODO(bpwilcox): port additional plugin layers
-  #plugins/voxel_layer.cpp
+  plugins/voxel_layer.cpp
 )
 ament_target_dependencies(layers
   ${dependencies}
 )
 target_link_libraries(layers
-  nav2_costmap_2d
+  nav2_costmap_2d_core
 )
 
-# TODO(bpwilcox): port costmap_2d_markers
-#add_executable(costmap_2d_markers src/costmap_2d_markers.cpp)
-#ament_target_dependencies(costmap_2d_markers ${${PROJECT_NAME}_EXPORTED_TARGETS} ${ament_EXPORTED_TARGETS})
-#target_link_libraries(costmap_2d_markers
-  #costmap_2d
-#)
+add_executable(nav2_costmap_2d_markers src/costmap_2d_markers.cpp)
+target_link_libraries(nav2_costmap_2d_markers
+  nav2_costmap_2d_core
+)
 
-# TODO(bpwilcox): port nav2_costmap_2d_cloud
-#add_executable(nav2_costmap_2d_cloud src/costmap_2d_cloud.cpp)
-#ament_target_dependencies(nav2_costmap_2d_cloud ${${PROJECT_NAME}_EXPORTED_TARGETS} ${ament_EXPORTED_TARGETS})
-#target_link_libraries(nav2_costmap_2d_cloud
-  #nav2_costmap_2d
-#)
+add_executable(nav2_costmap_2d_cloud src/costmap_2d_cloud.cpp)
+target_link_libraries(nav2_costmap_2d_cloud
+  nav2_costmap_2d_core
+)
 
-add_executable(nav2_costmap_2d_node src/costmap_2d_node.cpp)
-ament_target_dependencies(nav2_costmap_2d_node
+add_executable(nav2_costmap_2d src/costmap_2d_node.cpp)
+ament_target_dependencies(nav2_costmap_2d
   ${dependencies}
 )
 
-target_link_libraries(nav2_costmap_2d_node
-  nav2_costmap_2d
+target_link_libraries(nav2_costmap_2d
+  nav2_costmap_2d_core
   layers
 )
 
-install(TARGETS nav2_costmap_2d nav2_costmap_2d_node layers
+install(TARGETS nav2_costmap_2d_core nav2_costmap_2d layers
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -152,7 +140,7 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_include_directories(include)
-ament_export_libraries(layers nav2_costmap_2d)
+ament_export_libraries(layers nav2_costmap_2d_core)
 ament_export_dependencies(${dependencies})
 pluginlib_export_plugin_description_file(nav2_costmap_2d costmap_plugins.xml)
 ament_package()

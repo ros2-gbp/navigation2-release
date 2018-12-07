@@ -12,107 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string>
-#include <memory>
-#include <exception>
 #include "nav2_mission_executor/mission_executor.hpp"
 
-using namespace std::chrono_literals;
+#include <memory>
+#include "nav2_mission_executor/execute_mission_behavior_tree.hpp"
+
 using nav2_tasks::TaskStatus;
 
-namespace nav2_mission_execution
+namespace nav2_mission_executor
 {
 
 MissionExecutor::MissionExecutor()
-: nav2_tasks::ExecuteMissionTaskServer("ExecuteMissionNode")
+: Node("MissionExecutor")
 {
-  RCLCPP_INFO(get_logger(), "Initializing MissionExecutor.");
-  navTaskClient_ = std::make_unique<nav2_tasks::NavigateToPoseTaskClient>(this);
+  auto temp_node = std::shared_ptr<rclcpp::Node>(this, [](auto) {});
 
-  if (!navTaskClient_->waitForServer(nav2_tasks::defaultServerTimeout)) {
-    RCLCPP_ERROR(get_logger(), "MissionExecutor: NavigateToPoseTaskServer not running!");
-    throw std::runtime_error("MissionExecutor: NavigateToPoseTaskServer not running");
-  }
+  task_server_ = std::make_unique<nav2_tasks::ExecuteMissionTaskServer>(temp_node);
 
-  goal_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>("move_base_simple/goal",
-      std::bind(&MissionExecutor::onGoalPoseReceived, this, std::placeholders::_1));
-
-  plan_pub_ = create_publisher<nav2_msgs::msg::MissionPlan>(
-    "ExecuteMissionTask_command");
-}
-
-MissionExecutor::~MissionExecutor()
-{
-  RCLCPP_INFO(get_logger(), "Shutting down MissionExecutor");
-}
-
-void
-MissionExecutor::onGoalPoseReceived(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
-{
-  goal_pose_ = msg;
-
-  auto message = nav2_msgs::msg::MissionPlan();
-  message.mission_plan = "Hello, world!";
-
-  RCLCPP_INFO(this->get_logger(), "MissionExecutor: Publishing a new mission plan");
-  plan_pub_->publish(message);
+  task_server_->setExecuteCallback(
+    std::bind(&MissionExecutor::executeMission, this, std::placeholders::_1));
 }
 
 TaskStatus
-MissionExecutor::execute(const nav2_tasks::ExecuteMissionCommand::SharedPtr command)
+MissionExecutor::executeMission(const nav2_tasks::ExecuteMissionCommand::SharedPtr command)
 {
-  RCLCPP_INFO(get_logger(), "MissionExecutor: Executing task: %s from %f",
-    command->mission_plan.c_str(), command->header.stamp);
+  RCLCPP_INFO(get_logger(), "Executing mission plan: %s", command->mission_plan.c_str());
 
-  // TODO(mjeronimo): Validate the mission plan for syntax and semantics
+  // Create the blackboard that will be shared by all of the nodes in the tree
+  BT::Blackboard::Ptr blackboard = BT::Blackboard::create<BT::BlackboardLocal>();
 
-  // TODO(mjeronimo): Get the goal pose from the task in the mission plan. For now, we're
-  // using the one received from rviz via the move_base_simple/goal topic.
-  navTaskClient_->sendCommand(goal_pose_);
+  // Create and run the behavior tree for this mission
+  ExecuteMissionBehaviorTree bt(shared_from_this());
+  TaskStatus result = bt.run(blackboard, command->mission_plan,
+      std::bind(&nav2_tasks::ExecuteMissionTaskServer::cancelRequested,
+      task_server_.get()));
 
-  auto navResult = std::make_shared<nav2_tasks::NavigateToPoseResult>();
-
-  // Loop until navigation reaches a terminal state
-  for (;; ) {
-    // Check to see if this task (mission execution) has been canceled. If so,
-    // cancel the navigation task first and then cancel this task
-    if (cancelRequested()) {
-      RCLCPP_INFO(get_logger(), "MissionExecutor: Task %s has been canceled.",
-        command->mission_plan.c_str());
-      navTaskClient_->cancel();
-      setCanceled();
-      return TaskStatus::CANCELED;
-    }
-
-    // This task hasn't been canceled, so see if the navigation task has finished
-    TaskStatus status = navTaskClient_->waitForResult(navResult, 100ms);
-
-    switch (status) {
-      case TaskStatus::SUCCEEDED:
-        {
-          RCLCPP_INFO(get_logger(), "MissionExecutor: Mission task %s completed",
-            command->mission_plan.c_str());
-
-          // No data to return from this task, just an empty result message
-          nav2_tasks::ExecuteMissionResult result;
-          setResult(result);
-
-          return TaskStatus::SUCCEEDED;
-        }
-
-      case TaskStatus::FAILED:
-        RCLCPP_ERROR(get_logger(), "MissionExecutor::execute: navigation task failed");
-        return TaskStatus::FAILED;
-
-      case TaskStatus::RUNNING:
-        RCLCPP_INFO(get_logger(), "MissionExecutor: Current mission task still running.");
-        break;
-
-      default:
-        RCLCPP_ERROR(get_logger(), "MissionExecutor: Invalid status value.");
-        throw std::logic_error("MissionExecutor::execute: invalid status value");
-    }
-  }
+  RCLCPP_INFO(get_logger(), "Completed mission execution: %d", result);
+  return result;
 }
 
-}  // namespace nav2_mission_execution
+}  // namespace nav2_mission_executor

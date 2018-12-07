@@ -39,7 +39,10 @@ PlannerTester::PlannerTester()
   RCLCPP_INFO(this->get_logger(), "PlannerTester::PlannerTester");
 
   // Our client used to invoke the services of the global planner (ComputePathToPose)
-  planner_client_ = std::make_unique<nav2_tasks::ComputePathToPoseTaskClient>(this);
+
+  auto temp_node = std::shared_ptr<rclcpp::Node>(this, [](rclcpp::Node *) {});
+
+  planner_client_ = std::make_unique<nav2_tasks::ComputePathToPoseTaskClient>(temp_node);
 
   if (!planner_client_->waitForServer(nav2_tasks::defaultServerTimeout)) {
     RCLCPP_ERROR(this->get_logger(), "PlannerTester::PlannerTester: planner not running");
@@ -298,7 +301,7 @@ bool PlannerTester::defaultPlannerRandomTests(const unsigned int number_tests)
   std::uniform_int_distribution<> distribution_x(0, costmap_->getProperties().size_x);
   std::uniform_int_distribution<> distribution_y(0, costmap_->getProperties().size_y);
 
-  auto generate_random = [&]() mutable -> std::pair<int, int>{
+  auto generate_random = [&]() mutable -> std::pair<int, int> {
       bool point_is_free = false;
       int x, y;
       while (!point_is_free) {

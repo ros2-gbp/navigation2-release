@@ -14,131 +14,87 @@
 
 #include <string>
 #include <memory>
-#include <exception>
-#include <chrono>
+#include <fstream>
+#include <streambuf>
 #include "nav2_bt_navigator/bt_navigator.hpp"
+#include "nav2_bt_navigator/navigate_to_pose_behavior_tree.hpp"
+#include "nav2_tasks/compute_path_to_pose_task.hpp"
+#include "nav2_tasks/bt_conversions.hpp"
+#include "behaviortree_cpp/blackboard/blackboard_local.h"
 
-using namespace std::chrono_literals;
 using nav2_tasks::TaskStatus;
 
 namespace nav2_bt_navigator
 {
 
 BtNavigator::BtNavigator()
-: nav2_tasks::NavigateToPoseTaskServer("NavigateToPoseNode")
+: Node("BtNavigator")
 {
-  RCLCPP_INFO(get_logger(), "Initializing BtNavigator");
+  auto temp_node = std::shared_ptr<rclcpp::Node>(this, [](rclcpp::Node *) {});
 
-  plannerTaskClient_ = std::make_unique<nav2_tasks::ComputePathToPoseTaskClient>(this);
-  controllerTaskClient_ = std::make_unique<nav2_tasks::FollowPathTaskClient>(this);
+  robot_ = std::make_unique<nav2_robot::Robot>(temp_node);
 
-  if (!plannerTaskClient_->waitForServer(nav2_tasks::defaultServerTimeout)) {
-    RCLCPP_ERROR(get_logger(), "BtNavigator: Planner is not running");
-    throw std::runtime_error("BtNavigator: planner not running");
-  }
-
-  if (!controllerTaskClient_->waitForServer(nav2_tasks::defaultServerTimeout)) {
-    RCLCPP_ERROR(get_logger(), "BtNavigator: Controller is not running");
-    throw std::runtime_error("BtNavigator: controller not running");
-  }
-}
-
-BtNavigator::~BtNavigator()
-{
-  RCLCPP_INFO(get_logger(), "Shutting down BtNavigator");
+  task_server_ = std::make_unique<nav2_tasks::NavigateToPoseTaskServer>(temp_node);
+  task_server_->setExecuteCallback(
+    std::bind(&BtNavigator::navigateToPose, this, std::placeholders::_1));
 }
 
 TaskStatus
-BtNavigator::execute(const nav2_tasks::NavigateToPoseCommand::SharedPtr command)
+BtNavigator::navigateToPose(const nav2_tasks::NavigateToPoseCommand::SharedPtr command)
 {
-  RCLCPP_INFO(get_logger(), "BtNavigator: Received new navigation goal to (%.2f, %.2f).",
+  RCLCPP_INFO(get_logger(), "Start navigating to goal (%.2f, %.2f).",
     command->pose.position.x, command->pose.position.y);
 
-  // Compose the PathEndPoints message for Navigation
+  // Get the current pose from the robot
+  auto current = std::make_shared<geometry_msgs::msg::PoseWithCovarianceStamped>();
+
+  if (!robot_->getCurrentPose(current)) {
+    RCLCPP_ERROR(get_logger(), "Current robot pose is not available.");
+    return TaskStatus::FAILED;
+  }
+
+  // Create the blackboard that will be shared by all of the nodes in the tree
+  BT::Blackboard::Ptr blackboard = BT::Blackboard::create<BT::BlackboardLocal>();
+
+  // Put together the PathEndPoints message for the ComputePathToPose task
   auto endpoints = std::make_shared<nav2_tasks::ComputePathToPoseCommand>();
-  // TODO(mjeronimo): get the starting pose from Localization (fake it out for now)
-  endpoints->start = command->pose;
+  endpoints->start = current->pose.pose;
   endpoints->goal = command->pose;
+  endpoints->tolerance = 2.0;  // TODO(mjeronimo): this will come in the command message
 
-  RCLCPP_INFO(get_logger(), "BtNavigator: Getting a path from the planner.");
+  // The path returned from ComputePath and sent to the FollowPath task
   auto path = std::make_shared<nav2_tasks::ComputePathToPoseResult>();
-  plannerTaskClient_->sendCommand(endpoints);
 
-  // Loop until the subtasks are completed
-  for (;; ) {
-    // Check to see if this task (navigation) has been canceled. If so, cancel any child
-    // tasks and then cancel this task
-    if (cancelRequested()) {
-      RCLCPP_INFO(get_logger(), "BtNavigator: Task has been canceled.");
-      plannerTaskClient_->cancel();
-      setCanceled();
-      return TaskStatus::CANCELED;
-    }
+  // Set the shared data (commands/results)
+  blackboard->set<nav2_tasks::ComputePathToPoseCommand::SharedPtr>("endpoints", endpoints);
+  blackboard->set<nav2_tasks::ComputePathToPoseResult::SharedPtr>("path", path);  // NOLINT
 
-    // Check if the planning task has completed
-    TaskStatus status = plannerTaskClient_->waitForResult(path, 100ms);
+  // Get the filename to use from the parameter
+  get_parameter_or<std::string>("bt_xml_filename", bt_xml_filename_,
+    std::string("bt_navigator.xml"));
 
-    switch (status) {
-      case TaskStatus::SUCCEEDED:
-        RCLCPP_INFO(get_logger(), "BtNavigator: Planning task completed.");
-        goto here;
+  // Read the input BT XML file into a string
+  std::ifstream xml_file(bt_xml_filename_);
 
-      case TaskStatus::FAILED:
-        return TaskStatus::FAILED;
-
-      case TaskStatus::RUNNING:
-        RCLCPP_DEBUG(get_logger(), "BtNavigator: Planning task still running");
-        break;
-
-      default:
-        RCLCPP_ERROR(get_logger(), "BtNavigator: Invalid status value.");
-        throw std::logic_error("BtNavigator::execute: invalid status value");
-    }
+  if (!xml_file.good()) {
+    RCLCPP_ERROR(get_logger(), "Couldn't open input XML file: %s", bt_xml_filename_.c_str());
+    return TaskStatus::FAILED;
   }
 
-here:
-  RCLCPP_INFO(get_logger(),
-    "BtNavigator: Sending the path to the controller to execute.");
+  std::string xml_string((std::istreambuf_iterator<char>(xml_file)),
+    std::istreambuf_iterator<char>());
 
-  controllerTaskClient_->sendCommand(path);
+  RCLCPP_INFO(get_logger(), "Behavior Tree file: '%s'", bt_xml_filename_.c_str());
+  RCLCPP_INFO(get_logger(), "Behavior Tree XML: %s", xml_string.c_str());
 
-  // Loop until the control task completes
-  for (;; ) {
-    // Check to see if this task (navigation) has been canceled. If so, cancel any child
-    // tasks and then cancel this task
-    if (cancelRequested()) {
-      RCLCPP_INFO(get_logger(), "BtNavigator: Task has been canceled.");
-      controllerTaskClient_->cancel();
-      setCanceled();
-      return TaskStatus::CANCELED;
-    }
+  // Create and run the behavior tree
+  NavigateToPoseBehaviorTree bt(shared_from_this());
 
-    // Check if the control task has completed
-    auto controlResult = std::make_shared<nav2_tasks::FollowPathResult>();
-    TaskStatus status = controllerTaskClient_->waitForResult(controlResult, 10ms);
+  TaskStatus result = bt.run(blackboard, xml_string,
+      std::bind(&nav2_tasks::NavigateToPoseTaskServer::cancelRequested, task_server_.get()));
 
-    switch (status) {
-      case TaskStatus::SUCCEEDED:
-        {
-          RCLCPP_INFO(get_logger(), "BtNavigator: Control task completed.");
-          nav2_tasks::NavigateToPoseResult navigationResult;
-          setResult(navigationResult);
-
-          return TaskStatus::SUCCEEDED;
-        }
-
-      case TaskStatus::FAILED:
-        return TaskStatus::FAILED;
-
-      case TaskStatus::RUNNING:
-        RCLCPP_INFO(get_logger(), "BtNavigator: Control task still running.");
-        break;
-
-      default:
-        RCLCPP_ERROR(get_logger(), "BtNavigator: Invalid status value.");
-        throw std::logic_error("BtNavigator::execute: invalid status value");
-    }
-  }
+  RCLCPP_INFO(get_logger(), "Completed navigation: result: %d", result);
+  return result;
 }
 
 }  // namespace nav2_bt_navigator

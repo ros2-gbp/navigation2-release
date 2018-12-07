@@ -12,7 +12,7 @@ notifications:
     on_success: change
     on_failure: change
     recipients:
-      - stevenamcenski@gmail.com
+      - stevenmacenski@gmail.com
       - mohammad.haghighipanah@intel.com
       - michael.jeronimo@intel.com
       - carlos.a.orduno@intel.com
@@ -20,7 +20,13 @@ notifications:
       - matthew.k.hansen@intel.com
 
 before_install:
+  - if [ "${TRAVIS_REPO_SLUG}" != "ros-planning/navigation2" ]; then echo "Travis CI is supported only in ros-planning/navigation2" && exit 1; fi
   - docker build -t nav2:latest --build-arg PULLREQ=$TRAVIS_PULL_REQUEST .
 
 script:
-  - docker run nav2:latest /bin/bash -c echo "Testing"
+  - docker run --name nav2_bash --rm -d -i -t nav2:latest bash -l
+  - docker exec nav2_bash bash -c '. /ros2_ws/navigation2_ws/install/setup.bash &&
+      colcon test --packages-skip nav2_costmap_2d
+        nav2_dynamic_params nav2_map_server nav2_navfn_planner nav2_robot nav2_system_tests
+        nav2_tasks'
+  - docker exec nav2_bash bash -c "colcon test-result --verbose"

@@ -7,7 +7,7 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror -fPIC)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -21,6 +21,7 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(nav2_util REQUIRED)
 find_package(nav2_tasks REQUIRED)
+find_package(nav2_dynamic_params)
 
 include_directories(
   include
@@ -34,7 +35,7 @@ add_executable(${executable_name}
 
 set(library_name ${executable_name}_core)
 
-add_library(${library_name}
+add_library(${library_name} SHARED
   src/amcl_node.cpp
 )
 
@@ -49,6 +50,7 @@ set(dependencies
   tf2
   nav2_util
   nav2_tasks
+  nav2_dynamic_params
 )
 
 ament_target_dependencies(${executable_name}
@@ -69,6 +71,10 @@ install(TARGETS ${executable_name} ${library_name}
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY include/
+  DESTINATION include/
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
@@ -81,5 +87,7 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_include_directories(include)
+ament_export_libraries(${library_name})
+ament_export_dependencies(${dependencies})
 
 ament_package()

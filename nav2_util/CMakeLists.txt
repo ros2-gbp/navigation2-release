@@ -7,7 +7,7 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror -fPIC)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -50,9 +50,15 @@ add_library(pf_lib SHARED
 )
 
 add_library(sensors_lib SHARED
-  src/sensors/sensor.cpp
-  src/sensors/odom.cpp
-  src/sensors/laser.cpp
+  src/sensors/laser/laser.cpp
+  src/sensors/laser/beam_model.cpp
+  src/sensors/laser/likelihood_field_model.cpp
+  src/sensors/laser/likelihood_field_model_prob.cpp
+)
+
+add_library(motions_lib SHARED
+  src/motion_model/omni_motion_model.cpp
+  src/motion_model/differential_motion_model.cpp
 )
 
 add_library(map_loader SHARED
@@ -77,6 +83,7 @@ install(TARGETS
   map_lib
   pf_lib
   sensors_lib
+  motions_lib
   map_loader
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib)
@@ -91,9 +98,12 @@ if(BUILD_TESTING)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  find_package(ament_cmake_gtest REQUIRED)
+  add_subdirectory(test)
 endif()
 
 ament_export_include_directories(include)
-ament_export_libraries(costmap_lib pf_lib sensors_lib map_lib map_loader)
+ament_export_libraries(costmap_lib pf_lib sensors_lib motions_lib map_lib map_loader)
 
 ament_package()

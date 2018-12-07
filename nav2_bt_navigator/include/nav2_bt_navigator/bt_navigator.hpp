@@ -17,25 +17,24 @@
 
 #include <string>
 #include <memory>
-#include "nav2_tasks/task_status.hpp"
 #include "nav2_tasks/navigate_to_pose_task.hpp"
-#include "nav2_tasks/compute_path_to_pose_task.hpp"
-#include "nav2_tasks/follow_path_task.hpp"
+#include "nav2_robot/robot.hpp"
 
 namespace nav2_bt_navigator
 {
 
-class BtNavigator : public nav2_tasks::NavigateToPoseTaskServer
+class BtNavigator : public rclcpp::Node
 {
 public:
   BtNavigator();
-  ~BtNavigator();
 
-  nav2_tasks::TaskStatus execute(const nav2_tasks::NavigateToPoseCommand::SharedPtr command);
+  nav2_tasks::TaskStatus navigateToPose(
+    const nav2_tasks::NavigateToPoseCommand::SharedPtr command);
 
-protected:
-  std::unique_ptr<nav2_tasks::ComputePathToPoseTaskClient> plannerTaskClient_;
-  std::unique_ptr<nav2_tasks::FollowPathTaskClient> controllerTaskClient_;
+private:
+  std::unique_ptr<nav2_robot::Robot> robot_;
+  std::unique_ptr<nav2_tasks::NavigateToPoseTaskServer> task_server_;
+  std::string bt_xml_filename_;
 };
 
 }  // namespace nav2_bt_navigator

@@ -31,24 +31,35 @@ template<class CommandMsg, class ResultMsg>
 const char * getTaskName();
 
 template<class CommandMsg, class ResultMsg>
-class TaskServer : public rclcpp::Node
+class TaskServer
 {
 public:
-  explicit TaskServer(const std::string & name, bool autoStart = true)
-  : Node(name),
+  explicit TaskServer(rclcpp::Node::SharedPtr & node, bool autoStart = true)
+  : node_(node),
     workerThread_(nullptr),
     commandReceived_(false),
+    updateReceived_(false),
+    cancelReceived_(false),
     eptr_(nullptr)
   {
     std::string taskName = getTaskName<CommandMsg, ResultMsg>();
-    commandSub_ = create_subscription<CommandMsg>(taskName + "_command",
+
+    commandSub_ = node_->create_subscription<CommandMsg>(taskName + "_command",
         std::bind(&TaskServer::onCommandReceived, this, std::placeholders::_1));
 
-    cancelSub_ = create_subscription<std_msgs::msg::Empty>(taskName + "_cancel",
+    updateSub_ = node_->create_subscription<CommandMsg>(taskName + "_update",
+        std::bind(&TaskServer::onUpdateReceived, this, std::placeholders::_1));
+
+    cancelSub_ = node_->create_subscription<std_msgs::msg::Empty>(taskName + "_cancel",
         std::bind(&TaskServer::onCancelReceived, this, std::placeholders::_1));
 
-    resultPub_ = this->create_publisher<ResultMsg>(taskName + "_result");
-    statusPub_ = this->create_publisher<StatusMsg>(taskName + "_status");
+    resultPub_ = node_->create_publisher<ResultMsg>(taskName + "_result");
+    statusPub_ = node_->create_publisher<StatusMsg>(taskName + "_status");
+
+    execute_callback_ = [this](const typename CommandMsg::SharedPtr) {
+        printf("Execute callback not set!\n");
+        return TaskStatus::FAILED;
+      };
 
     if (autoStart) {
       startWorkerThread();
@@ -60,7 +71,11 @@ public:
     stopWorkerThread();
   }
 
-  virtual TaskStatus execute(const typename CommandMsg::SharedPtr command) = 0;
+  typedef std::function<TaskStatus(const typename CommandMsg::SharedPtr command)> ExecuteCallback;
+  void setExecuteCallback(ExecuteCallback execute_callback)
+  {
+    execute_callback_ = execute_callback;
+  }
 
   // The user's execute method can check if the client is requesting a cancel
   bool cancelRequested()
@@ -73,13 +88,38 @@ public:
     cancelReceived_ = false;
   }
 
+  void getCommandUpdate(typename CommandMsg::SharedPtr & command)
+  {
+    *command = *updateMsg_;
+  }
+
+  bool updateRequested()
+  {
+    return updateReceived_;
+  }
+
+  void setUpdated()
+  {
+    updateReceived_ = false;
+  }
+
   void setResult(const ResultMsg & result)
   {
     resultMsg_ = result;
   }
 
+  void startWorkerThread()
+  {
+    workerThread_ = new std::thread(&TaskServer::workerThread, this);
+  }
+
 protected:
+  rclcpp::Node::SharedPtr node_;
+
+  ExecuteCallback execute_callback_;
+
   typename CommandMsg::SharedPtr commandMsg_;
+  typename CommandMsg::SharedPtr updateMsg_;
   ResultMsg resultMsg_;
 
   // These messages are internal to the TaskClient implementation
@@ -102,7 +142,7 @@ protected:
 
         // Call the user's overridden method
         try {
-          status = execute(commandMsg_);
+          status = execute_callback_(commandMsg_);
         } catch (...) {
           statusMsg.result = nav2_msgs::msg::TaskStatus::FAILED;
           statusPub_->publish(statusMsg);
@@ -139,6 +179,8 @@ protected:
           // Or the canceled code
           statusMsg.result = nav2_msgs::msg::TaskStatus::CANCELED;
           statusPub_->publish(statusMsg);
+
+          cancelReceived_ = false;
         } else {
           throw std::logic_error("Unexpected status return from task");
         }
@@ -148,12 +190,6 @@ protected:
 
   // TODO(mjeronimo): Make explicit start and stop calls to control
   // the worker thread
-
-  // Convenience routines for starting and stopping the worker thread.
-  void startWorkerThread()
-  {
-    workerThread_ = new std::thread(&TaskServer::workerThread, this);
-  }
 
   void stopWorkerThread()
   {
@@ -172,10 +208,8 @@ protected:
   std::mutex commandMutex_;
   bool commandReceived_;
   std::condition_variable cvCommand_;
-
-  // Variables to handle the communication of the cancel request to the execute thread
+  std::atomic<bool> updateReceived_;
   std::atomic<bool> cancelReceived_;
-  std::condition_variable cvCancel_;
 
   // The callbacks for our subscribers
   void onCommandReceived(const typename CommandMsg::SharedPtr msg)
@@ -189,14 +223,20 @@ protected:
     cvCommand_.notify_one();
   }
 
+  void onUpdateReceived(const typename CommandMsg::SharedPtr msg)
+  {
+    updateMsg_ = msg;
+    updateReceived_ = true;
+  }
+
   void onCancelReceived(const CancelMsg::SharedPtr /*msg*/)
   {
     cancelReceived_ = true;
-    cvCancel_.notify_one();
   }
 
   // The subscribers: command and cancel
   typename rclcpp::Subscription<CommandMsg>::SharedPtr commandSub_;
+  typename rclcpp::Subscription<CommandMsg>::SharedPtr updateSub_;
   rclcpp::Subscription<CancelMsg>::SharedPtr cancelSub_;
 
   // The publishers for the result from this task

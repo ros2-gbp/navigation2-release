@@ -7,7 +7,7 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror -fPIC)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -16,7 +16,9 @@ find_package(rclcpp REQUIRED)
 include_directories(
   include)
 
-add_library(voxel_grid src/voxel_grid.cpp)
+add_library(voxel_grid SHARED
+  src/voxel_grid.cpp
+)
 
 set(dependencies
   rclcpp

@@ -36,8 +36,8 @@
  * Author: Eitan Marder-Eppstein
  *         David V. Lu!!
  *********************************************************************/
-#include <nav2_costmap_2d/static_layer.h>
-#include <nav2_costmap_2d/costmap_math.h>
+#include <nav2_costmap_2d/static_layer.hpp>
+#include <nav2_costmap_2d/costmap_math.hpp>
 #include <pluginlib/class_list_macros.hpp>
 #include <tf2/convert.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -67,7 +67,7 @@ void StaticLayer::onInitialize()
 
   global_frame_ = layered_costmap_->getGlobalFrameID();
 
-  node_->set_parameter_if_not_set("enabled_static_layer",true);
+  node_->set_parameter_if_not_set(name_ + "." + "enabled",true);
 
   std::string map_topic;
   node_->get_parameter_or<std::string>("map_topic", map_topic, std::string("occ_grid"));
@@ -121,17 +121,17 @@ void StaticLayer::onInitialize()
   }
 
   dynamic_param_client_ = new nav2_dynamic_params::DynamicParamsClient(node_);
-  dynamic_param_client_->set_callback(std::bind(&StaticLayer::reconfigureCB, this, std::placeholders::_1));
+  dynamic_param_client_->add_parameters({name_ + "." + "enabled"});
+  dynamic_param_client_->set_callback(std::bind(&StaticLayer::reconfigureCB, this));
   // TODO(bpwilcox): Add new parameters to parameter validation class from plugins
-  // TODO(bpwilcox): Initialize callback for dynamic parameters
 }
 
-void StaticLayer::reconfigureCB(const rcl_interfaces::msg::ParameterEvent::SharedPtr event)
+void StaticLayer::reconfigureCB()
 {
   RCLCPP_DEBUG(node_->get_logger(), "StaticLayer:: Event Callback");
 
   bool enabled = true;
-  dynamic_param_client_->get_event_param_or(event,"enabled_static_layer", enabled, true); 
+  dynamic_param_client_->get_event_param_or(name_ + "." + "enabled", enabled, true); 
 
   if (enabled != enabled_)
   {

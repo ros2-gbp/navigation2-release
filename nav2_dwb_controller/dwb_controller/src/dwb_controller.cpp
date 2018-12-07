@@ -16,8 +16,8 @@
 #include <string>
 #include <chrono>
 #include <memory>
-#include "dwb_core/exceptions.h"
-#include "nav_2d_utils/conversions.h"
+#include "dwb_core/exceptions.hpp"
+#include "nav_2d_utils/conversions.hpp"
 
 using namespace std::chrono_literals;
 using std::shared_ptr;
@@ -25,13 +25,27 @@ using nav2_tasks::TaskStatus;
 using dwb_core::DWBLocalPlanner;
 using dwb_core::CostmapROSPtr;
 
+#define NO_OP_DELETER [] (auto) {}
+
 namespace nav2_dwb_controller
 {
 
-// TODO(cdelsey): provide the correct clock to tfBuffer_
-DwbController::DwbController()
-: nav2_tasks::FollowPathTaskServer("FollowPathNode"), tfBuffer_(std::make_shared<rclcpp::Clock>()), tfListener_(tfBuffer_)
+DwbController::DwbController(rclcpp::executor::Executor & executor)
+: Node("DwbController"),
+  tfBuffer_(get_clock()),
+  tfListener_(tfBuffer_)
 {
+  auto temp_node = std::shared_ptr<rclcpp::Node>(this, [](auto) {});
+
+  cm_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("local_costmap", tfBuffer_);
+  executor.add_node(cm_);
+  odom_sub_ = std::make_shared<nav_2d_utils::OdomSubscriber>(*this);
+  vel_pub_ =
+    this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
+
+  task_server_ = std::make_unique<nav2_tasks::FollowPathTaskServer>(temp_node);
+  task_server_->setExecuteCallback(
+    std::bind(&DwbController::followPath, this, std::placeholders::_1));
 }
 
 DwbController::~DwbController()
@@ -39,17 +53,32 @@ DwbController::~DwbController()
 }
 
 TaskStatus
-DwbController::execute(const nav2_tasks::FollowPathCommand::SharedPtr command)
+DwbController::followPath(const nav2_tasks::FollowPathCommand::SharedPtr command)
 {
+#if 0
+  // TODO(mjeronimo): Integrate the following example code into the
+  // main loop below
+
+  while (true) {
+    ...
+
+    if (task_server_->updateRequested()) {
+      auto new_path = std::make_shared<nav2_tasks::FollowPathCommand>();
+      task_server_->getCommandUpdate(new_path);
+      task_server_->setUpdated();
+
+      // Update the target path
+    }
+
+    ...
+  }
+#endif
+
   RCLCPP_INFO(get_logger(), "Starting controller");
   try {
     auto path = nav_2d_utils::pathToPath2D(*command);
-    cm_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("local_costmap", tfBuffer_);
     auto nh = shared_from_this();
-    odom_sub_ = std::make_shared<nav_2d_utils::OdomSubscriber>(*this);
-    vel_pub_ =
-      this->create_publisher<geometry_msgs::msg::Twist>("/mobile_base/commands/velocity", 1);
-    planner_.initialize(nh, shared_ptr<tf2_ros::Buffer>(&tfBuffer_), cm_);
+    planner_.initialize(nh, shared_ptr<tf2_ros::Buffer>(&tfBuffer_, NO_OP_DELETER), cm_);
     planner_.setPlan(path);
     RCLCPP_INFO(get_logger(), "Initialized");
     while (true) {
@@ -65,9 +94,10 @@ DwbController::execute(const nav2_tasks::FollowPathCommand::SharedPtr command)
         auto cmd_vel_2d = planner_.computeVelocityCommands(pose2d, velocity);
         publishVelocity(cmd_vel_2d);
         RCLCPP_INFO(get_logger(), "Publishing velocity");
-        if (cancelRequested()) {
+        if (task_server_->cancelRequested()) {
           RCLCPP_INFO(this->get_logger(), "execute: task has been canceled");
-          setCanceled();
+          task_server_->setCanceled();
+          publishZeroVelocity();
           return TaskStatus::CANCELED;
         }
       }
@@ -75,11 +105,13 @@ DwbController::execute(const nav2_tasks::FollowPathCommand::SharedPtr command)
     }
   } catch (nav_core2::PlannerException & e) {
     RCLCPP_INFO(this->get_logger(), e.what());
+    publishZeroVelocity();
     return TaskStatus::FAILED;
   }
 
   nav2_tasks::FollowPathResult result;
-  setResult(result);
+  task_server_->setResult(result);
+  publishZeroVelocity();
 
   return TaskStatus::SUCCEEDED;
 }

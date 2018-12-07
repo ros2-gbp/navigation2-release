@@ -32,10 +32,10 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dwb_critics/base_obstacle.h"
-#include "dwb_core/exceptions.h"
+#include "dwb_critics/base_obstacle.hpp"
+#include "dwb_core/exceptions.hpp"
 #include "pluginlib/class_list_macros.hpp"
-#include "nav2_costmap_2d/cost_values.h"
+#include "nav2_costmap_2d/cost_values.hpp"
 
 PLUGINLIB_EXPORT_CLASS(dwb_critics::BaseObstacleCritic, dwb_core::TrajectoryCritic)
 
@@ -45,7 +45,7 @@ namespace dwb_critics
 void BaseObstacleCritic::onInit()
 {
   costmap_ = costmap_ros_->getCostmap();
-  nh_->get_parameter_or("sum_scores", sum_scores_, false);
+  nh_->get_parameter_or(name_ + ".sum_scores", sum_scores_, false);
 }
 
 double BaseObstacleCritic::scoreTrajectory(const dwb_msgs::msg::Trajectory2D & traj)

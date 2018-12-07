@@ -32,13 +32,13 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "dwb_core/publisher.h"
+#include "dwb_core/publisher.hpp"
 #include <vector>
 #include <memory>
 #include "visualization_msgs/msg/marker.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
-#include "nav_2d_utils/conversions.h"
+#include "nav_2d_utils/conversions.hpp"
 //#include <sensor_msgs/point_cloud_conversion.hpp> // NOLINT cpplint doesn't like commented out header file
 
 namespace dwb_core
@@ -116,6 +116,8 @@ void DWBPublisher::publishTrajectories(const dwb_msgs::msg::LocalPlanEvaluation 
       m.color.b = 1;
       m.ns = "ValidTrajectories";
     } else {
+      m.color.r = 0;
+      m.color.g = 0;
       m.color.b = 0;
       m.ns = "InvalidTrajectories";
     }

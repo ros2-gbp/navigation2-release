@@ -7,7 +7,7 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror -fPIC)
 endif()
 
 find_package(ament_cmake REQUIRED)
@@ -33,10 +33,9 @@ add_executable(${executable_name}
 
 set(library_name ${executable_name}_core)
 
-add_library(${library_name}
-  src/map_representations/occ_grid_server.cpp
-  src/map_representations/map_factory.cpp
-  src/map_server_ros.cpp
+add_library(${library_name} SHARED
+  src/occ_grid_loader.cpp
+  src/map_server.cpp
 )
 
 set(dependencies
