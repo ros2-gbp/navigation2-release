@@ -1,0 +1,12 @@
+Source: ros-crystal-navigation2
+Section: misc
+Priority: extra
+Maintainer: Oregon Robotics Team <oregon.robotics.team@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-crystal-ament-cmake, ros-crystal-ament-cmake-gtest, ros-crystal-ament-cmake-pytest, ros-crystal-ament-lint-auto, ros-crystal-ament-lint-common, ros-crystal-launch, ros-crystal-launch-testing, ros-crystal-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-crystal-navigation2
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-crystal-nav2-amcl, ros-crystal-nav2-bt-navigator, ros-crystal-nav2-costmap-2d, ros-crystal-nav2-dwb-controller, ros-crystal-nav2-dynamic-params, ros-crystal-nav2-map-server, ros-crystal-nav2-mission-executor, ros-crystal-nav2-msgs, ros-crystal-nav2-navfn-planner, ros-crystal-nav2-robot, ros-crystal-nav2-simple-navigator, ros-crystal-nav2-system-tests, ros-crystal-nav2-tasks, ros-crystal-nav2-util, ros-crystal-nav2-voxel-grid, ros-crystal-nav2-world-model, ros-crystal-ros-workspace
+Description: ROS2 Navigation Stack
