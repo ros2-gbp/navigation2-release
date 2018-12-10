@@ -60,9 +60,12 @@ add_library(nav2_costmap_2d_core SHARED
 
 set(dependencies
   rclcpp
+  rosidl_default_generators
   geometry_msgs
   nav_msgs
+  std_msgs
   map_msgs
+  sensor_msgs
   tf2_ros
   tf2
   pluginlib
@@ -131,12 +134,15 @@ install(DIRECTORY include/
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  # the following line skips the linter which checks for copyrights
+  set(ament_cmake_copyright_FOUND TRUE)
+  set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_pytest REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
   # TODO(bpwilcox): Port/Add unit and component tests
-  #add_subdirectory(test)
+  # add_subdirectory(test)
 endif()
 
 ament_export_include_directories(include)
