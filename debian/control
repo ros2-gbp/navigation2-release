@@ -1,0 +1,13 @@
+Source: ros-crystal-nav2-amcl
+Section: misc
+Priority: extra
+Maintainer: Michael Ferguson <mfergs7@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-crystal-ament-cmake, ros-crystal-ament-cmake-gtest, ros-crystal-ament-cmake-pytest, ros-crystal-ament-lint-auto, ros-crystal-ament-lint-common, ros-crystal-geometry-msgs, ros-crystal-launch, ros-crystal-launch-ros, ros-crystal-launch-testing, ros-crystal-message-filters, ros-crystal-nav-msgs, ros-crystal-nav2-dynamic-params, ros-crystal-nav2-tasks, ros-crystal-nav2-util, ros-crystal-rclcpp, ros-crystal-sensor-msgs, ros-crystal-std-srvs, ros-crystal-tf2, ros-crystal-tf2-geometry-msgs, ros-crystal-tf2-ros, ros-crystal-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-crystal-nav2-amcl
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-crystal-geometry-msgs, ros-crystal-launch-ros, ros-crystal-launch-testing, ros-crystal-message-filters, ros-crystal-nav-msgs, ros-crystal-nav2-dynamic-params, ros-crystal-nav2-tasks, ros-crystal-nav2-util, ros-crystal-rclcpp, ros-crystal-sensor-msgs, ros-crystal-std-srvs, ros-crystal-tf2, ros-crystal-tf2-geometry-msgs, ros-crystal-tf2-ros, ros-crystal-ros-workspace
+Description: amcl is a probabilistic localization system for a robot moving in 2D.
+ It implements the adaptive (or KLD-sampling) Monte Carlo localization approach (as described by Dieter Fox), which uses a particle filter to track the pose of a robot against a known map. This node is derived, with thanks, from Andrew Howard's excellent 'amcl' Player driver.
