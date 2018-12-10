@@ -1,0 +1,12 @@
+Source: ros-crystal-nav2-bt-navigator
+Section: misc
+Priority: extra
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-crystal-ament-cmake, ros-crystal-ament-cmake-gtest, ros-crystal-ament-cmake-pytest, ros-crystal-ament-lint-auto, ros-crystal-ament-lint-common, ros-crystal-behaviortree-cpp, ros-crystal-launch, ros-crystal-launch-testing, ros-crystal-nav-msgs, ros-crystal-nav2-msgs, ros-crystal-nav2-tasks, ros-crystal-rclcpp, ros-crystal-std-msgs, ros-crystal-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-crystal-nav2-bt-navigator
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-crystal-behaviortree-cpp, ros-crystal-nav-msgs, ros-crystal-nav2-msgs, ros-crystal-nav2-tasks, ros-crystal-rclcpp, ros-crystal-std-msgs, ros-crystal-ros-workspace
+Description: TODO
