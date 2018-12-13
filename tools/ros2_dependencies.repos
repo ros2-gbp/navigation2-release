@@ -1,9 +1,0 @@
-repositories:
-  BehaviorTree.CPP:
-    type: git
-    url: https://github.com/BehaviorTree/BehaviorTree.CPP.git
-    version: ros2
-  angles:
-    type: git
-    url: https://github.com/ros/angles.git
-    version: ros2
