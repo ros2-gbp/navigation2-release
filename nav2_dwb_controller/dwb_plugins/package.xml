@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>dwb_plugins</name>
-  <version>0.1.5</version>
+  <version>0.1.6</version>
   <description>
       Standard implementations of the GoalChecker
       and TrajectoryGenerators for dwb_core
@@ -12,6 +12,7 @@
   <license>BSD</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>nav2_common</build_depend>
 
   <depend>angles</depend>
   <depend>dwb_core</depend>
