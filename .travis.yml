@@ -1,0 +1,52 @@
+sudo: required
+
+language:
+  - none
+
+services:
+  - docker
+
+notifications:
+  email:
+    on_pull_requests: false
+    on_success: change
+    on_failure: change
+    recipients:
+      - stevenmacenski@gmail.com
+      - mohammad.haghighipanah@intel.com
+      - michael.jeronimo@intel.com
+      - carlos.a.orduno@intel.com
+      - carl.r.delsey@intel.com
+      - matthew.k.hansen@intel.com
+
+env:
+  - CMAKE_BUILD_TYPE=Release
+
+before_install:
+  - if [ "${TRAVIS_REPO_SLUG}" != "ros-planning/navigation2" ];
+      then echo "Travis CI is supported only in ros-planning/navigation2" && exit 1;
+      fi
+  - docker build --tag navigation2:latest
+      --build-arg PULLREQ=$TRAVIS_PULL_REQUEST
+      --build-arg CMAKE_BUILD_TYPE
+      ./
+
+script:
+  - docker run --rm --detach --name nav2_bash navigation2:latest
+      sleep infinity
+  - docker exec --interactive --tty nav2_bash /ros_entrypoint.sh
+      colcon test --packages-skip nav2_system_tests
+  - docker exec --interactive --tty nav2_bash /ros_entrypoint.sh
+      colcon test-result --verbose
+  - docker exec --interactive --tty nav2_bash /ros_entrypoint.sh
+      cp src/navigation2/tools/ctest_retry.bash build/nav2_system_tests
+  - docker exec --interactive --tty nav2_bash /ros_entrypoint.sh
+       bash -c "cd build/nav2_system_tests ; ./ctest_retry.bash 3"
+
+after_success:
+  - if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_PULL_REQUEST" == "false" ]; then
+      echo "Successfully built! Deploying container..."
+      docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD ;
+      docker tag navigation2:latest stevemacenski/navigation2:latest
+      docker push stevemacenski/navigation2:latest ;
+      fi
