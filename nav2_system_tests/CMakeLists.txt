@@ -1,17 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(nav2_system_tests)
 
-# Default to C++14
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
-endif()
-
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall) # -Wextra) # -Wpedantic)
-endif()
-
 find_package(ament_cmake REQUIRED)
-
+find_package(nav2_common REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(nav2_tasks REQUIRED)
@@ -21,8 +12,12 @@ find_package(nav_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(gazebo_ros_pkgs REQUIRED)
 find_package(nav2_amcl REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(navigation2)
+
+nav2_package()
 
 set(dependencies
   rclcpp
@@ -32,22 +27,23 @@ set(dependencies
   nav_msgs
   visualization_msgs
   nav2_amcl
+  gazebo_ros_pkgs
   geometry_msgs
   std_msgs
   rclpy
 )
 
-#if(BUILD_TESTING)
-#  find_package(ament_lint_auto REQUIRED)
-#  ament_lint_auto_find_test_dependencies()
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
 
-#  find_package(ament_cmake_gtest REQUIRED)
-#  find_package(ament_cmake_pytest REQUIRED)
+  find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
 
-# This test is failing, see issue #221  add_subdirectory(src/planning)
-#  add_subdirectory(src/localization)
-#  add_subdirectory(src/system)
+#  add_subdirectory(src/planning)
+  add_subdirectory(src/localization)
+  add_subdirectory(src/system)
 
-#endif()
+endif()
 
 ament_package()
