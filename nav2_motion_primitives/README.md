@@ -1,2 +1,0 @@
-# Behaviors
-TODO (orduno)
