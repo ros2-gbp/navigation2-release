@@ -1,16 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(nav2_map_server)
 
-# Default to C++14
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
-endif()
-
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror -fPIC)
-endif()
-
 find_package(ament_cmake REQUIRED)
+find_package(nav2_common REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(Bullet REQUIRED)
@@ -19,6 +11,8 @@ find_package(SDL_image REQUIRED)
 find_package(yaml_cpp_vendor REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
+
+nav2_package()
 
 include_directories(
   include
@@ -44,6 +38,7 @@ set(library_name ${map_server_executable}_core)
 add_library(${library_name} SHARED
   src/occ_grid_loader.cpp
   src/map_server.cpp
+  src/map_generator.cpp
 )
 
 set(map_server_dependencies
@@ -51,6 +46,7 @@ set(map_server_dependencies
   nav_msgs
   yaml_cpp_vendor
   std_msgs
+  tf2
 )
 
 set(map_saver_dependencies
@@ -72,6 +68,10 @@ ament_target_dependencies(${library_name}
 )
 
 target_link_libraries(${map_server_executable}
+  ${library_name}
+)
+
+target_link_libraries(${map_saver_executable}
   ${library_name}
 )
 
