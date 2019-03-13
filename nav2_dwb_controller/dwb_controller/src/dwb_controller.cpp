@@ -43,6 +43,9 @@ DwbController::DwbController(rclcpp::executor::Executor & executor)
   vel_pub_ =
     this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
 
+  auto nh = shared_from_this();
+  planner_.initialize(nh, shared_ptr<tf2_ros::Buffer>(&tfBuffer_, NO_OP_DELETER), cm_);
+
   task_server_ = std::make_unique<nav2_tasks::FollowPathTaskServer>(temp_node);
   task_server_->setExecuteCallback(
     std::bind(&DwbController::followPath, this, std::placeholders::_1));
@@ -58,13 +61,12 @@ DwbController::followPath(const nav2_tasks::FollowPathCommand::SharedPtr command
   RCLCPP_INFO(get_logger(), "Starting controller");
   try {
     auto path = nav_2d_utils::pathToPath2D(*command);
-    auto nh = shared_from_this();
 
-    planner_.initialize(nh, shared_ptr<tf2_ros::Buffer>(&tfBuffer_, NO_OP_DELETER), cm_);
     planner_.setPlan(path);
     RCLCPP_INFO(get_logger(), "Initialized");
 
-    while (true) {
+    rclcpp::Rate loop_rate(10);
+    while (rclcpp::ok()) {
       nav_2d_msgs::msg::Pose2DStamped pose2d;
       if (!getRobotPose(pose2d)) {
         RCLCPP_INFO(get_logger(), "No pose. Stopping robot");
@@ -76,7 +78,7 @@ DwbController::followPath(const nav2_tasks::FollowPathCommand::SharedPtr command
         auto velocity = odom_sub_->getTwist();
         auto cmd_vel_2d = planner_.computeVelocityCommands(pose2d, velocity);
         publishVelocity(cmd_vel_2d);
-        RCLCPP_INFO(get_logger(), "Publishing velocity");
+        RCLCPP_INFO(get_logger(), "Publishing velocity at time %.2f", now().seconds());
 
         // Check if this task has been canceled
         if (task_server_->cancelRequested()) {
@@ -98,7 +100,7 @@ DwbController::followPath(const nav2_tasks::FollowPathCommand::SharedPtr command
           planner_.setPlan(path);
         }
       }
-      std::this_thread::sleep_for(100ms);
+      loop_rate.sleep();
     }
   } catch (nav_core2::PlannerException & e) {
     RCLCPP_INFO(this->get_logger(), e.what());
