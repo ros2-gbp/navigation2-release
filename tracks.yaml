@@ -40,7 +40,7 @@ tracks:
     last_version: 0.1.6
     name: navigation2
     patches: null
-    release_inc: '0'
+    release_inc: '1'
     release_repo_url: null
     release_tag: :{version}
     ros_distro: crystal
