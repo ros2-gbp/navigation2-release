@@ -2,12 +2,13 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>nav2_motion_primitives</name>
-  <version>0.1.5</version>
+  <version>0.1.6</version>
   <description>TODO</description>
   <maintainer email="carlos.a.orduno@intel.com">Carlos Orduno</maintainer>
   <license>Apache License 2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>nav2_common</build_depend>
 
   <build_depend>rclcpp</build_depend>
   <build_depend>nav2_tasks</build_depend>
