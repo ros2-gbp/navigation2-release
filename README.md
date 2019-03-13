@@ -1,3 +1,53 @@
+## navigation2 (crystal) - 0.1.6-0
+
+The packages in the `navigation2` repository were released into the `crystal` distro by running `/usr/bin/bloom-release --rosdistro crystal --track crystal navigation2 --edit` on `Wed, 13 Mar 2019 02:08:44 -0000`
+
+These packages were released:
+- `costmap_queue`
+- `dwb_controller`
+- `dwb_core`
+- `dwb_critics`
+- `dwb_msgs`
+- `dwb_plugins`
+- `nav2_amcl`
+- `nav2_bringup`
+- `nav2_bt_navigator`
+- `nav2_common`
+- `nav2_costmap_2d`
+- `nav2_dwb_controller`
+- `nav2_dynamic_params`
+- `nav2_map_server`
+- `nav2_mission_executor`
+- `nav2_motion_primitives`
+- `nav2_msgs`
+- `nav2_navfn_planner`
+- `nav2_robot`
+- `nav2_simple_navigator`
+- `nav2_tasks`
+- `nav2_util`
+- `nav2_voxel_grid`
+- `nav2_world_model`
+- `nav_2d_msgs`
+- `nav_2d_utils`
+- `navigation2`
+
+Version of package(s) in repository `navigation2`:
+
+- upstream repository: https://github.com/ros-planning/navigation2.git
+- release repository: https://github.com/SteveMacenski/navigation2-release.git
+- rosdistro version: `0.1.5-0`
+- old version: `0.1.5-0`
+- new version: `0.1.6-0`
+
+Versions of tools used:
+
+- bloom version: `0.7.2`
+- catkin_pkg version: `0.4.10`
+- rosdep version: `0.15.1`
+- rosdistro version: `0.7.2`
+- vcstools version: `0.1.40`
+
+
 ## navigation2 (crystal) - 0.1.5-0
 
 The packages in the `navigation2` repository were released into the `crystal` distro by running `/usr/bin/bloom-release --rosdistro crystal --track crystal navigation2` on `Thu, 13 Dec 2018 01:59:56 -0000`
