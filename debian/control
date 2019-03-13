@@ -1,0 +1,12 @@
+Source: ros-crystal-dwb-controller
+Section: misc
+Priority: extra
+Maintainer: Carl Delsey <carl.r.delsey@intel.com>
+Build-Depends: debhelper (>= 9.0.0), libboost-all-dev, ros-crystal-ament-cmake, ros-crystal-ament-cmake-gtest, ros-crystal-ament-cmake-pytest, ros-crystal-ament-lint-auto, ros-crystal-ament-lint-common, ros-crystal-dwb-core, ros-crystal-launch, ros-crystal-launch-testing, ros-crystal-nav-2d-msgs, ros-crystal-nav-2d-utils, ros-crystal-nav2-common, ros-crystal-nav2-msgs, ros-crystal-nav2-robot, ros-crystal-nav2-tasks, ros-crystal-nav2-util, ros-crystal-rclcpp, ros-crystal-std-msgs, ros-crystal-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-crystal-dwb-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libboost-all-dev, ros-crystal-dwb-core, ros-crystal-nav-2d-msgs, ros-crystal-nav-2d-utils, ros-crystal-nav2-msgs, ros-crystal-nav2-robot, ros-crystal-nav2-tasks, ros-crystal-nav2-util, ros-crystal-rclcpp, ros-crystal-std-msgs, ros-crystal-ros-workspace
+Description: TODO
