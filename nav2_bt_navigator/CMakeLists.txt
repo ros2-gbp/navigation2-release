@@ -1,22 +1,18 @@
 cmake_minimum_required(VERSION 3.5)
 project(nav2_bt_navigator)
 
-# Default to C++14
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
-endif()
-
-if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror -fPIC)
-endif()
-
 find_package(ament_cmake REQUIRED)
+find_package(nav2_common REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(nav2_tasks REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(behaviortree_cpp REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(nav2_robot REQUIRED)
+
+nav2_package()
 
 include_directories(
   include
@@ -42,6 +38,8 @@ set(dependencies
   nav_msgs
   nav2_msgs
   behaviortree_cpp
+  std_srvs
+  nav2_robot
 )
 
 ament_target_dependencies(${executable_name}
