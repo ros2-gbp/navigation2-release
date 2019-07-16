@@ -11,80 +11,17 @@ find_package(SDL REQUIRED)
 find_package(SDL_image REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(lifecycle_msgs REQUIRED)
+find_package(rclcpp_action REQUIRED)
+find_package(test_msgs REQUIRED)
+find_package(rclcpp_lifecycle REQUIRED)
 
 nav2_package()
 
 include_directories(include)
 
-add_library(costmap_lib SHARED
-  src/costmap.cpp
-)
-
-ament_target_dependencies(costmap_lib
-  rclcpp
-  nav2_msgs
-  tf2
-  tf2_ros
-  nav_msgs
-  geometry_msgs
-)
-
-add_library(map_lib SHARED
-  src/map/map.c
-  src/map/map_store.c
-  src/map/map_range.c
-  src/map/map_draw.c
-  src/map/map_cspace.cpp
-)
-
-add_library(pf_lib SHARED
-  src/pf/pf.c
-  src/pf/pf_kdtree.c
-  src/pf/pf_pdf.c
-  src/pf/pf_vector.c
-  src/pf/eig3.c
-  src/pf/pf_draw.c
-)
-
-add_library(sensors_lib SHARED
-  src/sensors/laser/laser.cpp
-  src/sensors/laser/beam_model.cpp
-  src/sensors/laser/likelihood_field_model.cpp
-  src/sensors/laser/likelihood_field_model_prob.cpp
-)
-
-add_library(motions_lib SHARED
-  src/motion_model/omni_motion_model.cpp
-  src/motion_model/differential_motion_model.cpp
-)
-
-add_library(map_loader SHARED
-  src/map_loader/map_loader.cpp
-)
-
-ament_target_dependencies(map_loader
-  geometry_msgs
-  tf2
-  tf2_ros
-  nav_msgs
-  SDL
-  SDL_image
-)
-
-target_link_libraries(map_loader
-    ${SDL_LIBRARY}
-    ${SDL_IMAGE_LIBRARIES}
-)
-
-install(TARGETS
-  costmap_lib
-  map_lib
-  pf_lib
-  sensors_lib
-  motions_lib
-  map_loader
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib)
+set(library_name ${PROJECT_NAME}_core)
+add_subdirectory(src)
 
 install(DIRECTORY include/
   DESTINATION include/
@@ -102,6 +39,6 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_include_directories(include)
-ament_export_libraries(costmap_lib pf_lib sensors_lib motions_lib map_lib map_loader)
+ament_export_libraries(${library_name} pf_lib sensors_lib motions_lib map_lib map_loader)
 
 ament_package()

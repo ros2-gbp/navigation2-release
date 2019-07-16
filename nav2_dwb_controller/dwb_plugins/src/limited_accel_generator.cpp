@@ -43,9 +43,12 @@
 namespace dwb_plugins
 {
 
-void LimitedAccelGenerator::initialize(const std::shared_ptr<rclcpp::Node> & nh)
+void LimitedAccelGenerator::initialize(const nav2_util::LifecycleNode::SharedPtr & nh)
 {
   StandardTrajectoryGenerator::initialize(nh);
+
+  nh->declare_parameter("sim_period");
+
   if (nh->get_parameter("sim_period", acceleration_time_)) {
   } else {
     double controller_frequency = nav_2d_utils::searchAndGetParam(
@@ -61,10 +64,10 @@ void LimitedAccelGenerator::initialize(const std::shared_ptr<rclcpp::Node> & nh)
   }
 }
 
-void LimitedAccelGenerator::checkUseDwaParam(const std::shared_ptr<rclcpp::Node> & nh)
+void LimitedAccelGenerator::checkUseDwaParam(const nav2_util::LifecycleNode::SharedPtr & nh)
 {
-  bool use_dwa;
-  nh->get_parameter_or("use_dwa", use_dwa, true);
+  bool use_dwa = false;
+  nh->get_parameter("use_dwa", use_dwa);
   if (!use_dwa) {
     throw nav_core2::PlannerException("Deprecated parameter use_dwa set to false. "
             "Please use StandardTrajectoryGenerator for that functionality.");
@@ -84,15 +87,15 @@ dwb_msgs::msg::Trajectory2D LimitedAccelGenerator::generateTrajectory(
 {
   dwb_msgs::msg::Trajectory2D traj;
   traj.velocity = cmd_vel;
-  traj.duration = nav2_util::durationFromSeconds(sim_time_);
+  traj.duration = nav2_util::duration_from_seconds(sim_time_);
   geometry_msgs::msg::Pose2D pose = start_pose;
 
   std::vector<double> steps = getTimeSteps(cmd_vel);
+  traj.poses.push_back(start_pose);
   for (double dt : steps) {
-    traj.poses.push_back(pose);
-
     //  update the position using the constant cmd_vel
     pose = computeNewPosition(pose, cmd_vel, dt);
+    traj.poses.push_back(pose);
   }
 
   return traj;

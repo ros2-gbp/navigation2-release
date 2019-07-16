@@ -300,6 +300,9 @@ public:
 
   void resetMap(unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn);
 
+  void resetMapToValue(
+    unsigned int x0, unsigned int y0, unsigned int xn, unsigned int yn, unsigned char value);
+
   /**
    * @brief  Given distance in the world... convert it to cells
    * @param  world_dist The world distance
@@ -471,9 +474,9 @@ private:
   {
 public:
     PolygonOutlineCells(
-      const Costmap2D & costmap, const unsigned char * char_map,
+      const Costmap2D & costmap, const unsigned char * /*char_map*/,
       std::vector<MapLocation> & cells)
-    : costmap_(costmap), char_map_(char_map), cells_(cells)
+    : costmap_(costmap), cells_(cells)
     {
     }
 
@@ -487,7 +490,6 @@ public:
 
 private:
     const Costmap2D & costmap_;
-    const unsigned char * char_map_;
     std::vector<MapLocation> & cells_;
   };
 };

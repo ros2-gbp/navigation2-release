@@ -49,7 +49,6 @@ namespace dwb_critics
 
 
 OscillationCritic::CommandTrend::CommandTrend()
-: enabled_(true)
 {
   reset();
 }
@@ -63,10 +62,6 @@ void OscillationCritic::CommandTrend::reset()
 
 bool OscillationCritic::CommandTrend::update(double velocity)
 {
-  if (!enabled_) {
-    return false;
-  }
-
   bool flag_set = false;
   if (velocity < 0.0) {
     if (sign_ == Sign::POSITIVE) {
@@ -86,19 +81,11 @@ bool OscillationCritic::CommandTrend::update(double velocity)
 
 bool OscillationCritic::CommandTrend::isOscillating(double velocity)
 {
-  if (!enabled_) {
-    return false;
-  }
-
   return (positive_only_ && velocity < 0.0) || (negative_only_ && velocity > 0.0);
 }
 
 bool OscillationCritic::CommandTrend::hasSignFlipped()
 {
-  if (!enabled_) {
-    return false;
-  }
-
   return positive_only_ || negative_only_;
 }
 
@@ -107,8 +94,10 @@ void OscillationCritic::onInit()
   oscillation_reset_dist_ = nav_2d_utils::searchAndGetParam(nh_, "oscillation_reset_dist", 0.05);
   oscillation_reset_dist_sq_ = oscillation_reset_dist_ * oscillation_reset_dist_;
   oscillation_reset_angle_ = nav_2d_utils::searchAndGetParam(nh_, "oscillation_reset_angle", 0.2);
-  oscillation_reset_time_ = nav2_util::durationFromSeconds(
+  oscillation_reset_time_ = nav2_util::duration_from_seconds(
     nav_2d_utils::searchAndGetParam(nh_, "oscillation_reset_time", -1.0));
+
+  nh_->declare_parameter(name_ + ".x_only_threshold", rclcpp::ParameterValue(0.05));
 
   /**
    * Historical Parameter Loading
@@ -117,7 +106,7 @@ void OscillationCritic::onInit()
    * If min_trans_vel is set in the namespace, as it used to be used for trajectory generation, complain then use that.
    * Otherwise, set x_only_threshold_ to 0.05
    */
-  nh_->get_parameter_or(name_ + ".x_only_threshold", x_only_threshold_, 0.05);
+  nh_->get_parameter(name_ + ".x_only_threshold", x_only_threshold_);
   // TODO(crdelsey): How to handle searchParam?
   // std::string resolved_name;
   // if (nh_->hasParam("x_only_threshold"))
@@ -139,13 +128,6 @@ void OscillationCritic::onInit()
   // {
   //   x_only_threshold_ = 0.05;
   // }
-
-  // Disable y oscillation detection if the robot can't move in the Y axis
-  double max_vel_y;
-  nh_->get_parameter_or("max_vel_y", max_vel_y, 0.0);
-  if (max_vel_y == 0.0) {
-    y_trend_.disable();
-  }
 
   reset();
 }
@@ -192,7 +174,7 @@ bool OscillationCritic::resetAvailable()
       return true;
     }
   }
-  if (oscillation_reset_time_ >= nav2_util::durationFromSeconds(0.0)) {
+  if (oscillation_reset_time_ >= nav2_util::duration_from_seconds(0.0)) {
     auto t_diff = (nh_->now() - prev_reset_time_);
     if (t_diff > oscillation_reset_time_) {
       return true;

@@ -18,23 +18,32 @@ import os
 import sys
 
 
+from ament_index_python.packages import get_package_prefix
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch import LaunchService
 import launch.actions
 import launch_ros.actions
-from launch_testing import LaunchTestService
+from launch_testing.legacy import LaunchTestService
 
 
 def generate_launch_description():
+    use_sim_time = True
     map_yaml_file = os.getenv('TEST_MAP')
     world = os.getenv('TEST_WORLD')
-    params_file = os.getenv('TEST_PARAMS')
-    use_sim_time = True
+    bringup_package = get_package_share_directory('nav2_bringup')
+    params_file = os.path.join(bringup_package, 'launch/nav2_params.yaml')
+    astar = (os.getenv('ASTAR').lower() == 'true')
+    bt_navigator_install_path = get_package_prefix('nav2_bt_navigator')
+    bt_navigator_xml = os.path.join(bt_navigator_install_path,
+                                    'behavior_trees',
+                                    os.getenv('BT_NAVIGATOR_XML'))
 
     return LaunchDescription([
         # Launch gazebo server for simulation
         launch.actions.ExecuteProcess(
-            cmd=['gzserver', '-s', 'libgazebo_ros_init.so', '--minimal_comms', world],
+            cmd=['gzserver', '-s', 'libgazebo_ros_init.so',
+                 '--minimal_comms', world],
             output='screen'),
 
         # Launch navigation2 nodes
@@ -68,7 +77,7 @@ def generate_launch_description():
             node_executable='amcl',
             node_name='amcl',
             output='screen',
-            parameters=[{'use_sim_time': use_sim_time}]),
+            parameters=[params_file]),
 
         launch_ros.actions.Node(
             package='dwb_controller',
@@ -81,14 +90,31 @@ def generate_launch_description():
             node_executable='navfn_planner',
             node_name='navfn_planner',
             output='screen',
+            parameters=[{'use_sim_time': use_sim_time}, {'use_astar': astar}]),
+
+        launch_ros.actions.Node(
+            package='nav2_motion_primitives',
+            node_executable='motion_primitives_node',
+            node_name='motion_primitives',
+            output='screen',
             parameters=[{'use_sim_time': use_sim_time}]),
 
         launch_ros.actions.Node(
-            package='nav2_simple_navigator',
-            node_executable='simple_navigator',
-            node_name='simple_navigator',
+            package='nav2_bt_navigator',
+            node_executable='bt_navigator',
+            node_name='bt_navigator',
             output='screen',
-            parameters=[{'use_sim_time': use_sim_time}]),
+            parameters=[{'use_sim_time': use_sim_time}, {'bt_xml_filename': bt_navigator_xml}]),
+
+        launch_ros.actions.Node(
+            package='nav2_lifecycle_manager',
+            node_executable='lifecycle_manager',
+            node_name='lifecycle_manager',
+            output='screen',
+            parameters=[{'use_sim_time': use_sim_time},
+                        {'node_names': ['map_server', 'amcl', 'world_model',
+                         'dwb_controller', 'navfn_planner', 'bt_navigator']},
+                        {'autostart': True}]),
     ])
 
 
@@ -100,7 +126,6 @@ def main(argv=sys.argv[1:]):
         name='test_system_node',
         output='screen')
 
-    ld.add_action(test1_action)
     lts = LaunchTestService()
     lts.add_test_action(ld, test1_action)
     ls = LaunchService(argv=argv)

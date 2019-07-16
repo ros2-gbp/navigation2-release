@@ -35,12 +35,15 @@
 #ifndef NAV_2D_UTILS__ODOM_SUBSCRIBER_HPP_
 #define NAV_2D_UTILS__ODOM_SUBSCRIBER_HPP_
 
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <string>
-#include "rclcpp/rclcpp.hpp"
-#include "nav_msgs/msg/odometry.hpp"
+
 #include "nav_2d_msgs/msg/twist2_d_stamped.hpp"
+#include "nav_msgs/msg/odometry.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 namespace nav_2d_utils
 {
@@ -58,14 +61,22 @@ public:
    * @param nh NodeHandle for creating subscriber
    * @param default_topic Name of the topic that will be loaded of the odom_topic param is not set.
    */
-  explicit OdomSubscriber(rclcpp::Node & nh, std::string default_topic = "odom")
+  explicit OdomSubscriber(nav2_util::LifecycleNode & nh, std::string default_topic = "odom")
   {
     std::string odom_topic;
     nh.get_parameter_or("odom_topic", odom_topic, default_topic);
     odom_sub_ =
       nh.create_subscription<nav_msgs::msg::Odometry>(odom_topic,
-        [&](const nav_msgs::msg::Odometry::SharedPtr msg) {odomCallback(msg);},
-        1);
+        rclcpp::SystemDefaultsQoS(),
+        std::bind(&OdomSubscriber::odomCallback, this, std::placeholders::_1));
+
+    nh.declare_parameter("min_x_velocity_threshold", rclcpp::ParameterValue(0.0001));
+    nh.declare_parameter("min_y_velocity_threshold", rclcpp::ParameterValue(0.0001));
+    nh.declare_parameter("min_theta_velocity_threshold", rclcpp::ParameterValue(0.0001));
+
+    nh.get_parameter("min_x_velocity_threshold", min_x_velocity_threshold_);
+    nh.get_parameter("min_y_velocity_threshold", min_y_velocity_threshold_);
+    nh.get_parameter("min_theta_velocity_threshold", min_theta_velocity_threshold_);
   }
 
   inline nav_2d_msgs::msg::Twist2D getTwist() {return odom_vel_.velocity;}
@@ -77,14 +88,26 @@ protected:
     // ROS_INFO_ONCE("odom received!");
     std::lock_guard<std::mutex> lock(odom_mutex_);
     odom_vel_.header = msg->header;
-    odom_vel_.velocity.x = msg->twist.twist.linear.x;
-    odom_vel_.velocity.y = msg->twist.twist.linear.y;
-    odom_vel_.velocity.theta = msg->twist.twist.angular.z;
+    odom_vel_.velocity.x =
+      thresholded_velocity(msg->twist.twist.linear.x, min_x_velocity_threshold_);
+    odom_vel_.velocity.y =
+      thresholded_velocity(msg->twist.twist.linear.y, min_y_velocity_threshold_);
+    odom_vel_.velocity.theta =
+      thresholded_velocity(msg->twist.twist.angular.z, min_theta_velocity_threshold_);
   }
 
-  std::shared_ptr<rclcpp::Subscription<nav_msgs::msg::Odometry>> odom_sub_;
+  double thresholded_velocity(double velocity, double threshold)
+  {
+    return (std::abs(velocity) > threshold) ? velocity : 0.0;
+  }
+
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   nav_2d_msgs::msg::Twist2DStamped odom_vel_;
   std::mutex odom_mutex_;
+
+  double min_x_velocity_threshold_;
+  double min_y_velocity_threshold_;
+  double min_theta_velocity_threshold_;
 };
 
 }  // namespace nav_2d_utils

@@ -44,7 +44,7 @@ TEST_F(PlannerTester, testSimpleCostmaps)
     TestCostmap::maze2
   };
 
-  auto result = std::make_shared<nav2_tasks::ComputePathToPoseResult>();
+  auto result = std::make_shared<nav2_behavior_tree::ComputePathToPoseResult>();
 
   for (auto costmap : costmaps) {
     loadSimpleCostmap(costmap);
@@ -54,14 +54,14 @@ TEST_F(PlannerTester, testSimpleCostmaps)
 
 TEST_F(PlannerTester, testWithOneFixedEndpoint)
 {
-  loadMap();
-  auto result = std::make_shared<nav2_tasks::ComputePathToPoseResult>();
+  loadDefaultMap();
+  auto result = std::make_shared<nav2_behavior_tree::ComputePathToPoseResult>();
   EXPECT_EQ(true, defaultPlannerTest(result));
 }
 
 TEST_F(PlannerTester, testWithHundredRandomEndPoints)
 {
-  loadMap();
-  auto result = std::make_shared<nav2_tasks::ComputePathToPoseResult>();
+  loadDefaultMap();
+  auto result = std::make_shared<nav2_behavior_tree::ComputePathToPoseResult>();
   EXPECT_EQ(true, defaultPlannerRandomTests(100, 0.1));
 }

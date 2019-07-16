@@ -21,7 +21,7 @@ from launch import LaunchDescription
 from launch import LaunchService
 from launch.actions import ExecuteProcess
 import launch_ros.actions
-from launch_testing import LaunchTestService
+from launch_testing.legacy import LaunchTestService
 
 
 def generate_launch_description():
@@ -42,7 +42,6 @@ def main(argv=sys.argv[1:]):
         name='test_dynamic_params_client',
     )
 
-    ld.add_action(test1_action)
     lts = LaunchTestService()
     lts.add_test_action(ld, test1_action)
     ls = LaunchService(argv=argv)

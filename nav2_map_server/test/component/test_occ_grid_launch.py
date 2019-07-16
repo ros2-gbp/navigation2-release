@@ -22,7 +22,7 @@ from launch import LaunchService
 from launch.actions import ExecuteProcess
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_testing import LaunchTestService
+from launch_testing.legacy import LaunchTestService
 
 
 def main(argv=sys.argv[1:]):
@@ -35,7 +35,6 @@ def main(argv=sys.argv[1:]):
         cmd=[testExecutable],
         name='test_occ_grid_node',
     )
-    ld.add_action(test1_action)
     lts = LaunchTestService()
     lts.add_test_action(ld, test1_action)
     ls = LaunchService(argv=argv)

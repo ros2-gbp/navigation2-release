@@ -36,10 +36,12 @@
 #include <vector>
 #include <algorithm>
 #include <string>
+
 #include "gtest/gtest.h"
 #include "dwb_plugins/standard_traj_generator.hpp"
 #include "dwb_plugins/limited_accel_generator.hpp"
 #include "dwb_core/exceptions.hpp"
+#include "nav2_util/node_utils.hpp"
 
 using std::hypot;
 using std::fabs;
@@ -72,14 +74,16 @@ std::vector<rclcpp::Parameter> getDefaultKinematicParameters()
   return parameters;
 }
 
-rclcpp::Node::SharedPtr makeTestNode(const std::string & name)
+rclcpp_lifecycle::LifecycleNode::SharedPtr makeTestNode(const std::string & name)
 {
-  return rclcpp::Node::make_shared(
-    name,
-    "",  // namespace
-    rclcpp::contexts::default_context::get_global_default_context(),
-    std::vector<std::string>(),  // arguments
-    getDefaultKinematicParameters());
+  rclcpp::NodeOptions node_options = nav2_util::get_node_options_default();
+  node_options.parameter_overrides(getDefaultKinematicParameters());
+
+  auto node = rclcpp_lifecycle::LifecycleNode::make_shared(name, node_options);
+  node->on_configure(node->get_current_state());
+  node->on_activate(node->get_current_state());
+
+  return node;
 }
 
 void checkLimits(
@@ -302,11 +306,11 @@ TEST(TrajectoryGenerator, basic)
   matchTwist(res.velocity, forward);
   EXPECT_DOUBLE_EQ(durationToSec(res.duration), 1.7);
   int n = res.poses.size();
-  EXPECT_EQ(n, 2);
+  EXPECT_EQ(n, 3);
   ASSERT_GT(n, 0);
 
   matchPose(res.poses[0], origin);
-  matchPose(res.poses[n - 1], 0.255, 0, 0);
+  matchPose(res.poses[n - 2], 0.255, 0, 0);
 }
 
 TEST(TrajectoryGenerator, too_slow)
@@ -320,7 +324,7 @@ TEST(TrajectoryGenerator, too_slow)
   matchTwist(res.velocity, cmd);
   EXPECT_DOUBLE_EQ(durationToSec(res.duration), 1.7);
   int n = res.poses.size();
-  EXPECT_EQ(n, 1);
+  EXPECT_EQ(n, 2);
   ASSERT_GT(n, 0);
 
   matchPose(res.poses[0], origin);
@@ -338,11 +342,11 @@ TEST(TrajectoryGenerator, holonomic)
   matchTwist(res.velocity, cmd);
   EXPECT_DOUBLE_EQ(durationToSec(res.duration), 1.7);
   int n = res.poses.size();
-  EXPECT_EQ(n, 2);
+  EXPECT_EQ(n, 3);
   ASSERT_GT(n, 0);
 
   matchPose(res.poses[0], origin);
-  matchPose(res.poses[n - 1], 0.255, 0.17, 0);
+  matchPose(res.poses[n - 2], 0.255, 0.17, 0);
 }
 
 TEST(TrajectoryGenerator, twisty)
@@ -358,11 +362,11 @@ TEST(TrajectoryGenerator, twisty)
   matchTwist(res.velocity, cmd);
   EXPECT_DOUBLE_EQ(durationToSec(res.duration), 1.7);
   int n = res.poses.size();
-  EXPECT_EQ(n, 8);
+  EXPECT_EQ(n, 9);
   ASSERT_GT(n, 0);
 
   matchPose(res.poses[0], origin);
-  matchPose(res.poses[n - 1], 0.4656489295054273, -0.2649090438962528, 0.16511250000000002);
+  matchPose(res.poses[n - 2], 0.4656489295054273, -0.2649090438962528, 0.16511250000000002);
 }
 
 TEST(TrajectoryGenerator, sim_time)
@@ -375,11 +379,11 @@ TEST(TrajectoryGenerator, sim_time)
   matchTwist(res.velocity, forward);
   EXPECT_DOUBLE_EQ(durationToSec(res.duration), 2.5);
   int n = res.poses.size();
-  EXPECT_EQ(n, 2);
+  EXPECT_EQ(n, 3);
   ASSERT_GT(n, 0);
 
   matchPose(res.poses[0], origin);
-  matchPose(res.poses[n - 1], 0.375, 0, 0);
+  matchPose(res.poses[n - 2], 0.375, 0, 0);
 }
 
 TEST(TrajectoryGenerator, accel)
@@ -396,7 +400,7 @@ TEST(TrajectoryGenerator, accel)
   dwb_msgs::msg::Trajectory2D res = gen.generateTrajectory(origin, zero, forward);
   matchTwist(res.velocity, forward);
   EXPECT_DOUBLE_EQ(durationToSec(res.duration), 5.0);
-  ASSERT_EQ(res.poses.size(), 5u);
+  ASSERT_EQ(res.poses.size(), 6u);
   matchPose(res.poses[0], origin);
   matchPose(res.poses[1], 0.1, 0, 0);
   matchPose(res.poses[2], 0.3, 0, 0);
@@ -420,7 +424,7 @@ TEST(TrajectoryGenerator, dwa)
   dwb_msgs::msg::Trajectory2D res = gen.generateTrajectory(origin, zero, forward);
   matchTwist(res.velocity, forward);
   EXPECT_DOUBLE_EQ(durationToSec(res.duration), 5.0);
-  ASSERT_EQ(res.poses.size(), 5u);
+  ASSERT_EQ(res.poses.size(), 6u);
   matchPose(res.poses[0], origin);
   matchPose(res.poses[1], 0.3, 0, 0);
   matchPose(res.poses[2], 0.6, 0, 0);
