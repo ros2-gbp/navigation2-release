@@ -1,0 +1,12 @@
+Source: ros-dashing-nav2-dwb-controller
+Section: misc
+Priority: extra
+Maintainer: Carl Delsey <carl.r.delsey@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-dashing-ament-cmake, ros-dashing-ament-cmake-gtest, ros-dashing-ament-cmake-pytest, ros-dashing-ament-lint-auto, ros-dashing-ament-lint-common, ros-dashing-costmap-queue, ros-dashing-dwb-controller, ros-dashing-dwb-core, ros-dashing-dwb-critics, ros-dashing-dwb-msgs, ros-dashing-dwb-plugins, ros-dashing-launch, ros-dashing-launch-testing, ros-dashing-nav-2d-msgs, ros-dashing-nav-2d-utils, ros-dashing-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-dashing-nav2-dwb-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-dashing-costmap-queue, ros-dashing-dwb-controller, ros-dashing-dwb-core, ros-dashing-dwb-critics, ros-dashing-dwb-msgs, ros-dashing-dwb-plugins, ros-dashing-nav-2d-msgs, ros-dashing-nav-2d-utils, ros-dashing-ros-workspace
+Description: ROS2 controller (DWB) metapackage
