@@ -1,0 +1,12 @@
+Source: ros-dashing-nav2-robot
+Section: misc
+Priority: extra
+Maintainer: Carlos Orduno <carlos.a.orduno@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-dashing-ament-cmake, ros-dashing-ament-cmake-gtest, ros-dashing-ament-cmake-pytest, ros-dashing-ament-lint-auto, ros-dashing-ament-lint-common, ros-dashing-geometry-msgs, ros-dashing-launch, ros-dashing-launch-testing, ros-dashing-nav-msgs, ros-dashing-nav2-common, ros-dashing-nav2-util, ros-dashing-rclcpp, ros-dashing-rclcpp-lifecycle, ros-dashing-urdf, ros-dashing-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-dashing-nav2-robot
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-dashing-geometry-msgs, ros-dashing-nav-msgs, ros-dashing-nav2-util, ros-dashing-rclcpp, ros-dashing-rclcpp-lifecycle, ros-dashing-urdf, ros-dashing-ros-workspace
+Description: TODO
