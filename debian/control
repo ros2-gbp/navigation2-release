@@ -1,0 +1,12 @@
+Source: ros-dashing-dwb-critics
+Section: misc
+Priority: extra
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-dashing-ament-cmake, ros-dashing-ament-cmake-gtest, ros-dashing-ament-cmake-pytest, ros-dashing-ament-lint-auto, ros-dashing-ament-lint-common, ros-dashing-angles, ros-dashing-costmap-queue, ros-dashing-dwb-core, ros-dashing-geometry-msgs, ros-dashing-launch, ros-dashing-launch-testing, ros-dashing-nav-2d-msgs, ros-dashing-nav-2d-utils, ros-dashing-nav2-common, ros-dashing-nav2-costmap-2d, ros-dashing-nav2-util, ros-dashing-pluginlib, ros-dashing-rclcpp, ros-dashing-sensor-msgs, ros-dashing-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-dashing-dwb-critics
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-dashing-angles, ros-dashing-costmap-queue, ros-dashing-dwb-core, ros-dashing-geometry-msgs, ros-dashing-nav-2d-msgs, ros-dashing-nav-2d-utils, ros-dashing-nav2-costmap-2d, ros-dashing-nav2-util, ros-dashing-pluginlib, ros-dashing-rclcpp, ros-dashing-sensor-msgs, ros-dashing-ros-workspace
+Description: The dwb_critics package
