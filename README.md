@@ -1,45 +1,12 @@
-# Navigation2
+# Nav2 World Model
 
-ROS2 Navigation System
+`nav2_world_model` is a package containing an exposed environmental representation. Today, it uses the `nav2_costmap_2d` layered costmap as the world model. In the future, this is the entry point for applications to request or view information about the environment around it. The implementations such as costmaps or height maps will provide the buffering of data and representations as they require. They are then wrapped for generalized use for path planning and control.
 
-[![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/master.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/master) CircleCI
+## ROS1 Comparison
 
-[![Build Status](https://img.shields.io/docker/cloud/build/rosplanning/navigation2.svg?label=build)](https://hub.docker.com/r/rosplanning/navigation2) DockerHub
+ROS1 Navigation contains `costmap_2d` which is directly used as the evironmental model. This package is able to consume `nav2_costmap_2d` as an implementation of a world model, but can also utilize other world models to suit the needs of a specific application. Rather than querying `costmap_2d` for information, applications will query `nav2_world_model` which will in turn use the current world model and retrieve the information requested.
 
-[![Build Status](https://travis-ci.org/ros-planning/navigation2.svg?branch=master)](https://travis-ci.org/ros-planning/navigation2) Travis
+## Future
 
-[![Build Status](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/badge/icon)](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/) ROS Build Farm 
-
-[![Pulls](https://shields.beevelop.com/docker/pulls/stevemacenski/navigation2.svg?style=flat-square)](https://hub.docker.com/r/stevemacenski/navigation2)
-
-[![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/master/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
-
-# Overview
-The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
-
-# Contributing
-We are currently in the pre-release development phase, contributions are welcome. To contribute, see the [documentation README](doc/README.md).
-
-# Building the source
-For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
-
-# Creating a docker image
-To build an image from the Dockerfile in the navigation2 folder: 
-First, clone the repo to your local system (or see Building the source above)
-```
-sudo docker build -t nav2/latest .
-```
-If proxies are needed:
-```
-sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
-```
-Note: You may also need to configure your docker for DNS to work. See article here for details:
-https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
-
-## Using CI build docker container
-
-We allow for you to pull the latest docker image from the master branch at any time. As new releases and tags are made, docker containers on docker hub will be versioned as well to chose from.
-
-```
-sudo docker pull stevemacenski/navigation2:latest
-```
+* Additional implementations/support for different environmental representations like `grid_maps`, height maps, traversibility maps, etc. 
+* Utilities for converting types for use in other applications like control and planning. 
