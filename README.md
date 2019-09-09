@@ -1,106 +1,45 @@
-# Nav2 Tasks
+# Navigation2
 
-A *task* is an abstraction roughly modeled after ROS1's SimpleActionClient/Server (which is not yet available in ROS2). A *task client* issues a command to *task server*, which receives the command, performs a (typically long-running) task, and asynchronously returns a result to the client. The task client may cancel the task during its execution. After cancellation or completion, the task client may issue another task to the task server.  
+ROS2 Navigation System
 
-The **nav2_behavior_tree** library defines:
+[![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/master.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/master) CircleCI
 
-* [TaskServer](include/nav2_behavior_tree/task_server.hpp) and [TaskClient](include/nav2_behavior_tree/task_client.hpp) templates which are used as base classes to implement task servers and their associated task clients
-* A few derived classes, such as [ComputePathToPoseTask](include/nav2_behavior_tree/compute_path_to_pose_task.hpp), that define specific task clients and servers
+[![Build Status](https://img.shields.io/docker/cloud/build/rosplanning/navigation2.svg?label=build)](https://hub.docker.com/r/rosplanning/navigation2) DockerHub
 
-For convenience the nav_tasks library also provides:
-* A [ServiceClient](include/nav2_behavior_tree/service_client.hpp) template used to define clients for ROS2 services
-* A couple specific service client classes, such as [MapServiceClient](include/nav2_behavior_tree/map_service_client.hpp) that use the ServiceClient template
+[![Build Status](https://travis-ci.org/ros-planning/navigation2.svg?branch=master)](https://travis-ci.org/ros-planning/navigation2) Travis
 
-## Overview
+[![Build Status](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/badge/icon)](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/) ROS Build Farm 
 
-The Navigation2 architecture implements a *task hierarchy* where commands are sent to modules which are organized in a hierarchy. Each module implements a task and can utilize sub-tasks, which are themselves modules that implement tasks.
+[![Pulls](https://shields.beevelop.com/docker/pulls/stevemacenski/navigation2.svg?style=flat-square)](https://hub.docker.com/r/stevemacenski/navigation2)
 
-For example, the Navigation2 software currently implements four tasks: **ExecuteMission**, **NavigateToPose**, **ComputePathToPose**, and **FollowPath**, which are organized as follows:
+[![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/master/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
 
-<img src="./doc/hierarchy.svg" width="400" title="Navigation Task Hiearchy">
+# Overview
+The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
 
-This approach allows for easily replacing any task with an alternative implementation. The replacement module must simply implement the correct task interface. 
+# Contributing
+We are currently in the pre-release development phase, contributions are welcome. To contribute, see the [documentation README](doc/README.md).
 
-One can define additional tasks using the TaskClient and TaskSever templates. To do so, one specifies the command message that the task is to receive as well as the result message (similar in spirit to ROS1's .action file). 
+# Building the source
+For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
 
-For example, to define a new task, named *DoSomething*, that takes a String as input and an Empty message as a result, 
-
-```C++
-namespace nav2_behavior_tree
-{
-
-using DoSomethingCommand = std_msgs::msg::String;
-using DoSomethingResult = std_msgs::msg::Empty;
-
-using DoSomethingTaskClient = TaskClient<DoSomethingCommand, DoSomethingResult>;
-using DoSomethingTaskServer = TaskServer<DoSomethingCommand, DoSomethingResult>;
-
-template<>
-inline const char * getTaskName<DoSomethingCommand, DoSomethingResult>()
-{
-  return "DoSomethingTask";
-}
+# Creating a docker image
+To build an image from the Dockerfile in the navigation2 folder: 
+First, clone the repo to your local system (or see Building the source above)
 ```
-
-**Note**: The getTaskName template is required (it's used to name the topics used by the implementation).
-
-Then, to implement the task server, a derived class inherits from this newly-defined task type and overrides the execute() method. For example,
-
-```C++
-class DoSomethingImplementation : public nav2_behavior_tree::DoSomethingTaskServer
-{
-public:
-  DoSomethingImplementation();
-  ~DoSomethingImplementation();
-
-  nav2_behavior_tree::TaskStatus execute(
-    const nav2_behavior_tree::DoSomethingCommand::SharedPtr command) override;
-};
-
-TaskStatus
-DoSomethingImplementation::execute(const nav2_behavior_tree::DoSomethingCommand::SharedPtr command)
-{  
-  for (;;) {
-    
-    // TODO: Do a bit of the task        
-
-    // Before we loop again to do more work, check if we've been canceled
-    if (cancelRequested()) {
-      RCLCPP_INFO(get_logger(), "DwaController::execute: task has been canceled");
-      setCanceled();
-      return TaskStatus::CANCELED;
-    }
-    
-    // If we've successfully completed the task, return the result
-    if (done) {
-      nav2_behavior_tree::DoSomethingResult result; 
-      
-      // TODO: Set fields in the result message, if any
-      
-      setResult(result);
-      return TaskStatus::SUCCEEDED;
-    }
-  }  
-}
+sudo docker build -t nav2/latest .
 ```
+If proxies are needed:
+```
+sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
+```
+Note: You may also need to configure your docker for DNS to work. See article here for details:
+https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
 
-## Implementation
+## Using CI build docker container
 
-The implementation of TaskClient and TaskServer is intentionally simplistic as it is a temporary stand-in for missing ActionLib functionality. The current implementation uses four ROS topics for task client/server communication. Associated with these topics are four message types: **Command**, **Cancel**, **Result**, and **Status**. The Command and Result messages are provided by the user of the TaskClient and TaskServer classes and are the input and output of the task from the client's point of view. The Cancel and Status messages are internal to the implementation; the Status message is used to communicate from the task server to the task client, indicating whether a task has succeeded, failed, or has been canceled, and the Cancel message is sent from the task client to the task server when the client invokes the cancel() method. To keep things simple, the task library does not implement a feedback mechanism to provide task updates.
+We allow for you to pull the latest docker image from the master branch at any time. As new releases and tags are made, docker containers on docker hub will be versioned as well to chose from.
 
-## Open Issues
-
-* __TaskServer *is a Node* versus *receives a Node*__
-
-  + The currently implementation makes the TaskServer itself a Node. Instead, it should receive the Node to use. This would allow a Node to have multiple TaskServers. 
-
-* **Override virtual method versus registering a callback**
-  
-  + The implementation currently requires a derived class to override a virtual method. Instead, this could be more like ActionLib where a callback is registered.
-
-## Plans
-
-* **Automatic task cancelation**
-
-  + For convenience, upon receiving a new command before the previous command has completed, the task server could automatically cancel the current command and take up the new command.
-
+```
+sudo docker pull stevemacenski/navigation2:latest
+```
