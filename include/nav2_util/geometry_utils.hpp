@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2019 Intel Corporation
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,25 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_util/motion_model/motion_model.hpp"
+#ifndef NAV2_UTIL__GEOMETRY_UTILS_HPP_
+#define NAV2_UTIL__GEOMETRY_UTILS_HPP_
 
-#include <string>
+#include "geometry_msgs/msg/quaternion.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 namespace nav2_util
 {
-
-MotionModel *
-MotionModel::createMotionModel(
-  std::string & type, double alpha1, double alpha2,
-  double alpha3, double alpha4, double alpha5)
+namespace geometry_utils
 {
-  if (type == "differential") {
-    return new DifferentialMotionModel(alpha1, alpha2, alpha3, alpha4);
-  } else if (type == "omnidirectional") {
-    return new OmniMotionModel(alpha1, alpha2, alpha3, alpha4, alpha5);
-  }
 
-  return nullptr;
+inline geometry_msgs::msg::Quaternion orientationAroundZAxis(double angle)
+{
+  tf2::Quaternion q;
+  q.setRPY(0, 0, angle);  // void returning function
+  return tf2::toMsg(q);
 }
 
+}  // namespace geometry_utils
 }  // namespace nav2_util
+
+#endif  // NAV2_UTIL__GEOMETRY_UTILS_HPP_
