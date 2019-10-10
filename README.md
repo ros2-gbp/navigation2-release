@@ -1,120 +1,45 @@
-**Warning**: As with the rest of `nav2`, this package is still in development and only works with Turtlebot 3 at the moment. Currently collision avoidance has not been integrated. The user is advised to not use this feature on a physical robot for safety reasons.  As of now, this feature should only be used in simulations.
+# Navigation2
 
----
+ROS2 Navigation System
 
-# Recoveries
+[![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/master.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/master) CircleCI
 
-The `nav2_recoveries` package implements, as the name suggests, a module for executing simple controlled robot movements such as rotating on its own axis or moving linearly.
+[![Build Status](https://img.shields.io/docker/cloud/build/rosplanning/navigation2.svg?label=build)](https://hub.docker.com/r/rosplanning/navigation2) DockerHub
 
-The package defines:
-- A `Recovery` template which is used as a base class to implement specific recovery.
-- The `BackUp`, `Spin` and `Stop` recoveries.
+[![Build Status](https://travis-ci.org/ros-planning/navigation2.svg?branch=master)](https://travis-ci.org/ros-planning/navigation2) Travis
 
-## Overview
+[![Build Status](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/badge/icon)](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/) ROS Build Farm 
 
-*Recovery* define simple predictable movements that components can leverage for defining more complex behavior. For example, `nav2` uses recoveries for executing recovery behaviors, such as the ones defined on the [BtNavigator](../nav2_bt_navigator/README.md##Recovery-Behavior-Trees).
+[![Pulls](https://shields.beevelop.com/docker/pulls/stevemacenski/navigation2.svg?style=flat-square)](https://hub.docker.com/r/stevemacenski/navigation2)
 
-Currently the package provides the following recoveries:
-- **Spin** performs an in-place rotation by a given angle.
-- **Back Up** performs an linear translation by a given distance.
-- **Stop** brings the robot to a stationary state.
+[![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/master/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
 
-## Implementation
+# Overview
+The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
 
-The module is implemented as a single node containing multiple recoveries and follows the `nav2` [task hierarchy](../nav2_tasks/README.md#Overview). Each recovery is defined as a `nav2_task` with corresponding *command* and *result* message definitions.
+# Contributing
+We are currently in the pre-release development phase, contributions are welcome. To contribute, see the [documentation README](doc/README.md).
 
-The `Recovery` base class manages the task server, provides a robot interface and calls the recovery's update functions.
+# Building the source
+For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
 
-To gain insight into the package lets go over how to implement and execute a new recoveries.
-
-### Defining a recovery
-
-In this section we'll go over how to define a new recovery and implement the corresponding recovery.
-
-The first step is to provide the [task definition](../nav2_tasks/README.md) inside the `nav2_tasks` package. For example, lets define a `SomeRecovery` task interface, i.e. the types of messages to use for the command and result, as well as the client and server.
-
-```cpp
-namespace nav2_tasks
-{
-
-using SomeRecoveryCommand = geometry_msgs::msg::Point;
-using SomeRecoveryResult = std_msgs::msg::Empty;
-
-using SomeRecoveryTaskClient = TaskClient<SomeRecoveryCommand, SomeRecoveryResult>;
-using SomeRecoveryTaskServer = TaskServer<SomeRecoveryCommand, SomeRecoveryResult>;
-
-template<>
-inline const char * getTaskName<SomeRecoveryCommand, SomeRecoveryResult>()
-{
-  return "SomeRecoveryTask";
-}
-
-}  // namespace nav2_tasks
+# Creating a docker image
+To build an image from the Dockerfile in the navigation2 folder: 
+First, clone the repo to your local system (or see Building the source above)
 ```
-
-For this example we arbitrarily pick `geometry_msgs::msg::Point` and `std_msgs::msg::Empty` as message types for command and result.
-
-Next we define the class for our new recovery. This class should derive from `Recovery` and use the command and result messages defined on the corresponding task.
-
-```cpp
-class SomeRecovery : public Recovery<nav2_tasks::SomeRecoveryCommand, nav2_tasks::SomeRecoveryResult>
+sudo docker build -t nav2/latest .
 ```
-
-On the implementation of `SomeRecovery` all we do is override `onRun` and `onCycleUpdate`.
-
-```cpp
-using nav2_tasks
-
-TaskStatus SomeRecovery::onRun(const SomeRecoveryCommand::SharedPtr command)
-{
-    /* onRun code */
-}
-
-TaskStatus SomeRecovery::onCycleUpdate(SomeRecoveryResult & result)
-{
-    /* onCycleUpdate code */
-}
+If proxies are needed:
 ```
-
-The `onRun` method is the entry point for the recovery and here we should:
-- Catch the command.
-- Perform checks before the main execution loop.
-- Possibly do some initialization.
-- Return a `nav2_tasks::TaskStatus` given the initial checks.
-
-The `onCycleUpdate` method is called periodically until it returns `FAILED` or `SUCCEEDED`, here we should:
-- Set the robot in motion.
-- Perform some unit of work.
-- Check if the robot state, determine if work completed
-- Return a `nav2_tasks::TaskStatus`.
-
-### Defining the recovery's client
-
-Recoveries use the `nav2_tasks` interface, so we need to define the task client:
-
-```cpp
-nav2_tasks::TaskClient<SomeRecoveryCommand, SomeRecoveryResult> some_recovery_task_client;
+sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
 ```
+Note: You may also need to configure your docker for DNS to work. See article here for details:
+https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
 
-To send requests we create the command and sent it over the client:
+## Using CI build docker container
 
-```cpp
-SomeRecoveryCommand::SharedPtr command;
-// Fill command
-some_recovery_task_client.sendCommand(command)
+We allow for you to pull the latest docker image from the master branch at any time. As new releases and tags are made, docker containers on docker hub will be versioned as well to chose from.
+
 ```
-
-### (optional) Define the Behavior Tree action node
-
-For using recoveries within a behavior tree such as [bt_navigator](../nav2_bt_navigator/README.md##Navigation-Behavior-Trees), then a corresponding *action node* needs to be defined. Checkout `nav2_tasks` for examples on how to implement one.
-
-## Plans
-
-- Check for collision before executing a recovery. Issues [379](https://github.com/ros-planning/navigation2/issues/379) and [533](https://github.com/ros-planning/navigation2/issues/533).
-- Remove the stop recovery, move the funcionality to the robot class. Issue [575](https://github.com/ros-planning/navigation2/issues/575)
-- Consider moving `nav2_recoveries` altogether to the `nav2_robot` package. Issue [378](https://github.com/ros-planning/navigation2/issues/378).
-- Depending on the feedback from the community we might want to develop this package to include a wide variety of recoveries (arcs) to support all kinds of task, navigation (lattice-based), docking, etc.
-- Define smooth transitions between motions. Issue [411](https://github.com/ros-planning/navigation2/issues/411).
-- Make the existing recoveries configurable for other robots.
-
-Refer to Github for an up-to-date [list](https://github.com/ros-planning/navigation2/issues?q=is%3Aopen+is%3Aissue+label%3Anav2_recoveries).
+sudo docker pull stevemacenski/navigation2:latest
+```
