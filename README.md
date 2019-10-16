@@ -1,16 +1,45 @@
-# Nav2 Costmap_2d
+# Navigation2
 
-The costmap_2d package is responsible for building a 2D costmap of the environment, consisting of several "layers" of data about the environment. It can be initialized via the map server or a local rolling window and updates the layers by taking observations from sensors A plugin interface allows for the layers to be combined into the
-costmap and finally inflated via a user specified inflation radius. The nav2 version of the costmap_2d package is mostly a direct
-ROS2 port of the ROS1 navigation stack version, with minimal noteable changes necessary due to support in ROS2. 
+ROS2 Navigation System
 
-## Overview of Changes from ROS1 Navigation Costmap_2d
-- Removal of legacy parameter style ("Loading from pre-hydro parameter style")
-- Intermediate replacement of dynamic reconfigure (not ported to ROS2). This discussion started here with costmap_2d but is a more
-widespread discussion throughout the navigation stack (see issue https://github.com/ros-planning/navigation2/issues/177) and 
-general ROS2 community. A proposal temporary replacement has been submitted as a PR here: https://github.com/ros-planning/navigation2/pull/196
+[![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/master.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/master) CircleCI
 
-## Future Plans
-- Conceptually, the costmap_2d model acts as a world model of what is known from the map, sensor, robot pose, etc. We'd like
-to broaden this world model concept and use costmap's layer concept as motivation for providing a service-style interface to
-potential clients needing information about the world (see issue https://github.com/ros-planning/navigation2/issues/18)
+[![Build Status](https://img.shields.io/docker/cloud/build/rosplanning/navigation2.svg?label=build)](https://hub.docker.com/r/rosplanning/navigation2) DockerHub
+
+[![Build Status](https://travis-ci.org/ros-planning/navigation2.svg?branch=master)](https://travis-ci.org/ros-planning/navigation2) Travis
+
+[![Build Status](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/badge/icon)](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/) ROS Build Farm 
+
+[![Pulls](https://shields.beevelop.com/docker/pulls/stevemacenski/navigation2.svg?style=flat-square)](https://hub.docker.com/r/stevemacenski/navigation2)
+
+[![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/master/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
+
+# Overview
+The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
+
+# Contributing
+We are currently in the pre-release development phase, contributions are welcome. To contribute, see the [documentation README](doc/README.md).
+
+# Building the source
+For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
+
+# Creating a docker image
+To build an image from the Dockerfile in the navigation2 folder: 
+First, clone the repo to your local system (or see Building the source above)
+```
+sudo docker build -t nav2/latest .
+```
+If proxies are needed:
+```
+sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
+```
+Note: You may also need to configure your docker for DNS to work. See article here for details:
+https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
+
+## Using CI build docker container
+
+We allow for you to pull the latest docker image from the master branch at any time. As new releases and tags are made, docker containers on docker hub will be versioned as well to chose from.
+
+```
+sudo docker pull stevemacenski/navigation2:latest
+```
