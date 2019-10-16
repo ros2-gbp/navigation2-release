@@ -1,0 +1,12 @@
+Source: ros-dashing-nav2-bt-navigator
+Section: misc
+Priority: extra
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-dashing-ament-cmake, ros-dashing-ament-cmake-gtest, ros-dashing-ament-cmake-pytest, ros-dashing-ament-lint-auto, ros-dashing-ament-lint-common, ros-dashing-behaviortree-cpp, ros-dashing-geometry-msgs, ros-dashing-launch, ros-dashing-launch-testing, ros-dashing-nav-msgs, ros-dashing-nav2-behavior-tree, ros-dashing-nav2-common, ros-dashing-nav2-msgs, ros-dashing-nav2-util, ros-dashing-rclcpp, ros-dashing-rclcpp-action, ros-dashing-rclcpp-lifecycle, ros-dashing-std-msgs, ros-dashing-std-srvs, ros-dashing-tf2-ros, ros-dashing-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-dashing-nav2-bt-navigator
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-dashing-behaviortree-cpp, ros-dashing-geometry-msgs, ros-dashing-nav-msgs, ros-dashing-nav2-behavior-tree, ros-dashing-nav2-msgs, ros-dashing-nav2-util, ros-dashing-rclcpp, ros-dashing-rclcpp-action, ros-dashing-rclcpp-lifecycle, ros-dashing-std-msgs, ros-dashing-tf2-ros, ros-dashing-ros-workspace
+Description: TODO
