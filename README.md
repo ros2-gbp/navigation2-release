@@ -1,33 +1,45 @@
-# System Tests
+# Navigation2
 
-The package provides tests for [components](#1.-Component-Testing), [subsystems](#2.-Subsystem-Testing) and full [system](#3.-System-Testing) integration.
+ROS2 Navigation System
 
-Unit tests are not included, these should be provided within each component or package.
+[![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/master.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/master) CircleCI
 
-## 1. Component Testing
-Test a component's ROS API (Pub/Sub/Service).
+[![Build Status](https://img.shields.io/docker/cloud/build/rosplanning/navigation2.svg?label=build)](https://hub.docker.com/r/rosplanning/navigation2) DockerHub
 
-- [Global Planning](src/planning/README.md)
+[![Build Status](https://travis-ci.org/ros-planning/navigation2.svg?branch=master)](https://travis-ci.org/ros-planning/navigation2) Travis
 
-- Local Planning
+[![Build Status](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/badge/icon)](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/) ROS Build Farm 
 
-- [Localization](src/localization/README.md)
+[![Pulls](https://shields.beevelop.com/docker/pulls/stevemacenski/navigation2.svg?style=flat-square)](https://hub.docker.com/r/stevemacenski/navigation2)
 
-- World Model
+[![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/master/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
 
-- Costmaps
+# Overview
+The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
 
-## 2. Subsystem Testing
-Test the integration of several components and subsystems.
+# Contributing
+We are currently in the pre-release development phase, contributions are welcome. To contribute, see the [documentation README](doc/README.md).
 
-- Support modules (Mapping, Perception, Prediction, Localization
+# Building the source
+For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
 
-- Navigation core (Navigator, Planner, Controller)
+# Creating a docker image
+To build an image from the Dockerfile in the navigation2 folder: 
+First, clone the repo to your local system (or see Building the source above)
+```
+sudo docker build -t nav2/latest .
+```
+If proxies are needed:
+```
+sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
+```
+Note: You may also need to configure your docker for DNS to work. See article here for details:
+https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
 
-- Support modules and navigation core
+## Using CI build docker container
 
-- Command chain (Mission Planning, Mission Execution, Navigation System, Robot Interface)
+We allow for you to pull the latest docker image from the master branch at any time. As new releases and tags are made, docker containers on docker hub will be versioned as well to chose from.
 
-## 3. System Testing
-Test the integration of all subsystems.
- - [System Test](src/system/README.md)
+```
+sudo docker pull stevemacenski/navigation2:latest
+```
