@@ -1,3 +1,55 @@
+## navigation2 (eloquent) - 0.3.1-1
+
+The packages in the `navigation2` repository were released into the `eloquent` distro by running `/usr/bin/bloom-release --rosdistro eloquent --track eloquent navigation2` on `Fri, 13 Dec 2019 18:41:06 -0000`
+
+These packages were released:
+- `costmap_queue`
+- `dwb_core`
+- `dwb_critics`
+- `dwb_msgs`
+- `dwb_plugins`
+- `nav2_amcl`
+- `nav2_behavior_tree`
+- `nav2_bringup`
+- `nav2_bt_navigator`
+- `nav2_common`
+- `nav2_controller`
+- `nav2_core`
+- `nav2_costmap_2d`
+- `nav2_dwb_controller`
+- `nav2_gazebo_spawner`
+- `nav2_lifecycle_manager`
+- `nav2_map_server`
+- `nav2_msgs`
+- `nav2_navfn_planner`
+- `nav2_planner`
+- `nav2_recoveries`
+- `nav2_rviz_plugins`
+- `nav2_system_tests`
+- `nav2_util`
+- `nav2_voxel_grid`
+- `nav2_waypoint_follower`
+- `nav_2d_msgs`
+- `nav_2d_utils`
+- `navigation2`
+
+Version of package(s) in repository `navigation2`:
+
+- upstream repository: https://github.com/ros-planning/navigation2.git
+- release repository: unknown
+- rosdistro version: `null`
+- old version: `null`
+- new version: `0.3.1-1`
+
+Versions of tools used:
+
+- bloom version: `0.9.0`
+- catkin_pkg version: `0.4.14`
+- rosdep version: `0.18.0`
+- rosdistro version: `0.7.5`
+- vcstools version: `0.1.42`
+
+
 ## navigation2 (dashing) - 0.2.6-1
 
 The packages in the `navigation2` repository were released into the `dashing` distro by running `/usr/bin/bloom-release --rosdistro dashing --track dashing navigation2` on `Wed, 16 Oct 2019 17:51:35 -0000`
