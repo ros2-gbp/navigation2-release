@@ -24,14 +24,29 @@
 #include "nav2_util/lifecycle_service_client.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/empty.hpp"
+#include "nav2_msgs/srv/manage_lifecycle_nodes.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 namespace nav2_lifecycle_manager
 {
 
+using nav2_msgs::srv::ManageLifecycleNodes;
+/**
+ * @class nav2_lifecycle_manager::LifecycleManager
+ * @brief Implements service interface to transition the lifecycle nodes of
+ * Navigation2 stack. It receives transition request and then uses lifecycle
+ * interface to change lifecycle node's state.
+ */
 class LifecycleManager : public rclcpp::Node
 {
 public:
+  /**
+   * @brief A constructor for nav2_lifecycle_manager::LifecycleManager
+   */
   LifecycleManager();
+  /**
+   * @brief A destructor for nav2_lifecycle_manager::LifecycleManager
+   */
   ~LifecycleManager();
 
 protected:
@@ -39,42 +54,93 @@ protected:
   rclcpp::Node::SharedPtr service_client_node_;
 
   // The services provided by this node
-  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr startup_srv_;
-  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr shutdown_srv_;
-
-  void startupCallback(
+  rclcpp::Service<ManageLifecycleNodes>::SharedPtr manager_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr is_active_srv_;
+  /**
+   * @brief Lifecycle node manager callback function
+   * @param request_header Header of the service request
+   * @param request Service request
+   * @param reponse Service response
+   */
+  void managerCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
-    const std::shared_ptr<std_srvs::srv::Empty::Request> request,
-    std::shared_ptr<std_srvs::srv::Empty::Response> response);
-
-  void shutdownCallback(
+    const std::shared_ptr<ManageLifecycleNodes::Request> request,
+    std::shared_ptr<ManageLifecycleNodes::Response> response);
+  /**
+   * @brief Trigger callback function checks if the managed nodes are in active
+   * state.
+   * @param request_header Header of the request
+   * @param request Service request
+   * @param reponse Service response
+   */
+  void isActiveCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
-    const std::shared_ptr<std_srvs::srv::Empty::Request> request,
-    std::shared_ptr<std_srvs::srv::Empty::Response> response);
+    const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+    std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 
   // Support functions for the service calls
-  void startup();
-  void shutdown();
+  /**
+   * @brief Start up managed nodes.
+   * @return true or false
+   */
+  bool startup();
+  /**
+   * @brief Deactivate, clean up and shut down all the managed nodes.
+   * @return true or false
+   */
+  bool shutdown();
+  /**
+   * @brief Reset all the managed nodes.
+   * @return true or false
+   */
+  bool reset();
+  /**
+   * @brief Pause all the managed nodes.
+   * @return true or false
+   */
+  bool pause();
+  /**
+   * @brief Resume all the managed nodes.
+   * @return true or false
+   */
+  bool resume();
 
-  // Support functions for bring-up
+  // Support function for creating service clients
+  /**
+   * @brief Support function for creating service clients
+   */
   void createLifecycleServiceClients();
-  bool bringupNode(const std::string & node_name);
 
   // Support functions for shutdown
+  /**
+   * @brief Support function for shutdown
+   */
   void shutdownAllNodes();
+  /**
+   * @brief Destroy all the lifecycle service clients.
+   */
   void destroyLifecycleServiceClients();
 
-  // For a node, transition to the new target state
+  /**
+   * @brief For a node, transition to the new target state
+   */
   bool changeStateForNode(const std::string & node_name, std::uint8_t transition);
 
-  // For each node in the map, transition to the new target state
+  /**
+   * @brief For each node in the map, transition to the new target state
+   */
   bool changeStateForAllNodes(std::uint8_t transition, bool reverse_order = false);
 
   // Convenience function to highlight the output on the console
+  /**
+   * @brief Helper function to highlight the output on the console
+   */
   void message(const std::string & msg);
 
   // A map of all nodes to be controlled
   std::map<std::string, std::shared_ptr<nav2_util::LifecycleServiceClient>> node_map_;
+
+  std::map<std::uint8_t, std::string> transition_label_map_;
 
   // A map of the expected transitions to primary states
   std::unordered_map<std::uint8_t, std::uint8_t> transition_state_map_;
@@ -84,6 +150,8 @@ protected:
 
   // Whether to automatically start up the system
   bool autostart_;
+
+  bool system_active_{false};
 };
 
 }  // namespace nav2_lifecycle_manager

@@ -50,6 +50,7 @@
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "nav2_costmap_2d/layer.hpp"
 #include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/parameter_events_subscriber.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "tf2/convert.h"
 #include "tf2/LinearMath/Transform.h"
@@ -82,9 +83,13 @@ public:
   /**
    * @brief  Constructor for the wrapper
    * @param name Name of the costmap ROS node
-   * @param absolute_namespace Namespace of the costmap ROS node starting with "/"
+   * @param parent_namespace Absolute namespace of the node hosting the costmap node
+   * @param local_namespace Namespace to append to the parent namespace
    */
-  explicit Costmap2DROS(const std::string & name, const std::string & absolute_namespace);
+  explicit Costmap2DROS(
+    const std::string & name,
+    const std::string & parent_namespace,
+    const std::string & local_namespace);
 
   ~Costmap2DROS();
 
@@ -262,6 +267,7 @@ protected:
 
   LayeredCostmap * layered_costmap_{nullptr};
   std::string name_;
+  std::string parent_namespace_;
   void mapUpdateLoop(double frequency);
   bool map_update_thread_shutdown_{false};
   bool stop_updates_{false};
@@ -274,6 +280,8 @@ protected:
 
   // Parameters
   void getParameters();
+  void paramEventCallback(const rcl_interfaces::msg::ParameterEvent::SharedPtr & event);
+
   bool always_send_full_costmap_{false};
   std::string footprint_;
   float footprint_padding_{0};
@@ -299,6 +307,8 @@ protected:
   std::vector<geometry_msgs::msg::Point> padded_footprint_;
 
   std::unique_ptr<ClearCostmapService> clear_costmap_service_;
+
+  std::shared_ptr<nav2_util::ParameterEventsSubscriber> param_subscriber_;
 };
 
 }  // namespace nav2_costmap_2d

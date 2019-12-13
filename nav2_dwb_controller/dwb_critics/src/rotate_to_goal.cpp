@@ -47,7 +47,7 @@ namespace dwb_critics
 
 void RotateToGoalCritic::onInit()
 {
-  xy_goal_tolerance_ = nav_2d_utils::searchAndGetParam(nh_, "xy_goal_tolerance", 0.25);
+  xy_goal_tolerance_ = nav_2d_utils::searchAndGetParam(nh_, name_ + ".xy_goal_tolerance", 0.25);
   xy_goal_tolerance_sq_ = xy_goal_tolerance_ * xy_goal_tolerance_;
 }
 
@@ -77,11 +77,12 @@ double RotateToGoalCritic::scoreTrajectory(const dwb_msgs::msg::Trajectory2D & t
 
   // If we're sufficiently close to the goal, any transforming velocity is invalid
   if (fabs(traj.velocity.x) > 0 || fabs(traj.velocity.y) > 0) {
-    throw nav_core2::IllegalTrajectoryException(name_, "Nonrotation command near goal.");
+    throw dwb_core::
+          IllegalTrajectoryException(name_, "Nonrotation command near goal.");
   }
 
   if (traj.poses.empty()) {
-    throw nav_core2::IllegalTrajectoryException(name_, "Empty trajectory.");
+    throw dwb_core::IllegalTrajectoryException(name_, "Empty trajectory.");
   }
 
   double end_yaw = traj.poses.back().theta;

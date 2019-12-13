@@ -16,6 +16,7 @@
 #define NAV2_LIFECYCLE_MANAGER__LIFECYCLE_MANAGER_CLIENT_HPP_
 
 #include <memory>
+#include <string>
 
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
@@ -23,38 +24,94 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "std_srvs/srv/empty.hpp"
+#include "nav2_msgs/srv/manage_lifecycle_nodes.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 namespace nav2_lifecycle_manager
 {
-
+/**
+ * @enum nav2_lifecycle_manager::SystemStatus
+ * @brief Enum class representing the status of the system.
+ */
+enum class SystemStatus {ACTIVE, INACTIVE, TIMEOUT};
+/**
+ * @class nav2_lifecycle_manager::LifeCycleMangerClient
+ * @brief The LifecycleManagerClient sends requests to the LifecycleManager to
+ * control the lifecycle state of the navigation modules.
+ */
 class LifecycleManagerClient
 {
 public:
+  /**
+   * @brief A constructor for LifeCycleMangerClient
+   */
   LifecycleManagerClient();
 
   // Client-side interface to the Nav2 lifecycle manager
-  void startup();
-  void shutdown();
+  /**
+   * @brief Make start up service call
+   * @return true or false
+   */
+  bool startup();
+  /**
+   * @brief Make shutdown service call
+   * @return true or false
+   */
+  bool shutdown();
+  /**
+   * @brief Make pause service call
+   * @return true or false
+   */
+  bool pause();
+  /**
+   * @brief Make resume service call
+   * @return true or false
+   */
+  bool resume();
+  /**
+   * @brief Make reset service call
+   * @return true or false
+   */
+  bool reset();
+  /**
+   * @brief Check if lifecycle node manager server is active
+   * @return ACTIVE or INACTIVE or TIMEOUT
+   */
+  SystemStatus is_active(const std::chrono::nanoseconds timeout = std::chrono::nanoseconds(-1));
 
   // A couple convenience methods to facilitate scripting tests
+  /**
+   * @brief Set initial pose with covariance
+   * @param x X position
+   * @param y Y position
+   * @param theta orientation
+   */
   void set_initial_pose(double x, double y, double theta);
+  /**
+   * @brief Send goal pose to NavigationToPose action server
+   * @param x X position
+   * @param y Y position
+   * @param theta orientation
+   * @return true or false
+   */
   bool navigate_to_pose(double x, double y, double theta);
 
 protected:
-  using Empty = std_srvs::srv::Empty;
+  using ManageLifecycleNodes = nav2_msgs::srv::ManageLifecycleNodes;
 
-  // A generic method used to call startup, shutdown, etc.
-  void callService(rclcpp::Client<Empty>::SharedPtr service_client, const char * service_name);
+  /**
+   * @brief A generic method used to call startup, shutdown, etc.
+   * @param command
+   */
+  bool callService(uint8_t command);
 
   // The node to use for the service call
   rclcpp::Node::SharedPtr node_;
 
-  // The same (empty) request for all of the services
-  std::shared_ptr<Empty::Request> request_;
-
-  // The service clients
-  rclcpp::Client<Empty>::SharedPtr startup_client_;
-  rclcpp::Client<Empty>::SharedPtr shutdown_client_;
+  rclcpp::Client<ManageLifecycleNodes>::SharedPtr manager_client_;
+  rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr is_active_client_;
+  std::string manage_service_name_{"lifecycle_manager/manage_nodes"};
+  std::string active_service_name_{"lifecycle_manager/is_active"};
 
   using PoseWithCovarianceStamped = geometry_msgs::msg::PoseWithCovarianceStamped;
 

@@ -110,6 +110,10 @@ target_link_libraries(nav2_costmap_2d_markers
   nav2_costmap_2d_core
 )
 
+ament_target_dependencies(nav2_costmap_2d_markers
+  ${dependencies}
+)
+
 add_executable(nav2_costmap_2d_cloud src/costmap_2d_cloud.cpp)
 target_link_libraries(nav2_costmap_2d_cloud
   nav2_costmap_2d_core
@@ -125,7 +129,7 @@ target_link_libraries(nav2_costmap_2d
   layers
 )
 
-install(TARGETS nav2_costmap_2d_core nav2_costmap_2d layers nav2_costmap_2d_client
+install(TARGETS nav2_costmap_2d_core nav2_costmap_2d layers nav2_costmap_2d_client nav2_costmap_2d_markers
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
@@ -146,7 +150,6 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 
-  find_package(ament_cmake_pytest REQUIRED)
   find_package(ament_cmake_gtest REQUIRED)
   add_subdirectory(test)
 endif()

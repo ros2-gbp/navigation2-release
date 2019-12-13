@@ -18,7 +18,7 @@
 #include <memory>
 #include <string>
 
-#include "behaviortree_cpp/action_node.h"
+#include "behaviortree_cpp_v3/action_node.h"
 #include "nav2_util/node_utils.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 
@@ -29,14 +29,27 @@ template<class ActionT>
 class BtActionNode : public BT::CoroActionNode
 {
 public:
-  explicit BtActionNode(const std::string & action_name)
-  : BT::CoroActionNode(action_name), action_name_(action_name)
+  BtActionNode(
+    const std::string & xml_tag_name,
+    const std::string & action_name,
+    const BT::NodeConfiguration & conf)
+  : BT::CoroActionNode(xml_tag_name, conf), action_name_(action_name)
   {
-  }
+    node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 
-  BtActionNode(const std::string & action_name, const BT::NodeParameters & params)
-  : BT::CoroActionNode(action_name, params), action_name_(action_name)
-  {
+    // Initialize the input and output messages
+    goal_ = typename ActionT::Goal();
+    result_ = typename rclcpp_action::ClientGoalHandle<ActionT>::WrappedResult();
+
+    // Get the required items from the blackboard
+    server_timeout_ =
+      config().blackboard->get<std::chrono::milliseconds>("server_timeout");
+    getInput<std::chrono::milliseconds>("server_timeout", server_timeout_);
+
+    createActionClient(action_name_);
+
+    // Give the derive class a chance to do any initialization
+    RCLCPP_INFO(node_->get_logger(), "\"%s\" BtActionNode initialized", xml_tag_name.c_str());
   }
 
   BtActionNode() = delete;
@@ -45,41 +58,36 @@ public:
   {
   }
 
-  // This is a callback from the BT library invoked after the node is created and after the
-  // blackboard has been set for the node by the library. It is the first opportunity for
-  // the node to access the blackboard. Derived classes do not override this method,
-  // but override on_init instead.
-  void onInit() final
+  // Create instance of an action server
+  void createActionClient(const std::string & action_name)
   {
-    node_ = blackboard()->template get<rclcpp::Node::SharedPtr>("node");
-
-    // Initialize the input and output messages
-    goal_ = typename ActionT::Goal();
-    result_ = typename rclcpp_action::ClientGoalHandle<ActionT>::WrappedResult();
-
-    // Get the required items from the blackboard
-    node_loop_timeout_ =
-      blackboard()->template get<std::chrono::milliseconds>("node_loop_timeout");
-
     // Now that we have the ROS node to use, create the action client for this BT action
-    action_client_ = rclcpp_action::create_client<ActionT>(node_, action_name_);
+    action_client_ = rclcpp_action::create_client<ActionT>(node_, action_name);
 
     // Make sure the server is actually there before continuing
-    RCLCPP_INFO(node_->get_logger(), "Waiting for \"%s\" action server", action_name_.c_str());
+    RCLCPP_INFO(node_->get_logger(), "Waiting for \"%s\" action server", action_name.c_str());
     action_client_->wait_for_action_server();
+  }
 
-    // Give the derive class a chance to do any initialization
-    on_init();
-    RCLCPP_INFO(node_->get_logger(), "\"%s\" BtActionNode initialized", action_name_.c_str());
+  // Any subclass of BtActionNode that accepts parameters must provide a providedPorts method
+  // and call providedBasicPorts in it.
+  static BT::PortsList providedBasicPorts(BT::PortsList addition)
+  {
+    BT::PortsList basic = {
+      BT::InputPort<std::chrono::milliseconds>("server_timeout")
+    };
+    basic.insert(addition.begin(), addition.end());
+
+    return basic;
+  }
+
+  static BT::PortsList providedPorts()
+  {
+    return providedBasicPorts({});
   }
 
   // Derived classes can override any of the following methods to hook into the
-  // processing for the action: on_init, on_tick, on_loop_timeout, and on_success
-
-  // Perform any local initialization such as getting values from the blackboard
-  virtual void on_init()
-  {
-  }
+  // processing for the action: on_tick, on_server_timeout, and on_success
 
   // Could do dynamic checks, such as getting updates to values on the blackboard
   virtual void on_tick()
@@ -88,7 +96,7 @@ public:
 
   // There can be many loop iterations per tick. Any opportunity to do something after
   // a timeout waiting for a result that hasn't been received yet
-  virtual void on_loop_timeout()
+  virtual void on_server_timeout()
   {
   }
 
@@ -103,12 +111,8 @@ public:
   {
     on_tick();
 
-    // Enable result awareness by providing an empty lambda function
-    auto send_goal_options = typename rclcpp_action::Client<ActionT>::SendGoalOptions();
-    send_goal_options.result_callback = [](auto) {};
-
 new_goal_received:
-    auto future_goal_handle = action_client_->async_send_goal(goal_, send_goal_options);
+    auto future_goal_handle = action_client_->async_send_goal(goal_);
     if (rclcpp::spin_until_future_complete(node_, future_goal_handle) !=
       rclcpp::executor::FutureReturnCode::SUCCESS)
     {
@@ -120,16 +124,18 @@ new_goal_received:
       throw std::runtime_error("Goal was rejected by the action server");
     }
 
-    auto future_result = goal_handle_->async_result();
+    auto future_result = action_client_->async_get_result(goal_handle_);
     rclcpp::executor::FutureReturnCode rc;
     do {
-      rc = rclcpp::spin_until_future_complete(node_, future_result, node_loop_timeout_);
+      rc = rclcpp::spin_until_future_complete(node_, future_result, server_timeout_);
       if (rc == rclcpp::executor::FutureReturnCode::TIMEOUT) {
-        on_loop_timeout();
+        on_server_timeout();
 
         // We can handle a new goal if we're still executing
         auto status = goal_handle_->get_status();
-        if (goal_updated_ && (status == action_msgs::msg::GoalStatus::STATUS_EXECUTING)) {
+        if (goal_updated_ && (status == action_msgs::msg::GoalStatus::STATUS_EXECUTING ||
+          status == action_msgs::msg::GoalStatus::STATUS_ACCEPTED ))
+        {
           goal_updated_ = false;
           goto new_goal_received;
         }
@@ -212,7 +218,7 @@ protected:
 
   // The timeout value while to use in the tick loop while waiting for
   // a result from the server
-  std::chrono::milliseconds node_loop_timeout_;
+  std::chrono::milliseconds server_timeout_;
 };
 
 }  // namespace nav2_behavior_tree

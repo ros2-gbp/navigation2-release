@@ -37,8 +37,8 @@
 #include <cmath>
 #include <string>
 #include <vector>
-#include "nav2_util/duration_conversions.hpp"
 #include "nav_2d_utils/parameters.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "dwb_core/exceptions.hpp"
 #include "pluginlib/class_list_macros.hpp"
 
@@ -91,13 +91,16 @@ bool OscillationCritic::CommandTrend::hasSignFlipped()
 
 void OscillationCritic::onInit()
 {
-  oscillation_reset_dist_ = nav_2d_utils::searchAndGetParam(nh_, "oscillation_reset_dist", 0.05);
+  oscillation_reset_dist_ = nav_2d_utils::searchAndGetParam(nh_,
+      name_ + ".oscillation_reset_dist", 0.05);
   oscillation_reset_dist_sq_ = oscillation_reset_dist_ * oscillation_reset_dist_;
-  oscillation_reset_angle_ = nav_2d_utils::searchAndGetParam(nh_, "oscillation_reset_angle", 0.2);
-  oscillation_reset_time_ = nav2_util::duration_from_seconds(
-    nav_2d_utils::searchAndGetParam(nh_, "oscillation_reset_time", -1.0));
+  oscillation_reset_angle_ = nav_2d_utils::searchAndGetParam(nh_,
+      name_ + ".oscillation_reset_angle", 0.2);
+  oscillation_reset_time_ = rclcpp::Duration::from_seconds(
+    nav_2d_utils::searchAndGetParam(nh_, name_ + ".oscillation_reset_time", -1.0));
 
-  nh_->declare_parameter(name_ + ".x_only_threshold", rclcpp::ParameterValue(0.05));
+  nav2_util::declare_parameter_if_not_declared(nh_,
+    name_ + ".x_only_threshold", rclcpp::ParameterValue(0.05));
 
   /**
    * Historical Parameter Loading
@@ -174,7 +177,7 @@ bool OscillationCritic::resetAvailable()
       return true;
     }
   }
-  if (oscillation_reset_time_ >= nav2_util::duration_from_seconds(0.0)) {
+  if (oscillation_reset_time_ >= rclcpp::Duration::from_seconds(0.0)) {
     auto t_diff = (nh_->now() - prev_reset_time_);
     if (t_diff > oscillation_reset_time_) {
       return true;
@@ -210,7 +213,8 @@ double OscillationCritic::scoreTrajectory(const dwb_msgs::msg::Trajectory2D & tr
     y_trend_.isOscillating(traj.velocity.y) ||
     theta_trend_.isOscillating(traj.velocity.theta))
   {
-    throw nav_core2::IllegalTrajectoryException(name_, "Trajectory is oscillating.");
+    throw dwb_core::
+          IllegalTrajectoryException(name_, "Trajectory is oscillating.");
   }
   return 0.0;
 }

@@ -45,7 +45,6 @@
 
 #include "pluginlib/class_list_macros.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
-#include "nav2_util/duration_conversions.hpp"
 #include "nav2_costmap_2d/costmap_math.hpp"
 
 PLUGINLIB_EXPORT_CLASS(nav2_costmap_2d::ObstacleLayer, nav2_costmap_2d::Layer)
@@ -76,11 +75,12 @@ void ObstacleLayer::onInitialize()
   std::string topics_string;
 
   // TODO(mjeronimo): these four are candidates for dynamic update
-  node_->declare_parameter(name_ + "." + "enabled", rclcpp::ParameterValue(true));
-  node_->declare_parameter(name_ + "." + "footprint_clearing_enabled",
+  declareParameter("enabled", rclcpp::ParameterValue(true));
+  declareParameter("footprint_clearing_enabled",
     rclcpp::ParameterValue(true));
-  node_->declare_parameter(name_ + "." + "max_obstacle_height", rclcpp::ParameterValue(2.0));
-  node_->declare_parameter(name_ + "." + "combination_method", rclcpp::ParameterValue(1));
+  declareParameter("max_obstacle_height", rclcpp::ParameterValue(2.0));
+  declareParameter("combination_method", rclcpp::ParameterValue(1));
+  declareParameter("observation_sources", rclcpp::ParameterValue(std::string("")));
 
   node_->get_parameter(name_ + "." + "enabled", enabled_);
   node_->get_parameter(name_ + "." + "footprint_clearing_enabled", footprint_clearing_enabled_);
@@ -88,7 +88,7 @@ void ObstacleLayer::onInitialize()
   node_->get_parameter(name_ + "." + "combination_method", combination_method_);
   node_->get_parameter("track_unknown_space", track_unknown_space);
   node_->get_parameter("transform_tolerance", transform_tolerance);
-  node_->get_parameter("observation_sources", topics_string);
+  node_->get_parameter(name_ + "." + "observation_sources", topics_string);
 
   RCLCPP_INFO(node_->get_logger(), "Subscribed to Topics: %s", topics_string.c_str());
 
@@ -115,31 +115,31 @@ void ObstacleLayer::onInitialize()
     std::string topic, sensor_frame, data_type;
     bool inf_is_valid, clearing, marking;
 
-    node_->declare_parameter(source + "." + "topic", rclcpp::ParameterValue(source));
-    node_->declare_parameter(source + "." + "sensor_frame",
-      rclcpp::ParameterValue(std::string("")));
-    node_->declare_parameter(source + "." + "observation_persistence", rclcpp::ParameterValue(0.0));
-    node_->declare_parameter(source + "." + "expected_update_rate", rclcpp::ParameterValue(0.0));
-    node_->declare_parameter(source + "." + "data_type",
-      rclcpp::ParameterValue(std::string("LaserScan")));
-    node_->declare_parameter(source + "." + "min_obstacle_height", rclcpp::ParameterValue(0.0));
-    node_->declare_parameter(source + "." + "max_obstacle_height", rclcpp::ParameterValue(0.0));
-    node_->declare_parameter(source + "." + "inf_is_valid", rclcpp::ParameterValue(false));
-    node_->declare_parameter(source + "." + "marking", rclcpp::ParameterValue(true));
-    node_->declare_parameter(source + "." + "clearing", rclcpp::ParameterValue(false));
-    node_->declare_parameter(source + "." + "obstacle_range", rclcpp::ParameterValue(2.5));
-    node_->declare_parameter(source + "." + "raytrace_range", rclcpp::ParameterValue(3.0));
+    declareParameter(source + "." + "topic", rclcpp::ParameterValue(source));
+    declareParameter(source + "." + "sensor_frame", rclcpp::ParameterValue(std::string("")));
+    declareParameter(source + "." + "observation_persistence", rclcpp::ParameterValue(0.0));
+    declareParameter(source + "." + "expected_update_rate", rclcpp::ParameterValue(0.0));
+    declareParameter(source + "." + "data_type", rclcpp::ParameterValue(std::string("LaserScan")));
+    declareParameter(source + "." + "min_obstacle_height", rclcpp::ParameterValue(0.0));
+    declareParameter(source + "." + "max_obstacle_height", rclcpp::ParameterValue(0.0));
+    declareParameter(source + "." + "inf_is_valid", rclcpp::ParameterValue(false));
+    declareParameter(source + "." + "marking", rclcpp::ParameterValue(true));
+    declareParameter(source + "." + "clearing", rclcpp::ParameterValue(false));
+    declareParameter(source + "." + "obstacle_range", rclcpp::ParameterValue(2.5));
+    declareParameter(source + "." + "raytrace_range", rclcpp::ParameterValue(3.0));
 
-    node_->get_parameter(source + "." + "topic", topic);
-    node_->get_parameter(source + "." + "sensor_frame", sensor_frame);
-    node_->get_parameter(source + "." + "observation_persistence", observation_keep_time);
-    node_->get_parameter(source + "." + "expected_update_rate", expected_update_rate);
-    node_->get_parameter(source + "." + "data_type", data_type);
-    node_->get_parameter(source + "." + "min_obstacle_height", min_obstacle_height);
-    node_->get_parameter(source + "." + "max_obstacle_height", max_obstacle_height);
-    node_->get_parameter(source + "." + "inf_is_valid", inf_is_valid);
-    node_->get_parameter(source + "." + "marking", marking);
-    node_->get_parameter(source + "." + "clearing", clearing);
+    node_->get_parameter(name_ + "." + source + "." + "topic", topic);
+    node_->get_parameter(name_ + "." + source + "." + "sensor_frame", sensor_frame);
+    node_->get_parameter(name_ + "." + source + "." + "observation_persistence",
+      observation_keep_time);
+    node_->get_parameter(name_ + "." + source + "." + "expected_update_rate",
+      expected_update_rate);
+    node_->get_parameter(name_ + "." + source + "." + "data_type", data_type);
+    node_->get_parameter(name_ + "." + source + "." + "min_obstacle_height", min_obstacle_height);
+    node_->get_parameter(name_ + "." + source + "." + "max_obstacle_height", max_obstacle_height);
+    node_->get_parameter(name_ + "." + source + "." + "inf_is_valid", inf_is_valid);
+    node_->get_parameter(name_ + "." + source + "." + "marking", marking);
+    node_->get_parameter(name_ + "." + source + "." + "clearing", clearing);
 
     if (!(data_type == "PointCloud2" || data_type == "LaserScan")) {
       RCLCPP_FATAL(node_->get_logger(),
@@ -150,11 +150,11 @@ void ObstacleLayer::onInitialize()
 
     // get the obstacle range for the sensor
     double obstacle_range;
-    node_->get_parameter(source + "." + "obstacle_range", obstacle_range);
+    node_->get_parameter(name_ + "." + source + "." + "obstacle_range", obstacle_range);
 
     // get the raytrace range for the sensor
     double raytrace_range;
-    node_->get_parameter(source + "." + "raytrace_range", raytrace_range);
+    node_->get_parameter(name_ + "." + source + "." + "raytrace_range", raytrace_range);
 
     RCLCPP_DEBUG(node_->get_logger(),
       "Creating an observation buffer for source %s, topic %s, frame %s",
@@ -212,7 +212,7 @@ void ObstacleLayer::onInitialize()
       observation_subscribers_.push_back(sub);
 
       observation_notifiers_.push_back(filter);
-      observation_notifiers_.back()->setTolerance(nav2_util::duration_from_seconds(0.05));
+      observation_notifiers_.back()->setTolerance(rclcpp::Duration::from_seconds(0.05));
 
     } else {
       std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> sub(
@@ -242,6 +242,37 @@ void ObstacleLayer::onInitialize()
       target_frames.push_back(sensor_frame);
       observation_notifiers_.back()->setTargetFrames(target_frames);
     }
+  }
+  setParamCallbacks();
+}
+
+void
+ObstacleLayer::setParamCallbacks()
+{
+  if (param_subscriber_) {
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ + ".enabled",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        enabled_ = p.get_value<bool>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ +
+      ".footprint_clearing_enabled",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        footprint_clearing_enabled_ = p.get_value<bool>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ +
+      ".max_obstacle_height",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        max_obstacle_height_ = p.get_value<double>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ +
+      ".combination_method",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        combination_method_ = p.get_value<int>();
+      }));
   }
 }
 
@@ -588,13 +619,9 @@ ObstacleLayer::activate()
       observation_subscribers_[i]->subscribe();
     }
   }
-
-  for (unsigned int i = 0; i < observation_buffers_.size(); ++i) {
-    if (observation_buffers_[i]) {
-      observation_buffers_[i]->resetLastUpdated();
-    }
-  }
+  resetBuffersLastUpdated();
 }
+
 void
 ObstacleLayer::deactivate()
 {
@@ -620,11 +647,19 @@ ObstacleLayer::updateRaytraceBounds(
 void
 ObstacleLayer::reset()
 {
-  deactivate();
   resetMaps();
+  resetBuffersLastUpdated();
   current_ = true;
-  activate();
-  undeclareAllParameters();
+}
+
+void
+ObstacleLayer::resetBuffersLastUpdated()
+{
+  for (unsigned int i = 0; i < observation_buffers_.size(); ++i) {
+    if (observation_buffers_[i]) {
+      observation_buffers_[i]->resetLastUpdated();
+    }
+  }
 }
 
 }  // namespace nav2_costmap_2d

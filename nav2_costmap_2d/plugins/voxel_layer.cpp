@@ -59,17 +59,16 @@ void VoxelLayer::onInitialize()
 {
   ObstacleLayer::onInitialize();
 
-  node_->declare_parameter(name_ + "." + "enabled", rclcpp::ParameterValue(true));
-  node_->declare_parameter(name_ + "." + "footprint_clearing_enabled",
-    rclcpp::ParameterValue(true));
-  node_->declare_parameter(name_ + "." + "max_obstacle_height", rclcpp::ParameterValue(2.0));
-  node_->declare_parameter(name_ + "." + "z_voxels", rclcpp::ParameterValue(10));
-  node_->declare_parameter(name_ + "." + "origin_z", rclcpp::ParameterValue(0.0));
-  node_->declare_parameter(name_ + "." + "z_resolution", rclcpp::ParameterValue(0.2));
-  node_->declare_parameter(name_ + "." + "unknown_threshold", rclcpp::ParameterValue(15));
-  node_->declare_parameter(name_ + "." + "mark_threshold", rclcpp::ParameterValue(0));
-  node_->declare_parameter(name_ + "." + "combination_method", rclcpp::ParameterValue(1));
-  node_->declare_parameter(name_ + "." + "publish_voxel_map", rclcpp::ParameterValue(false));
+  declareParameter("enabled", rclcpp::ParameterValue(true));
+  declareParameter("footprint_clearing_enabled", rclcpp::ParameterValue(true));
+  declareParameter("max_obstacle_height", rclcpp::ParameterValue(2.0));
+  declareParameter("z_voxels", rclcpp::ParameterValue(10));
+  declareParameter("origin_z", rclcpp::ParameterValue(0.0));
+  declareParameter("z_resolution", rclcpp::ParameterValue(0.2));
+  declareParameter("unknown_threshold", rclcpp::ParameterValue(15));
+  declareParameter("mark_threshold", rclcpp::ParameterValue(0));
+  declareParameter("combination_method", rclcpp::ParameterValue(1));
+  declareParameter("publish_voxel_map", rclcpp::ParameterValue(false));
 
   node_->get_parameter(name_ + "." + "enabled", enabled_);
   node_->get_parameter(name_ + "." + "footprint_clearing_enabled", footprint_clearing_enabled_);
@@ -89,11 +88,70 @@ void VoxelLayer::onInitialize()
       "voxel_grid", custom_qos);
   }
 
+  voxel_pub_->on_activate();
+
   clearing_endpoints_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud>(
     "clearing_endpoints", custom_qos);
 
   unknown_threshold_ += (VOXEL_BITS - size_z_);
   matchSize();
+  setParamCallbacks();
+}
+
+void
+VoxelLayer::setParamCallbacks()
+{
+  if (param_subscriber_) {
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ + ".enabled",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        enabled_ = p.get_value<bool>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ +
+      ".footprint_clearing_enabled",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        footprint_clearing_enabled_ = p.get_value<bool>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ +
+      ".max_obstacle_height",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        max_obstacle_height_ = p.get_value<double>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ +
+      ".combination_method",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        combination_method_ = p.get_value<int>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ + ".z_voxels",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        size_z_ = p.get_value<int>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ + ".origin_z",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        origin_z_ = p.get_value<double>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ + ".z_resolution",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        z_resolution_ = p.get_value<double>();
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ +
+      ".unknown_threshold",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        unknown_threshold_ = p.get_value<int>() + (VOXEL_BITS - size_z_);
+      }));
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ + ".mark_threshold",
+      [&](const rclcpp::Parameter & p) {
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
+        mark_threshold_ = p.get_value<int>();
+      }));
+  }
 }
 
 VoxelLayer::~VoxelLayer()
@@ -109,16 +167,18 @@ void VoxelLayer::matchSize()
 
 void VoxelLayer::reset()
 {
-  deactivate();
+  // Call the base class method before adding our own functionality
+  ObstacleLayer::reset();
   resetMaps();
-  voxel_grid_.reset();
-  activate();
-  undeclareAllParameters();
 }
 
 void VoxelLayer::resetMaps()
 {
-  Costmap2D::resetMaps();
+  // Call the base class method before adding our own functionality
+  // Note: at the time this was written, ObstacleLayer doesn't implement
+  // resetMaps so this goes to the next layer down Costmap2DLayer which also
+  // doesn't implement this, so it actually goes all the way to Costmap2D
+  ObstacleLayer::resetMaps();
   voxel_grid_.reset();
 }
 
@@ -312,6 +372,7 @@ void VoxelLayer::raytraceFreespace(
   // we can pre-compute the enpoints of the map outside of the inner loop... we'll need these later
   double map_end_x = origin_x_ + getSizeInMetersX();
   double map_end_y = origin_y_ + getSizeInMetersY();
+  double map_end_z = origin_z_ + getSizeInMetersZ();
 
   sensor_msgs::PointCloud2ConstIterator<float> iter_x(*(clearing_observation.cloud_), "x");
   sensor_msgs::PointCloud2ConstIterator<float> iter_y(*(clearing_observation.cloud_), "y");
@@ -335,9 +396,9 @@ void VoxelLayer::raytraceFreespace(
     double t = 1.0;
 
     // we can only raytrace to a maximum z height
-    if (wpz > max_obstacle_height_) {
+    if (wpz > map_end_z) {
       // we know we want the vector's z value to be max_z
-      t = std::max(0.0, std::min(t, (max_obstacle_height_ - 0.01 - oz) / c));
+      t = std::max(0.0, std::min(t, (map_end_z - 0.01 - oz) / c));
     } else if (wpz < origin_z_) {
       // and we can only raytrace down to the floor
       // we know we want the vector's z value to be 0.0

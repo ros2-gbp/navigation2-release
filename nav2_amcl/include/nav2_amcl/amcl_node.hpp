@@ -34,6 +34,7 @@
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_amcl/motion_model/motion_model.hpp"
 #include "nav2_amcl/sensors/laser/laser.hpp"
+#include "nav2_util/parameter_events_subscriber.hpp"
 #include "nav_msgs/srv/set_map.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_srvs/srv/empty.hpp"
@@ -86,7 +87,7 @@ protected:
   map_t * map_{nullptr};
   map_t * convertMap(const nav_msgs::msg::OccupancyGrid & map_msg);
   bool first_map_only_{true};
-  bool first_map_received_{false};
+  std::atomic<bool> first_map_received_{false};
   amcl_hyp_t * initial_pose_hyp_;
   std::recursive_mutex configuration_mutex_;
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::ConstSharedPtr map_sub_;
@@ -103,6 +104,10 @@ protected:
   bool latest_tf_valid_{false};
   tf2::Transform latest_tf_;
   void waitForTransforms();
+
+  // Parameter Event Subscriber
+  std::shared_ptr<nav2_util::ParameterEventsSubscriber> param_subscriber_;
+  void parameterEventCallback(const rcl_interfaces::msg::ParameterEvent::SharedPtr & event);
 
   // Message filters
   void initMessageFilters();
@@ -136,7 +141,7 @@ protected:
     std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
   // Nomotion update control. Used to temporarily let amcl update samples even when no motion occurs
-  bool force_update_{false};
+  std::atomic<bool> force_update_{false};
 
   // Odometry
   void initOdometry();
@@ -202,6 +207,7 @@ protected:
   bool init_pose_received_on_inactive{false};
   bool initial_pose_is_known_{false};
   bool set_initial_pose_{false};
+  bool always_reset_initial_pose_;
   double initial_pose_x_;
   double initial_pose_y_;
   double initial_pose_z_;

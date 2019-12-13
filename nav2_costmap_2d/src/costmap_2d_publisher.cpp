@@ -3,6 +3,7 @@
  * Software License Agreement (BSD License)
  *
  *  Copyright (c) 2008, 2013, Willow Garage, Inc.
+ *  Copyright (c) 2019, Samsung Research America, Inc.
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -38,6 +39,7 @@
 #include "nav2_costmap_2d/costmap_2d_publisher.hpp"
 
 #include <string>
+#include <memory>
 
 #include "nav2_costmap_2d/cost_values.hpp"
 
@@ -63,6 +65,12 @@ Costmap2DPublisher::Costmap2DPublisher(
       custom_qos);
   costmap_update_pub_ = node_->create_publisher<map_msgs::msg::OccupancyGridUpdate>(
     topic_name + "_updates", custom_qos);
+
+  // Create a service that will use the callback function to handle requests.
+  costmap_service_ = node_->create_service<nav2_msgs::srv::GetCostmap>(
+    "get_costmap", std::bind(&Costmap2DPublisher::costmap_service_callback,
+    this, std::placeholders::_1, std::placeholders::_2,
+    std::placeholders::_3));
 
   if (cost_translation_table_ == NULL) {
     cost_translation_table_ = new char[256];
@@ -157,8 +165,10 @@ void Costmap2DPublisher::prepareCostmap()
 
 void Costmap2DPublisher::publishCostmap()
 {
-  prepareCostmap();
-  costmap_raw_pub_->publish(costmap_raw_);
+  if (node_->count_subscribers(costmap_raw_pub_->get_topic_name()) > 0) {
+    prepareCostmap();
+    costmap_raw_pub_->publish(costmap_raw_);
+  }
   float resolution = costmap_->getResolution();
 
   if (always_send_full_costmap_ || grid_.info.resolution != resolution ||
@@ -167,33 +177,70 @@ void Costmap2DPublisher::publishCostmap()
     saved_origin_x_ != costmap_->getOriginX() ||
     saved_origin_y_ != costmap_->getOriginY())
   {
-    prepareGrid();
-    costmap_pub_->publish(grid_);
-  } else if (x0_ < xn_) {
-    std::unique_lock<Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
-    // Publish Just an Update
-    map_msgs::msg::OccupancyGridUpdate update;
-    update.header.stamp = rclcpp::Time();
-    update.header.frame_id = global_frame_;
-    update.x = x0_;
-    update.y = y0_;
-    update.width = xn_ - x0_;
-    update.height = yn_ - y0_;
-    update.data.resize(update.width * update.height);
-
-    unsigned int i = 0;
-    for (unsigned int y = y0_; y < yn_; y++) {
-      for (unsigned int x = x0_; x < xn_; x++) {
-        unsigned char cost = costmap_->getCost(x, y);
-        update.data[i++] = cost_translation_table_[cost];
-      }
+    if (node_->count_subscribers(costmap_pub_->get_topic_name()) > 0) {
+      prepareGrid();
+      costmap_pub_->publish(grid_);
     }
-    costmap_update_pub_->publish(update);
+  } else if (x0_ < xn_) {
+    if (node_->count_subscribers(costmap_update_pub_->get_topic_name()) > 0) {
+      std::unique_lock<Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
+      // Publish Just an Update
+      map_msgs::msg::OccupancyGridUpdate update;
+      update.header.stamp = rclcpp::Time();
+      update.header.frame_id = global_frame_;
+      update.x = x0_;
+      update.y = y0_;
+      update.width = xn_ - x0_;
+      update.height = yn_ - y0_;
+      update.data.resize(update.width * update.height);
+      unsigned int i = 0;
+      for (unsigned int y = y0_; y < yn_; y++) {
+        for (unsigned int x = x0_; x < xn_; x++) {
+          unsigned char cost = costmap_->getCost(x, y);
+          update.data[i++] = cost_translation_table_[cost];
+        }
+      }
+      costmap_update_pub_->publish(update);
+    }
   }
 
   xn_ = yn_ = 0;
   x0_ = costmap_->getSizeInCellsX();
   y0_ = costmap_->getSizeInCellsY();
+}
+
+void
+Costmap2DPublisher::costmap_service_callback(
+  const std::shared_ptr<rmw_request_id_t>/*request_header*/,
+  const std::shared_ptr<nav2_msgs::srv::GetCostmap::Request>/*request*/,
+  const std::shared_ptr<nav2_msgs::srv::GetCostmap::Response> response)
+{
+  RCLCPP_DEBUG(node_->get_logger(), "Received costmap service request");
+
+  // TODO(bpwilcox): Grab correct orientation information
+  tf2::Quaternion quaternion;
+  quaternion.setRPY(0.0, 0.0, 0.0);
+
+  auto size_x = costmap_->getSizeInCellsX();
+  auto size_y = costmap_->getSizeInCellsY();
+  auto data_length = size_x * size_y;
+  unsigned char * data = costmap_->getCharMap();
+  auto current_time = node_->now();
+
+  response->map.header.stamp = current_time;
+  response->map.header.frame_id = global_frame_;
+  response->map.metadata.size_x = size_x;
+  response->map.metadata.size_y = size_y;
+  response->map.metadata.resolution = costmap_->getResolution();
+  response->map.metadata.layer = "master";
+  response->map.metadata.map_load_time = current_time;
+  response->map.metadata.update_time = current_time;
+  response->map.metadata.origin.position.x = costmap_->getOriginX();
+  response->map.metadata.origin.position.y = costmap_->getOriginY();
+  response->map.metadata.origin.position.z = 0.0;
+  response->map.metadata.origin.orientation = tf2::toMsg(quaternion);
+  response->map.data.resize(data_length);
+  response->map.data.assign(data, data + data_length);
 }
 
 }  // end namespace nav2_costmap_2d

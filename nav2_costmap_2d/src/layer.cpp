@@ -31,6 +31,7 @@
 
 #include <string>
 #include <vector>
+#include "nav2_util/node_utils.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -48,7 +49,8 @@ Layer::initialize(
   LayeredCostmap * parent, std::string name, tf2_ros::Buffer * tf,
   nav2_util::LifecycleNode::SharedPtr node,
   rclcpp::Node::SharedPtr client_node,
-  rclcpp::Node::SharedPtr rclcpp_node)
+  rclcpp::Node::SharedPtr rclcpp_node,
+  std::shared_ptr<nav2_util::ParameterEventsSubscriber> param_subscriber)
 {
   layered_costmap_ = parent;
   name_ = name;
@@ -56,6 +58,7 @@ Layer::initialize(
   node_ = node;
   client_node_ = client_node;
   rclcpp_node_ = rclcpp_node;
+  param_subscriber_ = param_subscriber;
 
   onInitialize();
 }
@@ -71,7 +74,7 @@ Layer::declareParameter(
   const std::string & param_name, const rclcpp::ParameterValue & value)
 {
   local_params_.insert(param_name);
-  node_->declare_parameter(getFullName(param_name), value);
+  nav2_util::declare_parameter_if_not_declared(node_, getFullName(param_name), value);
 }
 
 bool

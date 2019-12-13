@@ -1,7 +1,8 @@
 #goal definition
 geometry_msgs/PoseStamped pose
+string planner_id
 ---
 #result definition
-nav2_msgs/Path path
+nav_msgs/Path path
 ---
 #feedback

@@ -31,7 +31,6 @@
 #include "message_filters/subscriber.h"
 #include "nav2_amcl/angleutils.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_util/duration_conversions.hpp"
 #include "nav2_amcl/pf/pf.hpp"
 #include "nav2_util/string_utils.hpp"
 #include "nav2_amcl/sensors/laser/laser.hpp"
@@ -42,6 +41,7 @@
 #include "tf2_ros/message_filter.h"
 #include "tf2_ros/transform_broadcaster.h"
 #include "tf2_ros/transform_listener.h"
+#include "tf2_ros/create_timer_ros.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -176,6 +176,11 @@ AmclNode::AmclNode()
   add_parameter("z_max", rclcpp::ParameterValue(0.05));
   add_parameter("z_rand", rclcpp::ParameterValue(0.5));
   add_parameter("z_short", rclcpp::ParameterValue(0.05));
+
+  add_parameter("always_reset_initial_pose", rclcpp::ParameterValue(false),
+    "Requires that AMCL is provided an initial pose either via topic or initial_pose* parameter "
+    "(with parameter set_initial_pose: true) when reset. Otherwise, by default AMCL will use the"
+    "last known pose to initialize");
 }
 
 AmclNode::~AmclNode()
@@ -189,13 +194,20 @@ AmclNode::on_configure(const rclcpp_lifecycle::State & /*state*/)
   RCLCPP_INFO(get_logger(), "Configuring");
 
   initParameters();
+  if (always_reset_initial_pose_) {
+    initial_pose_is_known_ = false;
+  }
   initTransforms();
-  initMessageFilters();
   initPubSub();
+  initMessageFilters();
   initServices();
   initOdometry();
   initParticleFilter();
   initLaserScan();
+
+  param_subscriber_ = std::make_shared<nav2_util::ParameterEventsSubscriber>(shared_from_this());
+  param_subscriber_->set_event_callback(
+    std::bind(&AmclNode::parameterEventCallback, this, std::placeholders::_1));
 
   return nav2_util::CallbackReturn::SUCCESS;
 }
@@ -285,6 +297,7 @@ AmclNode::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
   // Map
   map_free(map_);
   map_ = nullptr;
+  first_map_received_ = false;
   free_space_indices.resize(0);
 
   // Transforms
@@ -307,6 +320,18 @@ AmclNode::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
   lasers_.clear();
   lasers_update_.clear();
   frame_to_laser_.clear();
+  force_update_ = true;
+
+  if (set_initial_pose_) {
+    set_parameter(rclcpp::Parameter("initial_pose.x",
+      rclcpp::ParameterValue(last_published_pose_.pose.pose.position.x)));
+    set_parameter(rclcpp::Parameter("initial_pose.y",
+      rclcpp::ParameterValue(last_published_pose_.pose.pose.position.y)));
+    set_parameter(rclcpp::Parameter("initial_pose.z",
+      rclcpp::ParameterValue(last_published_pose_.pose.pose.position.z)));
+    set_parameter(rclcpp::Parameter("initial_pose.yaw",
+      rclcpp::ParameterValue(tf2::getYaw(last_published_pose_.pose.pose.orientation))));
+  }
 
   return nav2_util::CallbackReturn::SUCCESS;
 }
@@ -323,6 +348,15 @@ AmclNode::on_shutdown(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Shutting down");
   return nav2_util::CallbackReturn::SUCCESS;
+}
+
+void
+AmclNode::parameterEventCallback(const rcl_interfaces::msg::ParameterEvent::SharedPtr & /*event*/)
+{
+  initParameters();
+  initMessageFilters();
+  initOdometry();
+  initParticleFilter();
 }
 
 void
@@ -1004,6 +1038,7 @@ AmclNode::initParameters()
   get_parameter("z_rand", z_rand_);
   get_parameter("z_short", z_short_);
   get_parameter("first_map_only_", first_map_only_);
+  get_parameter("always_reset_initial_pose", always_reset_initial_pose_);
 
   save_pose_period_ = tf2::durationFromSec(1.0 / save_pose_rate);
   transform_tolerance_ = tf2::durationFromSec(tmp_tol);
@@ -1030,10 +1065,8 @@ AmclNode::mapReceived(const nav_msgs::msg::OccupancyGrid::SharedPtr msg)
   if (first_map_only_ && first_map_received_) {
     return;
   }
-  if (initial_pose_is_known_) {
-    handleMapMessage(*msg);
-    first_map_received_ = true;
-  }
+  handleMapMessage(*msg);
+  first_map_received_ = true;
 }
 
 void
@@ -1052,32 +1085,13 @@ AmclNode::handleMapMessage(const nav_msgs::msg::OccupancyGrid & msg)
       msg.header.frame_id.c_str(),
       global_frame_id_.c_str());
   }
-
   freeMapDependentMemory();
-  // Clear queued laser objects because they hold pointers to the existing
-  // map, #5202.
-  lasers_.clear();
-  lasers_update_.clear();
-  frame_to_laser_.clear();
-
   map_ = convertMap(msg);
 
 #if NEW_UNIFORM_SAMPLING
   createFreeSpaceVector();
 #endif
-  // Create the particle filter
-  initParticleFilter();
-  // resample_count = 0 is extra
 
-  // Instantiate the sensor objects
-  motion_model_.reset();
-  motion_model_ = std::unique_ptr<nav2_amcl::MotionModel>(nav2_amcl::MotionModel::createMotionModel(
-        robot_model_type_, alpha1_, alpha2_, alpha3_, alpha4_, alpha5_));
-
-  // Laser
-  lasers_.clear();
-
-  handleInitialPose(last_published_pose_);
 }
 
 void
@@ -1102,17 +1116,11 @@ AmclNode::freeMapDependentMemory()
     map_ = NULL;
   }
 
-  if (pf_ != NULL) {
-    pf_free(pf_);
-    pf_ = NULL;
-  }
-
-  motion_model_.reset();
-  motion_model_ = std::unique_ptr<nav2_amcl::MotionModel>(nav2_amcl::MotionModel::createMotionModel(
-        robot_model_type_, alpha1_, alpha2_, alpha3_, alpha4_, alpha5_));
-
-  // Laser
+  // Clear queued laser objects because they hold pointers to the existing
+  // map, #5202.
   lasers_.clear();
+  lasers_update_.clear();
+  frame_to_laser_.clear();
 }
 
 // Convert an OccupancyGrid map message into the internal representation. This function
@@ -1152,6 +1160,10 @@ AmclNode::initTransforms()
 
   // Initialize transform listener and broadcaster
   tf_buffer_ = std::make_shared<tf2_ros::Buffer>(rclcpp_node_->get_clock());
+  auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+    rclcpp_node_->get_node_base_interface(),
+    rclcpp_node_->get_node_timers_interface());
+  tf_buffer_->setCreateTimerInterface(timer_interface);
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(rclcpp_node_);
 
@@ -1163,9 +1175,6 @@ AmclNode::initTransforms()
 void
 AmclNode::initMessageFilters()
 {
-  laser_scan_sub_ = std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan>>(
-    rclcpp_node_.get(), scan_topic_, rmw_qos_profile_sensor_data);
-
   laser_scan_filter_ = std::make_unique<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(
     *laser_scan_sub_, *tf_buffer_, odom_frame_id_, 10, rclcpp_node_);
 
@@ -1193,6 +1202,9 @@ AmclNode::initPubSub()
     std::bind(&AmclNode::mapReceived, this, std::placeholders::_1));
 
   RCLCPP_INFO(get_logger(), "Subscribed to map topic.");
+
+  laser_scan_sub_ = std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan>>(
+    rclcpp_node_.get(), scan_topic_, rmw_qos_profile_sensor_data);
 }
 
 void
@@ -1214,12 +1226,20 @@ AmclNode::initOdometry()
   // When pausing and resuming, remember the last robot pose so we don't start at 0:0 again
   init_pose_[0] = last_published_pose_.pose.pose.position.x;
   init_pose_[1] = last_published_pose_.pose.pose.position.y;
-  init_pose_[2] = last_published_pose_.pose.pose.position.z;
+  init_pose_[2] = tf2::getYaw(last_published_pose_.pose.pose.orientation);
 
-  init_cov_[0] = 0.5 * 0.5;
-  init_cov_[1] = 0.5 * 0.5;
-  init_cov_[2] = (M_PI / 12.0) * (M_PI / 12.0);
-
+  if (!initial_pose_is_known_) {
+    init_cov_[0] = 0.5 * 0.5;
+    init_cov_[1] = 0.5 * 0.5;
+    init_cov_[2] = (M_PI / 12.0) * (M_PI / 12.0);
+  } else {
+    init_cov_[0] = last_published_pose_.pose.covariance[0];
+    init_cov_[1] = last_published_pose_.pose.covariance[7];
+    init_cov_[2] = last_published_pose_.pose.covariance[35];
+  }
+  if (motion_model_) {
+    motion_model_.reset();
+  }
   motion_model_ = std::unique_ptr<nav2_amcl::MotionModel>(nav2_amcl::MotionModel::createMotionModel(
         robot_model_type_, alpha1_, alpha2_, alpha3_, alpha4_, alpha5_));
 
@@ -1229,6 +1249,11 @@ AmclNode::initOdometry()
 void
 AmclNode::initParticleFilter()
 {
+  if (pf_ != nullptr) {
+    pf_free(pf_);
+    pf_ = nullptr;
+  }
+
   // Create the particle filter
   pf_ = pf_alloc(min_particles_, max_particles_, alpha_slow_, alpha_fast_,
       (pf_init_model_fn_t)AmclNode::uniformPoseGenerator,

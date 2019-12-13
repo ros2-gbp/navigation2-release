@@ -104,7 +104,7 @@ public:
   TestNode()
   {
     node_ = std::make_shared<TestLifecycleNode>("obstacle_test_node");
-    node_->declare_parameter("map_topic", rclcpp::ParameterValue(std::string("/map")));
+    node_->declare_parameter("map_topic", rclcpp::ParameterValue(std::string("map")));
     node_->declare_parameter("track_unknown_space", rclcpp::ParameterValue(false));
     node_->declare_parameter("use_maximum", rclcpp::ParameterValue(false));
     node_->declare_parameter("lethal_cost_threshold", rclcpp::ParameterValue(100));
@@ -357,20 +357,10 @@ TEST_F(TestNode, testRepeatedResets) {
       return plugin->hasParameter(layer_param);
     }));
 
-  // Reset all layers. This will un-declare all params and might re-declare internal ones
+  // Reset all layers. Parameters should be declared if not declared, otherwise skipped.
   // Should run without throwing exceptions
   ASSERT_NO_THROW(
     for_each(begin(*plugins), end(*plugins), [](const auto & plugin) {
       plugin->reset();
-    }));
-
-  // Check for node-level param
-  ASSERT_TRUE(node_->has_parameter(node_dummy.first));
-
-  // Layer-level parameters shouldn't be found
-  ASSERT_TRUE(
-    none_of(begin(*plugins), end(*plugins), [&layer_dummy](const auto & plugin) {
-      string layer_param = layer_dummy.first + "_" + plugin->getName();
-      return plugin->hasParameter(layer_param);
     }));
 }

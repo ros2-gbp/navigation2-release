@@ -5,10 +5,7 @@ set -ex
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"  # gets the directory of this script
 
 # Skip flaky tests. Nav2 system tests will be run later.
-colcon test --packages-skip nav2_system_tests nav2_dynamic_params nav2_recoveries
-
-# run the stable tests in nav2_dynamic_params
-colcon test --packages-select nav2_dynamic_params --ctest-args --exclude-regex "test_dynamic_params_client"
+colcon test --packages-skip nav2_system_tests nav2_recoveries
 
 # run the stable tests in nav2_recoveries
 colcon test --packages-select nav2_recoveries --ctest-args --exclude-regex "test_recoveries"
@@ -22,7 +19,10 @@ colcon test --packages-select nav2_system_tests --ctest-args --exclude-regex "te
 # that happened in any of the `colcon test` lines above.
 colcon test-result --verbose
 
-$SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_localization$
-$SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_planner$
-$SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_bt_navigator$
-$SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_bt_navigator_with_dijkstra$
+# $SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_localization$
+# $SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_planner_costmaps$
+# $SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_planner_random$
+# $SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_bt_navigator$
+# $SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_bt_navigator_with_dijkstra$
+$SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_dynamic_obstacle$
+# $SCRIPT_DIR/ctest_retry.bash -r 3 -d build/nav2_system_tests -t test_multi_robot$

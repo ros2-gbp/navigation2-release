@@ -14,6 +14,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
@@ -29,6 +30,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
+#include "tf2_ros/create_timer_ros.h"
 #include "tf2_ros/transform_broadcaster.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
@@ -70,7 +72,7 @@ public:
   DummyFootprintSubscriber(
     nav2_util::LifecycleNode::SharedPtr node,
     std::string & topic_name)
-  : FootprintSubscriber(node, topic_name)
+  : FootprintSubscriber(node, topic_name, 10.0)
   {}
 
   void setFootprint(geometry_msgs::msg::PolygonStamped::SharedPtr msg)
@@ -83,12 +85,12 @@ public:
 class TestCollisionChecker : public nav2_util::LifecycleNode
 {
 public:
-  TestCollisionChecker(std::string name)
+  explicit TestCollisionChecker(std::string name)
   : LifecycleNode(name, "", true),
     global_frame_("map")
   {
     // Declare non-plugin specific costmap parameters
-    declare_parameter("map_topic", rclcpp::ParameterValue(std::string("/map")));
+    declare_parameter("map_topic", rclcpp::ParameterValue(std::string("map")));
     declare_parameter("track_unknown_space", rclcpp::ParameterValue(true));
     declare_parameter("use_maximum", rclcpp::ParameterValue(false));
     declare_parameter("lethal_cost_threshold", rclcpp::ParameterValue(100));
@@ -102,6 +104,10 @@ public:
   {
     RCLCPP_INFO(get_logger(), "Configuring");
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
+    auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+      rclcpp_node_->get_node_base_interface(),
+      rclcpp_node_->get_node_timers_interface());
+    tf_buffer_->setCreateTimerInterface(timer_interface);
     tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
     tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(shared_from_this());
 
@@ -173,6 +179,7 @@ public:
     setPose(x, y, theta);
     publishFootprint();
     publishCostmap();
+    rclcpp::sleep_for(std::chrono::milliseconds(50));
     return collision_checker_->isCollisionFree(pose);
   }
 

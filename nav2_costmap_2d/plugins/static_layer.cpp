@@ -72,7 +72,7 @@ StaticLayer::onInitialize()
 
   getParameters();
 
-  rclcpp::QoS map_qos(10); // initialize to default
+  rclcpp::QoS map_qos(10);  // initialize to default
   if (map_subscribe_transient_local_) {
     map_qos.transient_local();
     map_qos.reliable();
@@ -94,6 +94,19 @@ StaticLayer::onInitialize()
       rclcpp::SystemDefaultsQoS(),
       std::bind(&StaticLayer::incomingUpdate, this, std::placeholders::_1));
   }
+
+  auto cb = [&](const rclcpp::Parameter & p) {
+      if (enabled_ != p.get_value<bool>()) {
+        enabled_ = p.get_value<bool>();
+        has_updated_data_ = true;
+        x_ = y_ = 0;
+        width_ = size_x_;
+        height_ = size_y_;
+      }
+    };
+  if (param_subscriber_) {
+    callback_handles_.push_back(param_subscriber_->add_parameter_callback(name_ + ".enabled", cb));
+  }
 }
 
 void
@@ -109,11 +122,7 @@ StaticLayer::deactivate()
 void
 StaticLayer::reset()
 {
-  map_sub_.reset();
-  map_update_sub_.reset();
-
-  undeclareAllParameters();
-  onInitialize();
+  has_updated_data_ = true;
 }
 
 void
@@ -123,8 +132,7 @@ StaticLayer::getParameters()
 
   declareParameter("enabled", rclcpp::ParameterValue(true));
   declareParameter("subscribe_to_updates", rclcpp::ParameterValue(false));
-  declareParameter("map_subscribe_transient_local",
-    rclcpp::ParameterValue(true));
+  declareParameter("map_subscribe_transient_local", rclcpp::ParameterValue(true));
 
   node_->get_parameter(name_ + "." + "enabled", enabled_);
   node_->get_parameter(name_ + "." + "subscribe_to_updates", subscribe_to_updates_);
@@ -297,6 +305,10 @@ StaticLayer::updateBounds(
   double * max_x,
   double * max_y)
 {
+  if (!map_received_) {
+    return;
+  }
+
   std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
   if (!layered_costmap_->isRolling() ) {
     if (!(has_updated_data_ || has_extra_bounds_)) {
