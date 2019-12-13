@@ -1,0 +1,12 @@
+Source: ros-eloquent-nav2-waypoint-follower
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-eloquent-ament-cmake, ros-eloquent-ament-lint-auto, ros-eloquent-ament-lint-common, ros-eloquent-nav-msgs, ros-eloquent-nav2-common, ros-eloquent-nav2-msgs, ros-eloquent-nav2-util, ros-eloquent-rclcpp, ros-eloquent-rclcpp-action, ros-eloquent-rclcpp-lifecycle, ros-eloquent-tf2-ros, ros-eloquent-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-eloquent-nav2-waypoint-follower
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-eloquent-nav-msgs, ros-eloquent-nav2-common, ros-eloquent-nav2-msgs, ros-eloquent-nav2-util, ros-eloquent-rclcpp, ros-eloquent-rclcpp-action, ros-eloquent-rclcpp-lifecycle, ros-eloquent-tf2-ros, ros-eloquent-ros-workspace
+Description: A waypoint follower navigation server
