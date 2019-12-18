@@ -1,0 +1,12 @@
+Source: ros-eloquent-nav2-msgs
+Section: misc
+Priority: optional
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-eloquent-action-msgs, ros-eloquent-ament-cmake, ros-eloquent-builtin-interfaces, ros-eloquent-geometry-msgs, ros-eloquent-nav-msgs, ros-eloquent-nav2-common, ros-eloquent-rclcpp, ros-eloquent-rosidl-default-generators, ros-eloquent-std-msgs, ros-eloquent-ros-workspace, ros-eloquent-rmw-connext-cpp, ros-eloquent-rmw-fastrtps-cpp, ros-eloquent-rmw-implementation, ros-eloquent-rmw-opensplice-cpp, ros-eloquent-rosidl-typesupport-connext-c, ros-eloquent-rosidl-typesupport-connext-cpp, ros-eloquent-rosidl-typesupport-opensplice-c, ros-eloquent-rosidl-typesupport-opensplice-cpp
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-eloquent-nav2-msgs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-eloquent-action-msgs, ros-eloquent-builtin-interfaces, ros-eloquent-geometry-msgs, ros-eloquent-nav-msgs, ros-eloquent-rclcpp, ros-eloquent-rosidl-default-generators, ros-eloquent-std-msgs, ros-eloquent-ros-workspace
+Description: Messages and service files for the navigation2 stack
