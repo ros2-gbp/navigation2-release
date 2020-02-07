@@ -1,0 +1,12 @@
+Source: ros-eloquent-nav2-system-tests
+Section: misc
+Priority: optional
+Maintainer: Carlos Orduno <carlos.a.orduno@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-eloquent-ament-cmake, ros-eloquent-ament-cmake-gtest, ros-eloquent-ament-cmake-pytest, ros-eloquent-ament-lint-auto, ros-eloquent-ament-lint-common, ros-eloquent-gazebo-ros-pkgs, ros-eloquent-geometry-msgs, ros-eloquent-launch, ros-eloquent-launch-ros, ros-eloquent-launch-testing, ros-eloquent-nav-msgs, ros-eloquent-nav2-amcl, ros-eloquent-nav2-bringup, ros-eloquent-nav2-common, ros-eloquent-nav2-lifecycle-manager, ros-eloquent-nav2-msgs, ros-eloquent-nav2-navfn-planner, ros-eloquent-nav2-planner, ros-eloquent-nav2-util, ros-eloquent-rclcpp, ros-eloquent-rclpy, ros-eloquent-std-msgs, ros-eloquent-tf2-geometry-msgs, ros-eloquent-visualization-msgs, ros-eloquent-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-eloquent-nav2-system-tests
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, lcov, ros-eloquent-gazebo-ros-pkgs, ros-eloquent-geometry-msgs, ros-eloquent-launch-ros, ros-eloquent-launch-testing, ros-eloquent-nav-msgs, ros-eloquent-nav2-amcl, ros-eloquent-nav2-bringup, ros-eloquent-nav2-lifecycle-manager, ros-eloquent-nav2-msgs, ros-eloquent-nav2-navfn-planner, ros-eloquent-nav2-planner, ros-eloquent-nav2-util, ros-eloquent-navigation2, ros-eloquent-rclcpp, ros-eloquent-rclpy, ros-eloquent-robot-state-publisher, ros-eloquent-std-msgs, ros-eloquent-tf2-geometry-msgs, ros-eloquent-visualization-msgs, ros-eloquent-ros-workspace
+Description: TODO
