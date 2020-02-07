@@ -1,0 +1,12 @@
+Source: ros-eloquent-dwb-msgs
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-eloquent-ament-cmake, ros-eloquent-builtin-interfaces, ros-eloquent-geometry-msgs, ros-eloquent-nav-2d-msgs, ros-eloquent-nav-msgs, ros-eloquent-rosidl-default-runtime, ros-eloquent-std-msgs, ros-eloquent-ros-workspace, ros-eloquent-rmw-connext-cpp, ros-eloquent-rmw-fastrtps-cpp, ros-eloquent-rmw-implementation, ros-eloquent-rmw-opensplice-cpp, ros-eloquent-rosidl-typesupport-connext-c, ros-eloquent-rosidl-typesupport-connext-cpp, ros-eloquent-rosidl-typesupport-opensplice-c, ros-eloquent-rosidl-typesupport-opensplice-cpp
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-eloquent-dwb-msgs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-eloquent-builtin-interfaces, ros-eloquent-geometry-msgs, ros-eloquent-nav-2d-msgs, ros-eloquent-nav-msgs, ros-eloquent-rosidl-default-runtime, ros-eloquent-std-msgs, ros-eloquent-ros-workspace
+Description: Message/Service definitions specifically for the dwb_core
