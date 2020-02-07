@@ -1,0 +1,12 @@
+Source: ros-eloquent-navigation2
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-eloquent-ament-cmake, ros-eloquent-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-eloquent-navigation2
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-eloquent-nav2-amcl, ros-eloquent-nav2-behavior-tree, ros-eloquent-nav2-bt-navigator, ros-eloquent-nav2-controller, ros-eloquent-nav2-core, ros-eloquent-nav2-costmap-2d, ros-eloquent-nav2-dwb-controller, ros-eloquent-nav2-lifecycle-manager, ros-eloquent-nav2-map-server, ros-eloquent-nav2-msgs, ros-eloquent-nav2-navfn-planner, ros-eloquent-nav2-planner, ros-eloquent-nav2-recoveries, ros-eloquent-nav2-rviz-plugins, ros-eloquent-nav2-util, ros-eloquent-nav2-voxel-grid, ros-eloquent-nav2-waypoint-follower, ros-eloquent-ros-workspace
+Description: ROS2 Navigation Stack
