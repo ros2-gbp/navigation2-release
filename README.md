@@ -1,46 +1,95 @@
-# Navigation2
+# Nav2 Costmap_2d
 
-ROS2 Navigation System
+The costmap_2d package is responsible for building a 2D costmap of the environment, consisting of several "layers" of data about the environment. It can be initialized via the map server or a local rolling window and updates the layers by taking observations from sensors A plugin interface allows for the layers to be combined into the
+costmap and finally inflated via a user specified inflation radius. The nav2 version of the costmap_2d package is mostly a direct
+ROS2 port of the ROS1 navigation stack version, with minimal noteable changes necessary due to support in ROS2. 
 
-[![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/master.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/master) CircleCI
+## Overview of Changes from ROS1 Navigation Costmap_2d
+- Removal of legacy parameter style ("Loading from pre-hydro parameter style")
+- Intermediate replacement of dynamic reconfigure (not ported to ROS2). This discussion started here with costmap_2d but is a more
+widespread discussion throughout the navigation stack (see issue https://github.com/ros-planning/navigation2/issues/177) and 
+general ROS2 community. A proposal temporary replacement has been submitted as a PR here: https://github.com/ros-planning/navigation2/pull/196
 
-[![Build Status](https://img.shields.io/docker/cloud/build/rosplanning/navigation2.svg?label=build)](https://hub.docker.com/r/rosplanning/navigation2) DockerHub
+## How to configure using Voxel Layer plugin:
+By default, the navigation stack uses the _Obstacle Layer_ to avoid obstacles in 2D. The _Voxel Layer_ allows for detecting obstacles in 3D using Pointcloud2 data. It requires Pointcloud2 data being published on some topic. For simulation, a Gazebo model of the robot with depth camera enabled will publish a pointcloud topic.
 
-[![Build Status](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/badge/icon)](http://build.ros2.org/job/Cdev__navigation2__ubuntu_bionic_amd64/) ROS Build Farm 
+The Voxel Layer plugin can be used to update the local costmap, glocal costmap or both, depending on how you define it in the `nav2_params.yaml` file in the nav2_bringup directory. The voxel layer plugin has to be added to the list of ```plugin_names``` and ```plugin_types``` in the global/local costmap scopes in the param file. If these are not defined in the param file, the default plugins set in nav2_costmap_2d will be used.
 
-[![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/master/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
+Inside each costmap layer (voxel, obstacle, etc) define `observation_sources` param. Here you can define multiple sources to be used with the layer. The param configuration example below shows the way you can configure costmaps to use voxel layer.
 
-# Overview
-The ROS 2 Navigation System is the control system that enables a robot to autonomously reach a goal state, such as a specific position and orientation relative to a specific map. Given a current pose, a map, and a goal, such as a destination pose, the navigation system generates a plan to reach the goal, and outputs commands to autonomously drive the robot, respecting any safety constraints and avoiding obstacles encountered along the way.
+The `voxel_layer` param has `observation_source: pointcloud` in it's scope, and the param `pointcloud` has `topic`, and `data_type` inside it's scope. By default, the data_type is `LaserScan`, thus you need to specify `PointCloud2` if you are using PointCould2 data from a depth sensor.
 
-![nav2_overview](doc/architecture/navigation_overview.png)
-
-# Documentation
-For detailed instructions on how to install and run the examples, please visit our [documentation site](https://ros-planning.github.io/navigation2/).
-
-# Contributing
-[Contributions are welcome!](doc/README.md#contributing). For more information, please review our [contribution guidelines](https://ros-planning.github.io/navigation2/contribute/contribute_guidelines.html).
-
-# Building the source
-For instructions on how to download and build this repo, see the [BUILD.md](doc/BUILD.md) file.
-
-# Creating a docker image
-To build an image from the Dockerfile in the navigation2 folder:
-First, clone the repo to your local system (or see Building the source above)
+Example param configuration snippet for enabling voxel layer in local costmap is shown below (not all params are shown):
 ```
-sudo docker build -t nav2/latest .
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      plugin_names: ["obstacle_layer", "voxel_layer", "inflation_layer"]
+      plugin_types: ["nav2_costmap_2d::ObstacleLayer", "nav2_costmap_2d::VoxelLayer", "nav2_costmap_2d::InflationLayer"]
+      obstacle_layer:
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+      voxel_layer:
+        enabled: True
+        publish_voxel_map: True
+        origin_z: 0.0
+        z_resolution: 0.2
+        z_voxels: 10
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: pointcloud
+        pointcloud:
+          topic: /intel_realsense_r200_depth/points
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "PointCloud2"
 ```
-If proxies are needed:
-```
-sudo docker build -t nav2/latest --build-arg http_proxy=http://proxy.my.com:### --build-arg https_proxy=http://proxy.my.com:### .
-```
-Note: You may also need to configure your docker for DNS to work. See article here for details:
-https://development.robinwinslow.uk/2016/06/23/fix-docker-networking-dns/
+Please note that not all params needed to run the navigation stack are shown here. This example only shows how you can add different costmap layers, with multiple input sources of different types.
 
-## Using CI build docker container
+### To visualize the voxels in RVIZ:
+- Make sure `publish_voxel_map` in `voxel_layer` param's scope is set to `True`.
+- Open a new terminal and run:
+  ```ros2 run nav2_costmap_2d nav2_costmap_2d_markers voxel_grid:=/local_costmap/voxel_grid visualization_marker:=/my_marker```
+    Here you can change `my_marker` to any topic name you like for the markers to be published on.
 
-We allow for you to pull the latest docker image from the master branch at any time. As new releases and tags are made, docker containers on docker hub will be versioned as well to chose from.
+- Then add `my_marker` to RVIZ using the GUI.
 
+
+####Errata:
+- To see the markers in 3D, you will need to change the _view_ in RVIZ to a 3 dimensional view (e.g. orbit) from the RVIZ GUI.
+- Currently due to some bug in rviz, you need to set the `fixed_frame` in the rviz display, to `odom` frame.
+- Using pointcloud data from a saved bag file while using gazebo simulation can be troublesome due to the clock time skipping to an earlier time.
+
+## How to use multiple sensor sources:
+Multiple sources can be added into a costmap layer (e.g., obstacle layer), by listing them under the 'observation_sources' for that layer.
+For example, to add laser scan and pointcloud as two different sources of inputs to the obstacle layer, you can define them in the params file as shown below for the local costmap:
 ```
-sudo docker pull rosplanning/navigation2:latest
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      plugin_names: ["obstacle_layer", "inflation_layer"]
+      plugin_types: ["nav2_costmap_2d::ObstacleLayer", "nav2_costmap_2d::InflationLayer"]
+      obstacle_layer:
+        enabled: True
+        observation_sources: scan pointcloud
+        scan:
+          topic: /scan
+          data_type: "LaserScan"
+        pointcloud:
+          topic: /intel_realsense_r200_depth/points
+          data_type: "PointCloud2"
 ```
+In order to add multiple sources to the global costmap, follow the same procedure shown in the example above, but now adding the sources and their specific params under the `global_costmap` scope.
+
+## Future Plans
+- Conceptually, the costmap_2d model acts as a world model of what is known from the map, sensor, robot pose, etc. We'd like
+to broaden this world model concept and use costmap's layer concept as motivation for providing a service-style interface to
+potential clients needing information about the world (see issue https://github.com/ros-planning/navigation2/issues/18)
+
