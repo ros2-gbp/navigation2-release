@@ -1,7 +1,0 @@
-#goal definition
-float32 target_yaw
----
-#result definition
-std_msgs/Empty result
----
-#feedback
