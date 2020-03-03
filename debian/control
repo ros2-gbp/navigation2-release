@@ -1,0 +1,12 @@
+Source: ros-eloquent-dwb-plugins
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-eloquent-ament-cmake, ros-eloquent-ament-cmake-gtest, ros-eloquent-ament-lint-auto, ros-eloquent-ament-lint-common, ros-eloquent-angles, ros-eloquent-dwb-core, ros-eloquent-nav-2d-msgs, ros-eloquent-nav-2d-utils, ros-eloquent-nav2-common, ros-eloquent-nav2-util, ros-eloquent-pluginlib, ros-eloquent-rclcpp, ros-eloquent-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-eloquent-dwb-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-eloquent-angles, ros-eloquent-dwb-core, ros-eloquent-nav-2d-msgs, ros-eloquent-nav-2d-utils, ros-eloquent-nav2-util, ros-eloquent-pluginlib, ros-eloquent-rclcpp, ros-eloquent-ros-workspace
+Description: Standard implementations of the GoalChecker and TrajectoryGenerators for dwb_core
