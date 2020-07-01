@@ -35,6 +35,8 @@
 #include "nav2_amcl/pf/pf_pdf.hpp"
 #include "nav2_amcl/pf/pf_kdtree.hpp"
 
+#include "portable_utils.h"
+
 
 // Compute the required number of samples, given that there are k bins
 // with samples in them.
@@ -566,7 +568,9 @@ void pf_cluster_stats(pf_t * pf, pf_sample_set_t * set)
 
     // Covariance in angular components; I think this is the correct
     // formula for circular statistics.
-    cluster->cov.m[2][2] = -2 * log(sqrt(cluster->m[2] * cluster->m[2] +
+    cluster->cov.m[2][2] = -2 * log(
+      sqrt(
+        cluster->m[2] * cluster->m[2] +
         cluster->m[3] * cluster->m[3]));
 
     // printf("cluster %d %d %f (%f %f %f)\n", i, cluster->count, cluster->weight,

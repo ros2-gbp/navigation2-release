@@ -16,6 +16,8 @@
 
 #include <cmath>
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "nav2_util/geometry_utils.hpp"
@@ -24,21 +26,17 @@ namespace nav2_lifecycle_manager
 {
 using nav2_util::geometry_utils::orientationAroundZAxis;
 
-LifecycleManagerClient::LifecycleManagerClient()
+LifecycleManagerClient::LifecycleManagerClient(const std::string & name)
 {
+  manage_service_name_ = name + std::string("/manage_nodes");
+  active_service_name_ = name + std::string("/is_active");
+
   // Create the node to use for all of the service clients
-  node_ = std::make_shared<rclcpp::Node>("lifecycle_manager_client_service_client");
+  node_ = std::make_shared<rclcpp::Node>(name + "_service_client");
 
   // Create the service clients
   manager_client_ = node_->create_client<ManageLifecycleNodes>(manage_service_name_);
   is_active_client_ = node_->create_client<std_srvs::srv::Trigger>(active_service_name_);
-
-  navigate_action_client_ =
-    rclcpp_action::create_client<nav2_msgs::action::NavigateToPose>(node_, "NavigateToPose");
-
-  initial_pose_publisher_ =
-    node_->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
-    "initialpose", rclcpp::SystemDefaultsQoS());
 }
 
 bool
@@ -76,14 +74,16 @@ LifecycleManagerClient::is_active(const std::chrono::nanoseconds timeout)
 {
   auto request = std::make_shared<std_srvs::srv::Trigger::Request>();
 
-  RCLCPP_INFO(node_->get_logger(), "Waiting for the %s service...",
+  RCLCPP_INFO(
+    node_->get_logger(), "Waiting for the %s service...",
     active_service_name_.c_str());
 
   if (!is_active_client_->wait_for_service(timeout)) {
     return SystemStatus::TIMEOUT;
   }
 
-  RCLCPP_INFO(node_->get_logger(), "Sending %s request",
+  RCLCPP_INFO(
+    node_->get_logger(), "Sending %s request",
     active_service_name_.c_str());
   auto future_result = is_active_client_->async_send_request(request);
 
@@ -100,78 +100,14 @@ LifecycleManagerClient::is_active(const std::chrono::nanoseconds timeout)
   }
 }
 
-void
-LifecycleManagerClient::set_initial_pose(double x, double y, double theta)
-{
-  const double PI = 3.141592653589793238463;
-  geometry_msgs::msg::PoseWithCovarianceStamped pose;
-
-  pose.header.frame_id = "map";
-  pose.header.stamp = node_->now();
-  pose.pose.pose.position.x = x;
-  pose.pose.pose.position.y = y;
-  pose.pose.pose.position.z = 0.0;
-  pose.pose.pose.orientation = orientationAroundZAxis(theta);
-  pose.pose.covariance[6 * 0 + 0] = 0.5 * 0.5;
-  pose.pose.covariance[6 * 1 + 1] = 0.5 * 0.5;
-  pose.pose.covariance[6 * 5 + 5] = PI / 12.0 * PI / 12.0;
-
-  initial_pose_publisher_->publish(pose);
-}
-
-bool
-LifecycleManagerClient::navigate_to_pose(double x, double y, double theta)
-{
-  navigate_action_client_->wait_for_action_server();
-
-  // Initialize the goal
-  geometry_msgs::msg::PoseStamped target_pose;
-  target_pose.pose.position.x = x;
-  target_pose.pose.position.y = y;
-  target_pose.pose.position.z = 0;
-  target_pose.pose.orientation = orientationAroundZAxis(theta);
-
-  auto goal = nav2_msgs::action::NavigateToPose::Goal();
-  goal.pose = target_pose;
-
-  // Send it
-  auto future_goal_handle = navigate_action_client_->async_send_goal(goal);
-  if (rclcpp::spin_until_future_complete(node_, future_goal_handle) !=
-    rclcpp::executor::FutureReturnCode::SUCCESS)
-  {
-    RCLCPP_ERROR(node_->get_logger(), "send goal call failed");
-    return false;
-  }
-
-  // Get the goal handle
-  auto goal_handle = future_goal_handle.get();
-  if (!goal_handle) {
-    RCLCPP_ERROR(node_->get_logger(), "Goal was rejected by server");
-    return false;
-  }
-
-  // Wait for the action to complete
-  auto future_result = navigate_action_client_->async_get_result(goal_handle);
-
-  if (rclcpp::spin_until_future_complete(node_, future_result) !=
-    rclcpp::executor::FutureReturnCode::SUCCESS)
-  {
-    RCLCPP_ERROR(node_->get_logger(), "get result call failed");
-    return false;
-  }
-
-  // Get the final result
-  auto wrapped_result = future_result.get();
-  return wrapped_result.code == rclcpp_action::ResultCode::SUCCEEDED;
-}
-
 bool
 LifecycleManagerClient::callService(uint8_t command)
 {
   auto request = std::make_shared<ManageLifecycleNodes::Request>();
   request->command = command;
 
-  RCLCPP_INFO(node_->get_logger(), "Waiting for the %s service...",
+  RCLCPP_INFO(
+    node_->get_logger(), "Waiting for the %s service...",
     manage_service_name_.c_str());
 
   while (!manager_client_->wait_for_service(std::chrono::seconds(1))) {
@@ -182,7 +118,8 @@ LifecycleManagerClient::callService(uint8_t command)
     RCLCPP_INFO(node_->get_logger(), "Waiting for service to appear...");
   }
 
-  RCLCPP_INFO(node_->get_logger(), "Sending %s request",
+  RCLCPP_INFO(
+    node_->get_logger(), "Sending %s request",
     manage_service_name_.c_str());
   auto future_result = manager_client_->async_send_request(request);
   rclcpp::spin_until_future_complete(node_, future_result);

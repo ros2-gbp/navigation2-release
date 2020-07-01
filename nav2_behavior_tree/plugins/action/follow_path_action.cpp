@@ -33,11 +33,6 @@ public:
     const BT::NodeConfiguration & conf)
   : BtActionNode<nav2_msgs::action::FollowPath>(xml_tag_name, action_name, conf)
   {
-    std::string remapped_action_name;
-    if (getInput("server_name", remapped_action_name)) {
-      action_client_.reset();
-      createActionClient(remapped_action_name);
-    }
     config().blackboard->set("path_updated", false);
   }
 
@@ -47,7 +42,7 @@ public:
     getInput("controller_id", goal_.controller_id);
   }
 
-  void on_server_timeout() override
+  void on_wait_for_result() override
   {
     // Check if the goal has been updated
     if (config().blackboard->get<bool>("path_updated")) {
@@ -63,10 +58,10 @@ public:
 
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({
+    return providedBasicPorts(
+      {
         BT::InputPort<nav_msgs::msg::Path>("path", "Path to follow"),
         BT::InputPort<std::string>("controller_id", ""),
-        BT::InputPort<std::string>("server_name", "")
       });
   }
 };

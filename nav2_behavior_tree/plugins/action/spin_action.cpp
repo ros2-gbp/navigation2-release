@@ -42,9 +42,15 @@ public:
     goal_.target_yaw = dist;
   }
 
+  void on_tick() override
+  {
+    increment_recovery_count();
+  }
+
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({
+    return providedBasicPorts(
+      {
         BT::InputPort<double>("spin_dist", 1.57, "Spin distance")
       });
   }

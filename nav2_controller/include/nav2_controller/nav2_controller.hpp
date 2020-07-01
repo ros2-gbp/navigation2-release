@@ -107,7 +107,8 @@ protected:
    */
   nav2_util::CallbackReturn on_error(const rclcpp_lifecycle::State & state) override;
 
-  using ActionServer = nav2_util::SimpleActionServer<nav2_msgs::action::FollowPath>;
+  using Action = nav2_msgs::action::FollowPath;
+  using ActionServer = nav2_util::SimpleActionServer<Action>;
 
   // Our action server implements the FollowPath action
   std::unique_ptr<ActionServer> action_server_;
@@ -122,6 +123,15 @@ protected:
    * @throw nav2_core::PlannerException
    */
   void computeControl();
+
+  /**
+   * @brief Find the valid controller ID name for the given request
+   *
+   * @param c_name The requested controller name
+   * @param name Reference to the name to use for control if any valid available
+   * @return bool Whether it found a valid controller to use
+   */
+  bool findControllerId(const std::string & c_name, std::string & name);
 
   /**
    * @brief Assigns path to controller
@@ -158,6 +168,31 @@ protected:
    */
   bool getRobotPose(geometry_msgs::msg::PoseStamped & pose);
 
+  /**
+   * @brief get the thresholded velocity
+   * @param velocity The current velocity from odometry
+   * @param threshold The minimum velocity to return non-zero
+   * @return double velocity value
+   */
+  double getThresholdedVelocity(double velocity, double threshold)
+  {
+    return (std::abs(velocity) > threshold) ? velocity : 0.0;
+  }
+
+  /**
+   * @brief get the thresholded Twist
+   * @param Twist The current Twist from odometry
+   * @return Twist Twist after thresholds applied
+   */
+  nav_2d_msgs::msg::Twist2D getThresholdedTwist(const nav_2d_msgs::msg::Twist2D & twist)
+  {
+    nav_2d_msgs::msg::Twist2D twist_thresh;
+    twist_thresh.x = getThresholdedVelocity(twist.x, min_x_velocity_threshold_);
+    twist_thresh.y = getThresholdedVelocity(twist.y, min_y_velocity_threshold_);
+    twist_thresh.theta = getThresholdedVelocity(twist.theta, min_theta_velocity_threshold_);
+    return twist_thresh;
+  }
+
   // The controller needs a costmap node
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::unique_ptr<nav2_util::NodeThread> costmap_thread_;
@@ -169,15 +204,22 @@ protected:
   // Controller Plugins
   pluginlib::ClassLoader<nav2_core::Controller> lp_loader_;
   ControllerMap controllers_;
-  std::vector<std::string> controller_ids_, controller_types_;
+  std::vector<std::string> default_ids_;
+  std::vector<std::string> default_types_;
+  std::vector<std::string> controller_ids_;
+  std::vector<std::string> controller_types_;
   std::string controller_ids_concat_, current_controller_;
 
   std::unique_ptr<ProgressChecker> progress_checker_;
 
   double controller_frequency_;
+  double min_x_velocity_threshold_;
+  double min_y_velocity_threshold_;
+  double min_theta_velocity_threshold_;
 
   // Whether we've published the single controller warning yet
   bool single_controller_warning_given_{false};
+  geometry_msgs::msg::Pose end_pose_;
 };
 
 }  // namespace nav2_controller

@@ -45,7 +45,7 @@ public:
   /**
    * @brief A constructor for LifeCycleMangerClient
    */
-  LifecycleManagerClient();
+  explicit LifecycleManagerClient(const std::string & name);
 
   // Client-side interface to the Nav2 lifecycle manager
   /**
@@ -110,16 +110,8 @@ protected:
 
   rclcpp::Client<ManageLifecycleNodes>::SharedPtr manager_client_;
   rclcpp::Client<std_srvs::srv::Trigger>::SharedPtr is_active_client_;
-  std::string manage_service_name_{"lifecycle_manager/manage_nodes"};
-  std::string active_service_name_{"lifecycle_manager/is_active"};
-
-  using PoseWithCovarianceStamped = geometry_msgs::msg::PoseWithCovarianceStamped;
-
-  // For convenience, this client also supports sending the initial pose
-  rclcpp::Publisher<PoseWithCovarianceStamped>::SharedPtr initial_pose_publisher_;
-
-  // Also, for convenience, this client supports invoking the NavigateToPose action
-  rclcpp_action::Client<nav2_msgs::action::NavigateToPose>::SharedPtr navigate_action_client_;
+  std::string manage_service_name_;
+  std::string active_service_name_;
 };
 
 }  // namespace nav2_lifecycle_manager

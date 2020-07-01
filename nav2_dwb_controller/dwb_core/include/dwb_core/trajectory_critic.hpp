@@ -70,8 +70,8 @@ namespace dwb_core
  *       This can be used for stateful critics that monitor the trajectory through time.
  *
  *  Optionally, there is also a debugging mechanism for certain types of critics in the
- *  addGridScores method. If the score for a trajectory depends on its relationship to
- *  the costmap, addGridScores can provide that information to the dwb_core
+ *  addCriticVisualization method. If the score for a trajectory depends on its relationship to
+ *  the costmap, addCriticVisualization can provide that information to the dwb_core
  *  which will publish the grid scores as a PointCloud2.
  */
 class TrajectoryCritic
@@ -94,15 +94,19 @@ public:
   void initialize(
     const nav2_util::LifecycleNode::SharedPtr & nh,
     std::string & name,
+    std::string & ns,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
   {
     name_ = name;
     costmap_ros_ = costmap_ros;
     nh_ = nh;
-    if (!nh_->has_parameter(name_ + ".scale")) {
-      nh_->declare_parameter(name_ + ".scale", rclcpp::ParameterValue(1.0));
+    dwb_plugin_name_ = ns;
+    if (!nh_->has_parameter(dwb_plugin_name_ + "." + name_ + ".scale")) {
+      nh_->declare_parameter(
+        dwb_plugin_name_ + "." + name_ + ".scale",
+        rclcpp::ParameterValue(1.0));
     }
-    nh_->get_parameter(name_ + ".scale", scale_);
+    nh_->get_parameter(dwb_plugin_name_ + "." + name_ + ".scale", scale_);
     onInit();
   }
   virtual void onInit() {}
@@ -149,7 +153,7 @@ public:
   /**
    * @brief Add information to the given pointcloud for debugging costmap-grid based scores
    *
-   * addGridScores is an optional debugging mechanism for providing rich information
+   * addCriticVisualization is an optional debugging mechanism for providing rich information
    * about the cost for certain trajectories. Some critics will have scoring mechanisms
    * wherein there will be some score for each cell in the costmap. This could be as
    * straightforward as the cost in the costmap, or it could be the number of cells away
@@ -162,7 +166,7 @@ public:
    *
    * @param pc PointCloud to add channels to
    */
-  virtual void addGridScores(sensor_msgs::msg::PointCloud &) {}
+  virtual void addCriticVisualization(sensor_msgs::msg::PointCloud &) {}
 
   std::string getName()
   {
@@ -174,6 +178,7 @@ public:
 
 protected:
   std::string name_;
+  std::string dwb_plugin_name_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   double scale_;
   nav2_util::LifecycleNode::SharedPtr nh_;

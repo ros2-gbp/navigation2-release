@@ -33,11 +33,13 @@
  */
 
 #include <cmath>
+#include <string>
 #include <memory>
 #include "dwb_plugins/stopped_goal_checker.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "nav2_util/node_utils.hpp"
 
+using std::hypot;
 using std::fabs;
 
 namespace dwb_plugins
@@ -48,17 +50,21 @@ StoppedGoalChecker::StoppedGoalChecker()
 {
 }
 
-void StoppedGoalChecker::initialize(const rclcpp_lifecycle::LifecycleNode::SharedPtr & nh)
+void StoppedGoalChecker::initialize(
+  const rclcpp_lifecycle::LifecycleNode::SharedPtr & nh,
+  const std::string & plugin_name)
 {
-  SimpleGoalChecker::initialize(nh);
+  SimpleGoalChecker::initialize(nh, plugin_name);
 
-  nav2_util::declare_parameter_if_not_declared(nh,
-    "rot_stopped_velocity", rclcpp::ParameterValue(0.25));
-  nav2_util::declare_parameter_if_not_declared(nh,
-    "trans_stopped_velocity", rclcpp::ParameterValue(0.25));
+  nav2_util::declare_parameter_if_not_declared(
+    nh,
+    plugin_name + ".rot_stopped_velocity", rclcpp::ParameterValue(0.25));
+  nav2_util::declare_parameter_if_not_declared(
+    nh,
+    plugin_name + ".trans_stopped_velocity", rclcpp::ParameterValue(0.25));
 
-  nh->get_parameter("rot_stopped_velocity", rot_stopped_velocity_);
-  nh->get_parameter("trans_stopped_velocity", trans_stopped_velocity_);
+  nh->get_parameter(plugin_name + ".rot_stopped_velocity", rot_stopped_velocity_);
+  nh->get_parameter(plugin_name + ".trans_stopped_velocity", trans_stopped_velocity_);
 }
 
 bool StoppedGoalChecker::isGoalReached(
@@ -69,9 +75,9 @@ bool StoppedGoalChecker::isGoalReached(
   if (!ret) {
     return ret;
   }
+
   return fabs(velocity.angular.z) <= rot_stopped_velocity_ &&
-         fabs(velocity.linear.x) <= trans_stopped_velocity_ &&
-         fabs(velocity.linear.y) <= trans_stopped_velocity_;
+         hypot(velocity.linear.x, velocity.linear.y) <= trans_stopped_velocity_;
 }
 
 }  // namespace dwb_plugins

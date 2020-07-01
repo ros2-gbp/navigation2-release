@@ -27,6 +27,8 @@
 
 #include <string>
 #include <vector>
+#include <memory>
+#include <utility>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud.hpp"
@@ -34,7 +36,6 @@
 #include "nav2_voxel_grid/voxel_grid.hpp"
 #include "nav2_msgs/msg/voxel_grid.hpp"
 #include "nav2_util/execution_timer.hpp"
-#include "nav2_util/lifecycle_node.hpp"
 
 static inline void mapToWorld3D(
   const unsigned int mx,
@@ -67,7 +68,7 @@ float g_colors_a[] = {0.0f, 0.5f, 1.0f};
 V_Cell g_marked;
 V_Cell g_unknown;
 
-nav2_util::LifecycleNode::SharedPtr g_node;
+rclcpp::Node::SharedPtr g_node;
 
 rclcpp::Publisher<sensor_msgs::msg::PointCloud>::SharedPtr pub_marked;
 rclcpp::Publisher<sensor_msgs::msg::PointCloud>::SharedPtr pub_unknown;
@@ -104,12 +105,14 @@ void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
     for (uint32_t x_grid = 0; x_grid < x_size; ++x_grid) {
       for (uint32_t z_grid = 0; z_grid < z_size; ++z_grid) {
         nav2_voxel_grid::VoxelStatus status =
-          nav2_voxel_grid::VoxelGrid::getVoxel(x_grid, y_grid,
-            z_grid, x_size, y_size, z_size, data);
+          nav2_voxel_grid::VoxelGrid::getVoxel(
+          x_grid, y_grid,
+          z_grid, x_size, y_size, z_size, data);
         if (status == nav2_voxel_grid::UNKNOWN) {
           Cell c;
           c.status = status;
-          mapToWorld3D(x_grid, y_grid, z_grid, x_origin, y_origin,
+          mapToWorld3D(
+            x_grid, y_grid, z_grid, x_origin, y_origin,
             z_origin, x_res, y_res, z_res, c.x, c.y, c.z);
 
           g_unknown.push_back(c);
@@ -118,7 +121,8 @@ void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
         } else if (status == nav2_voxel_grid::MARKED) {
           Cell c;
           c.status = status;
-          mapToWorld3D(x_grid, y_grid, z_grid, x_origin, y_origin,
+          mapToWorld3D(
+            x_grid, y_grid, z_grid, x_origin, y_origin,
             z_origin, x_res, y_res, z_res, c.x, c.y, c.z);
 
           g_marked.push_back(c);
@@ -130,17 +134,17 @@ void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
   }
 
   {
-    sensor_msgs::msg::PointCloud cloud;
-    cloud.points.resize(num_marked);
-    cloud.channels.resize(1);
-    cloud.channels[0].values.resize(num_marked);
-    cloud.channels[0].name = "rgb";
-    cloud.header.frame_id = frame_id;
-    cloud.header.stamp = stamp;
+    auto cloud = std::make_unique<sensor_msgs::msg::PointCloud>();
+    cloud->points.resize(num_marked);
+    cloud->channels.resize(1);
+    cloud->channels[0].values.resize(num_marked);
+    cloud->channels[0].name = "rgb";
+    cloud->header.frame_id = frame_id;
+    cloud->header.stamp = stamp;
 
-    sensor_msgs::msg::ChannelFloat32 & chan = cloud.channels[0];
+    sensor_msgs::msg::ChannelFloat32 & chan = cloud->channels[0];
     for (uint32_t i = 0; i < num_marked; ++i) {
-      geometry_msgs::msg::Point32 & p = cloud.points[i];
+      geometry_msgs::msg::Point32 & p = cloud->points[i];
       float & cval = chan.values[i];
       Cell & c = g_marked[i];
 
@@ -157,21 +161,21 @@ void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
       memcpy(&cval, &col, sizeof col);
     }
 
-    pub_marked->publish(cloud);
+    pub_marked->publish(std::move(cloud));
   }
 
   {
-    sensor_msgs::msg::PointCloud cloud;
-    cloud.points.resize(num_unknown);
-    cloud.channels.resize(1);
-    cloud.channels[0].values.resize(num_unknown);
-    cloud.channels[0].name = "rgb";
-    cloud.header.frame_id = frame_id;
-    cloud.header.stamp = stamp;
+    auto cloud = std::make_unique<sensor_msgs::msg::PointCloud>();
+    cloud->points.resize(num_unknown);
+    cloud->channels.resize(1);
+    cloud->channels[0].values.resize(num_unknown);
+    cloud->channels[0].name = "rgb";
+    cloud->header.frame_id = frame_id;
+    cloud->header.stamp = stamp;
 
-    sensor_msgs::msg::ChannelFloat32 & chan = cloud.channels[0];
+    sensor_msgs::msg::ChannelFloat32 & chan = cloud->channels[0];
     for (uint32_t i = 0; i < num_unknown; ++i) {
-      geometry_msgs::msg::Point32 & p = cloud.points[i];
+      geometry_msgs::msg::Point32 & p = cloud->points[i];
       float & cval = chan.values[i];
       Cell & c = g_unknown[i];
 
@@ -188,18 +192,19 @@ void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
       memcpy(&cval, &col, sizeof col);
     }
 
-    pub_unknown->publish(cloud);
+    pub_unknown->publish(std::move(cloud));
   }
 
   timer.end();
-  RCLCPP_DEBUG(g_node->get_logger(), "Published %d points in %f seconds",
+  RCLCPP_DEBUG(
+    g_node->get_logger(), "Published %d points in %f seconds",
     num_marked + num_unknown, timer.elapsed_time_in_seconds());
 }
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  g_node = nav2_util::LifecycleNode::make_shared("costmap_2d_cloud");
+  g_node = rclcpp::Node::make_shared("costmap_2d_cloud");
 
   RCLCPP_DEBUG(g_node->get_logger(), "Starting up costmap_2d_cloud");
 

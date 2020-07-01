@@ -51,7 +51,7 @@ BehaviorTreeEngine::run(
       return BtStatus::CANCELED;
     }
 
-    result = tree->rootNode()->executeTick();
+    result = tree->tickRoot();
 
     onLoop();
 

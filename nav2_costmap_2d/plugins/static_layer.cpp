@@ -79,7 +79,8 @@ StaticLayer::onInitialize()
     map_qos.keep_last(1);
   }
 
-  RCLCPP_INFO(node_->get_logger(),
+  RCLCPP_INFO(
+    node_->get_logger(),
     "Subscribing to the map topic (%s) with %s durability",
     map_topic_.c_str(),
     map_subscribe_transient_local_ ? "transient local" : "volatile");
@@ -116,25 +117,31 @@ void
 StaticLayer::getParameters()
 {
   int temp_lethal_threshold = 0;
+  double temp_tf_tol = 0.0;
 
   declareParameter("enabled", rclcpp::ParameterValue(true));
   declareParameter("subscribe_to_updates", rclcpp::ParameterValue(false));
   declareParameter("map_subscribe_transient_local", rclcpp::ParameterValue(true));
+  declareParameter("transform_tolerance", rclcpp::ParameterValue(0.0));
 
   node_->get_parameter(name_ + "." + "enabled", enabled_);
   node_->get_parameter(name_ + "." + "subscribe_to_updates", subscribe_to_updates_);
   node_->get_parameter("map_topic", map_topic_);
-  node_->get_parameter(name_ + "." + "map_subscribe_transient_local",
+  node_->get_parameter(
+    name_ + "." + "map_subscribe_transient_local",
     map_subscribe_transient_local_);
   node_->get_parameter("track_unknown_space", track_unknown_space_);
   node_->get_parameter("use_maximum", use_maximum_);
   node_->get_parameter("lethal_cost_threshold", temp_lethal_threshold);
   node_->get_parameter("unknown_cost_value", unknown_cost_value_);
   node_->get_parameter("trinary_costmap", trinary_costmap_);
+  node_->get_parameter("transform_tolerance", temp_tf_tol);
 
   // Enforce bounds
   lethal_threshold_ = std::max(std::min(temp_lethal_threshold, 100), 0);
   map_received_ = false;
+
+  transform_tolerance_ = tf2::durationFromSec(temp_tf_tol);
 }
 
 void
@@ -145,7 +152,8 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
   unsigned int size_x = new_map.info.width;
   unsigned int size_y = new_map.info.height;
 
-  RCLCPP_DEBUG(node_->get_logger(),
+  RCLCPP_DEBUG(
+    node_->get_logger(),
     "StaticLayer: Received a %d X %d map at %f m/pix", size_x, size_y,
     new_map.info.resolution);
 
@@ -159,10 +167,12 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
     !layered_costmap_->isSizeLocked()))
   {
     // Update the size of the layered costmap (and all layers, including this one)
-    RCLCPP_INFO(node_->get_logger(),
+    RCLCPP_INFO(
+      node_->get_logger(),
       "StaticLayer: Resizing costmap to %d X %d at %f m/pix", size_x, size_y,
       new_map.info.resolution);
-    layered_costmap_->resizeMap(size_x, size_y, new_map.info.resolution,
+    layered_costmap_->resizeMap(
+      size_x, size_y, new_map.info.resolution,
       new_map.info.origin.position.x,
       new_map.info.origin.position.y,
       true);
@@ -172,10 +182,12 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
     origin_y_ != new_map.info.origin.position.y)
   {
     // only update the size of the costmap stored locally in this layer
-    RCLCPP_INFO(node_->get_logger(),
+    RCLCPP_INFO(
+      node_->get_logger(),
       "StaticLayer: Resizing static layer to %d X %d at %f m/pix", size_x, size_y,
       new_map.info.resolution);
-    resizeMap(size_x, size_y, new_map.info.resolution,
+    resizeMap(
+      size_x, size_y, new_map.info.resolution,
       new_map.info.origin.position.x, new_map.info.origin.position.y);
   }
 
@@ -209,7 +221,8 @@ StaticLayer::matchSize()
   //   unrelated to the size of the layered costmap
   if (!layered_costmap_->isRolling()) {
     Costmap2D * master = layered_costmap_->getCostmap();
-    resizeMap(master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(),
+    resizeMap(
+      master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(),
       master->getOriginX(), master->getOriginY());
   }
 }
@@ -262,7 +275,8 @@ StaticLayer::incomingUpdate(map_msgs::msg::OccupancyGridUpdate::ConstSharedPtr u
   }
 
   if (update->header.frame_id != map_frame_) {
-    RCLCPP_WARN(node_->get_logger(),
+    RCLCPP_WARN(
+      node_->get_logger(),
       "StaticLayer: Map update ignored. Current map is in frame %s "
       "but update was in frame %s",
       map_frame_.c_str(), update->header.frame_id.c_str());
@@ -350,7 +364,9 @@ StaticLayer::updateCosts(
     // Might even be in a different frame
     geometry_msgs::msg::TransformStamped transform;
     try {
-      transform = tf_->lookupTransform(map_frame_, global_frame_, tf2::TimePointZero);
+      transform = tf_->lookupTransform(
+        map_frame_, global_frame_, tf2::TimePointZero,
+        transform_tolerance_);
     } catch (tf2::TransformException & ex) {
       RCLCPP_ERROR(node_->get_logger(), "StaticLayer: %s", ex.what());
       return;

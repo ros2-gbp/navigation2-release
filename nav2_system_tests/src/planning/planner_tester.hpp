@@ -50,7 +50,7 @@ public:
   void printCostmap()
   {
     // print costmap for debug
-    for (uint i = 0; i != costmap_->getSizeInCellsX() * costmap_->getSizeInCellsY(); i++) {
+    for (size_t i = 0; i != costmap_->getSizeInCellsX() * costmap_->getSizeInCellsY(); i++) {
       if (i % costmap_->getSizeInCellsX() == 0) {
         std::cout << "" << std::endl;
       }
@@ -64,9 +64,11 @@ public:
     nav2_msgs::msg::CostmapMetaData prop;
     nav2_msgs::msg::Costmap cm = costmap->get_costmap(prop);
     prop = cm.metadata;
-    costmap_ros_->getCostmap()->resizeMap(prop.size_x, prop.size_y,
+    costmap_ros_->getCostmap()->resizeMap(
+      prop.size_x, prop.size_y,
       prop.resolution, prop.origin.position.x, prop.origin.position.x);
-    unsigned char * costmap_ptr = costmap_ros_->getCostmap()->getCharMap();
+    // Volatile prevents compiler from treating costmap_ptr as unused or changing its address
+    volatile unsigned char * costmap_ptr = costmap_ros_->getCostmap()->getCharMap();
     delete[] costmap_ptr;
     costmap_ptr = new unsigned char[prop.size_x * prop.size_y];
     std::copy(cm.data.begin(), cm.data.end(), costmap_ptr);
@@ -80,7 +82,17 @@ public:
     if (!nav2_util::getCurrentPose(start, *tf_, "map", "base_link", 0.1)) {
       return false;
     }
-    path = planners_["GridBased"]->createPlan(start, goal);
+    try {
+      path = planners_["GridBased"]->createPlan(start, goal);
+      // The situation when createPlan() did not throw any exception
+      // does not guarantee that plan was created correctly.
+      // So it should be checked additionally that path is correct.
+      if (!path.poses.size()) {
+        return false;
+      }
+    } catch (...) {
+      return false;
+    }
     return true;
   }
 
@@ -92,6 +104,11 @@ public:
   void onActivate(const rclcpp_lifecycle::State & state)
   {
     on_activate(state);
+  }
+
+  void onDeactivate(const rclcpp_lifecycle::State & state)
+  {
+    on_deactivate(state);
   }
 
   void onConfigure(const rclcpp_lifecycle::State & state)
@@ -107,7 +124,7 @@ enum class TaskStatus : int8_t
   RUNNING = 3,
 };
 
-class PlannerTester : public rclcpp::Node, public ::testing::Test
+class PlannerTester : public rclcpp::Node
 {
 public:
   using ComputePathToPoseCommand = geometry_msgs::msg::PoseStamped;

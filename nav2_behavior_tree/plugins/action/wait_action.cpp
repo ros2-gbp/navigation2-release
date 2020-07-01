@@ -37,7 +37,8 @@ public:
     int duration;
     getInput("wait_duration", duration);
     if (duration <= 0) {
-      RCLCPP_WARN(node_->get_logger(), "Wait duration is negative or zero "
+      RCLCPP_WARN(
+        node_->get_logger(), "Wait duration is negative or zero "
         "(%i). Setting to positive.", duration);
       duration *= -1;
     }
@@ -45,10 +46,16 @@ public:
     goal_.time.sec = duration;
   }
 
+  void on_tick() override
+  {
+    increment_recovery_count();
+  }
+
   // Any BT node that accepts parameters must provide a requiredNodeParameters method
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({
+    return providedBasicPorts(
+      {
         BT::InputPort<int>("wait_duration", 1, "Wait time")
       });
   }

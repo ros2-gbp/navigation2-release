@@ -24,7 +24,7 @@ namespace nav2_controller
 {
 static double pose_distance(const geometry_msgs::msg::Pose2D &, const geometry_msgs::msg::Pose2D &);
 
-ProgressChecker::ProgressChecker(const rclcpp::Node::SharedPtr & node)
+ProgressChecker::ProgressChecker(const rclcpp_lifecycle::LifecycleNode::SharedPtr & node)
 : nh_(node)
 {
   nav2_util::declare_parameter_if_not_declared(
@@ -33,8 +33,8 @@ ProgressChecker::ProgressChecker(const rclcpp::Node::SharedPtr & node)
     nh_, "movement_time_allowance", rclcpp::ParameterValue(10.0));
   // Scale is set to 0 by default, so if it was not set otherwise, set to 0
   nh_->get_parameter_or("required_movement_radius", radius_, 0.5);
-  double time_allowance_param;
-  nh_->get_parameter_or("movement_time_allowance_", time_allowance_param, 10.0);
+  double time_allowance_param = 0.0;
+  nh_->get_parameter_or("movement_time_allowance", time_allowance_param, 10.0);
   time_allowance_ = rclcpp::Duration::from_seconds(time_allowance_param);
 }
 

@@ -26,7 +26,7 @@ namespace nav2_waypoint_follower
 {
 
 WaypointFollower::WaypointFollower()
-: nav2_util::LifecycleNode("WaypointFollower", "", true)
+: nav2_util::LifecycleNode("WaypointFollower", "", false)
 {
   RCLCPP_INFO(get_logger(), "Creating");
 
@@ -47,11 +47,12 @@ WaypointFollower::on_configure(const rclcpp_lifecycle::State & /*state*/)
   stop_on_failure_ = get_parameter("stop_on_failure").as_bool();
   loop_rate_ = get_parameter("loop_rate").as_int();
 
+  // use suffix '_rclcpp_node' to keep parameter file consistency #1773
   client_node_ = std::make_shared<rclcpp::Node>(
-    std::string(get_name()) + std::string("_client_node"));
+    std::string(get_name()) + std::string("_rclcpp_node"));
 
   nav_to_pose_client_ = rclcpp_action::create_client<ClientT>(
-    client_node_, "NavigateToPose");
+    client_node_, "navigate_to_pose");
 
   action_server_ = std::make_unique<ActionServer>(
     get_node_base_interface(),
@@ -121,11 +122,12 @@ WaypointFollower::followWaypoints()
     return;
   }
 
-  RCLCPP_INFO(get_logger(), "Received follow waypoint request with %i waypoints.",
+  RCLCPP_INFO(
+    get_logger(), "Received follow waypoint request with %i waypoints.",
     static_cast<int>(goal->poses.size()));
 
   rclcpp::Rate r(loop_rate_);
-  uint goal_index = 0;
+  uint32_t goal_index = 0;
   bool new_goal = true;
 
   while (rclcpp::ok()) {
@@ -167,7 +169,8 @@ WaypointFollower::followWaypoints()
       failed_ids_.push_back(goal_index);
 
       if (stop_on_failure_) {
-        RCLCPP_WARN(get_logger(), "Failed to process waypoint %i in waypoint "
+        RCLCPP_WARN(
+          get_logger(), "Failed to process waypoint %i in waypoint "
           "list and stop on failure is enabled."
           " Terminating action.", goal_index);
         result->missed_waypoints = failed_ids_;
@@ -175,11 +178,13 @@ WaypointFollower::followWaypoints()
         failed_ids_.clear();
         return;
       } else {
-        RCLCPP_INFO(get_logger(), "Failed to process waypoint %i,"
+        RCLCPP_INFO(
+          get_logger(), "Failed to process waypoint %i,"
           " moving to next.", goal_index);
       }
     } else if (current_goal_status_ == ActionStatus::SUCCEEDED) {
-      RCLCPP_INFO(get_logger(), "Succeeded processing waypoint %i, "
+      RCLCPP_INFO(
+        get_logger(), "Succeeded processing waypoint %i, "
         "moving to next.", goal_index);
     }
 
@@ -190,7 +195,8 @@ WaypointFollower::followWaypoints()
       goal_index++;
       new_goal = true;
       if (goal_index >= goal->poses.size()) {
-        RCLCPP_INFO(get_logger(), "Completed all %i waypoints requested.",
+        RCLCPP_INFO(
+          get_logger(), "Completed all %i waypoints requested.",
           goal->poses.size());
         result->missed_waypoints = failed_ids_;
         action_server_->succeeded_current(result);
@@ -198,7 +204,8 @@ WaypointFollower::followWaypoints()
         return;
       }
     } else {
-      RCLCPP_INFO_EXPRESSION(get_logger(),
+      RCLCPP_INFO_EXPRESSION(
+        get_logger(),
         (static_cast<int>(now().seconds()) % 30 == 0),
         "Processing waypoint %i...", goal_index);
     }
@@ -234,8 +241,9 @@ WaypointFollower::goalResponseCallback(
 {
   auto goal_handle = future.get();
   if (!goal_handle) {
-    RCLCPP_ERROR(get_logger(),
-      "NavigateToPose client failed to send goal to server.");
+    RCLCPP_ERROR(
+      get_logger(),
+      "navigate_to_pose action client failed to send goal to server.");
     current_goal_status_ = ActionStatus::FAILED;
   }
 }

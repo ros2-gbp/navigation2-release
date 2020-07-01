@@ -51,6 +51,7 @@ void checkMacro(
   double xv, double yv, double thetav,
   bool expected_result)
 {
+  gc.reset();
   geometry_msgs::msg::Pose2D pose0, pose1;
   pose0.x = x0;
   pose0.y = y0;
@@ -63,11 +64,15 @@ void checkMacro(
   v.y = yv;
   v.theta = thetav;
   if (expected_result) {
-    EXPECT_TRUE(gc.isGoalReached(nav_2d_utils::pose2DToPose(pose0),
-      nav_2d_utils::pose2DToPose(pose1), nav_2d_utils::twist2Dto3D(v)));
+    EXPECT_TRUE(
+      gc.isGoalReached(
+        nav_2d_utils::pose2DToPose(pose0),
+        nav_2d_utils::pose2DToPose(pose1), nav_2d_utils::twist2Dto3D(v)));
   } else {
-    EXPECT_FALSE(gc.isGoalReached(nav_2d_utils::pose2DToPose(pose0),
-      nav_2d_utils::pose2DToPose(pose1), nav_2d_utils::twist2Dto3D(v)));
+    EXPECT_FALSE(
+      gc.isGoalReached(
+        nav_2d_utils::pose2DToPose(pose0),
+        nav_2d_utils::pose2DToPose(pose1), nav_2d_utils::twist2Dto3D(v)));
   }
 }
 
@@ -130,14 +135,24 @@ public:
   }
 };
 
+TEST(VelocityIterator, goal_checker_reset)
+{
+  auto x = std::make_shared<TestLifecycleNode>("goal_checker");
+
+  nav2_core::GoalChecker * gc = new SimpleGoalChecker;
+  gc->reset();
+  delete gc;
+  EXPECT_TRUE(true);
+}
+
 TEST(VelocityIterator, two_checks)
 {
   auto x = std::make_shared<TestLifecycleNode>("goal_checker");
 
   SimpleGoalChecker gc;
   StoppedGoalChecker sgc;
-  gc.initialize(x);
-  sgc.initialize(x);
+  gc.initialize(x, "dwb");
+  sgc.initialize(x, "dwb");
   sameResult(gc, sgc, 0, 0, 0, 0, 0, 0, 0, 0, 0, true);
   sameResult(gc, sgc, 0, 0, 0, 1, 0, 0, 0, 0, 0, false);
   sameResult(gc, sgc, 0, 0, 0, 0, 1, 0, 0, 0, 0, false);

@@ -16,6 +16,7 @@
 #include <random>
 #include <tuple>
 #include <utility>
+#include <vector>
 #include <memory>
 #include <iostream>
 #include <chrono>
@@ -24,7 +25,8 @@
 
 #include "planner_tester.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "nav2_util/map_loader/map_loader.hpp"
+#include "nav2_map_server/map_mode.hpp"
+#include "nav2_map_server/map_io.hpp"
 #include "nav2_msgs/msg/costmap_meta_data.hpp"
 
 using namespace std::chrono_literals;
@@ -67,10 +69,10 @@ void PlannerTester::activate()
   planner_tester_ = std::make_shared<NavFnPlannerTester>();
   planner_tester_->onConfigure(state);
   publishRobotTransform();
-  planner_tester_->onActivate(state);
-
-  // For visualization, we'll publish the map
   map_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("map", 1);
+  rclcpp::Rate r(1);
+  r.sleep();
+  planner_tester_->onActivate(state);
 }
 
 void PlannerTester::deactivate()
@@ -84,6 +86,7 @@ void PlannerTester::deactivate()
   spin_thread_.reset();
 
   auto state = rclcpp_lifecycle::State();
+  planner_tester_->onDeactivate(state);
   planner_tester_->onCleanup(state);
 
   map_timer_.reset();
@@ -112,7 +115,7 @@ void PlannerTester::startRobotTransform()
 
   // Publish the transform periodically
   transform_timer_ = create_wall_timer(
-    10ms, std::bind(&PlannerTester::publishRobotTransform, this));
+    100ms, std::bind(&PlannerTester::publishRobotTransform, this));
 }
 
 void PlannerTester::updateRobotPosition(const geometry_msgs::msg::Point & position)
@@ -122,8 +125,9 @@ void PlannerTester::updateRobotPosition(const geometry_msgs::msg::Point & positi
     base_transform_->header.frame_id = "map";
     base_transform_->child_frame_id = "base_link";
   }
+  std::cout << now().nanoseconds() << std::endl;
 
-  base_transform_->header.stamp = now() + rclcpp::Duration(1.0);
+  base_transform_->header.stamp = now() + rclcpp::Duration(250000000);
   base_transform_->transform.translation.x = position.x;
   base_transform_->transform.translation.y = position.y;
   base_transform_->transform.rotation.w = 1.0;
@@ -147,20 +151,15 @@ void PlannerTester::loadDefaultMap()
   double free_threshold = 0.196;
 
   // Define origin offset
-  geometry_msgs::msg::Twist origin;
-  origin.linear.x = 0.0;
-  origin.linear.y = 0.0;
-  origin.linear.z = 0.0;
-  origin.angular.x = 0.0;
-  origin.angular.y = 0.0;
-  origin.angular.z = 0.0;
+  std::vector<double> origin = {0.0, 0.0, 0.0};
 
-  MapMode mode = TRINARY;
+  nav2_map_server::MapMode mode = nav2_map_server::MapMode::Trinary;
 
   std::string file_path = "";
   char const * path = getenv("TEST_MAP");
   if (path == NULL) {
-    throw std::runtime_error("Path to map image file"
+    throw std::runtime_error(
+            "Path to map image file"
             " has not been specified in environment variable `TEST_MAP`.");
   } else {
     file_path = std::string(path);
@@ -169,13 +168,20 @@ void PlannerTester::loadDefaultMap()
   RCLCPP_INFO(this->get_logger(), "Loading map with file_path: %s", file_path.c_str());
 
   try {
-    map_ =
-      std::make_shared<nav_msgs::msg::OccupancyGrid>(
-      map_loader::loadMapFromFile(
-        file_path, resolution, negate,
-        occupancy_threshold, free_threshold, origin, mode));
+    map_ = std::make_shared<nav_msgs::msg::OccupancyGrid>();
+
+    nav2_map_server::LoadParameters load_parameters;
+    load_parameters.image_file_name = file_path;
+    load_parameters.resolution = resolution;
+    load_parameters.origin = origin;
+    load_parameters.free_thresh = free_threshold;
+    load_parameters.occupied_thresh = occupancy_threshold;
+    load_parameters.mode = mode;
+    load_parameters.negate = negate;
+    loadMapFromFile(load_parameters, *map_);
   } catch (...) {
-    RCLCPP_ERROR(this->get_logger(),
+    RCLCPP_ERROR(
+      this->get_logger(),
       "Failed to load image from file: %s", file_path.c_str());
     throw;
   }
@@ -273,7 +279,8 @@ bool PlannerTester::defaultPlannerRandomTests(
   }
 
   if (using_fake_costmap_) {
-    RCLCPP_ERROR(this->get_logger(),
+    RCLCPP_ERROR(
+      this->get_logger(),
       "Randomized testing with hardcoded costmaps not implemented yet");
     return false;
   }
@@ -320,7 +327,8 @@ bool PlannerTester::defaultPlannerRandomTests(
     goal.pose.position.y = vals.second;
 
     if (!plannerTest(robot_position, goal, path)) {
-      RCLCPP_WARN(this->get_logger(), "Failed with start at %0.2f, %0.2f and goal at %0.2f, %0.2f",
+      RCLCPP_WARN(
+        this->get_logger(), "Failed with start at %0.2f, %0.2f and goal at %0.2f, %0.2f",
         robot_position.x, robot_position.y, goal.pose.position.x, goal.pose.position.y);
       ++num_fail;
     }
@@ -328,7 +336,8 @@ bool PlannerTester::defaultPlannerRandomTests(
   auto end = high_resolution_clock::now();
   auto elapsed = duration_cast<milliseconds>(end - start);
 
-  RCLCPP_INFO(this->get_logger(),
+  RCLCPP_INFO(
+    this->get_logger(),
     "Tested with %u tests. Planner failed on %u. Test time %u ms",
     number_tests, num_fail, elapsed.count());
 
@@ -400,7 +409,8 @@ bool PlannerTester::isCollisionFree(const ComputePathToPoseResult & path)
       static_cast<unsigned int>(std::round(pose.pose.position.y)));
 
     if (!collisionFree) {
-      RCLCPP_WARN(this->get_logger(), "Path has collision at (%.2f, %.2f)",
+      RCLCPP_WARN(
+        this->get_logger(), "Path has collision at (%.2f, %.2f)",
         pose.pose.position.x, pose.pose.position.y);
       printPath(path);
       return false;
@@ -445,10 +455,12 @@ bool PlannerTester::isWithinTolerance(
   }
   RCLCPP_WARN(this->get_logger(), "Path deviates from requested start and end points");
 
-  RCLCPP_DEBUG(this->get_logger(), "Requested path starts at (%.2f, %.2f) and ends at (%.2f, %.2f)",
+  RCLCPP_DEBUG(
+    this->get_logger(), "Requested path starts at (%.2f, %.2f) and ends at (%.2f, %.2f)",
     robot_position.x, robot_position.y, goal.pose.position.x, goal.pose.position.y);
 
-  RCLCPP_DEBUG(this->get_logger(), "Computed path starts at (%.2f, %.2f) and ends at (%.2f, %.2f)",
+  RCLCPP_DEBUG(
+    this->get_logger(), "Computed path starts at (%.2f, %.2f) and ends at (%.2f, %.2f)",
     path_start.pose.position.x, path_start.pose.position.y,
     path_end.pose.position.x, path_end.pose.position.y);
 

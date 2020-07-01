@@ -8,8 +8,6 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
-find_package(SDL REQUIRED)
-find_package(SDL_image REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(lifecycle_msgs REQUIRED)
@@ -24,8 +22,6 @@ set(dependencies
     tf2
     tf2_geometry_msgs
     geometry_msgs
-    SDL
-    SDL_image
     nav_msgs
     rclcpp
     lifecycle_msgs
@@ -47,6 +43,8 @@ install(DIRECTORY include/
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
+  find_package(launch_testing_ament_cmake REQUIRED)
   ament_lint_auto_find_test_dependencies()
 
   find_package(ament_cmake_gtest REQUIRED)
@@ -54,7 +52,7 @@ if(BUILD_TESTING)
 endif()
 
 ament_export_include_directories(include)
-ament_export_libraries(${library_name} map_loader)
+ament_export_libraries(${library_name})
 ament_export_dependencies(${dependencies})
 
 ament_package()

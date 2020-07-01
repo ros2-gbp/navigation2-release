@@ -115,7 +115,15 @@ public:
     declare_parameter(descriptor.name, default_value, descriptor);
   }
 
+  std::shared_ptr<nav2_util::LifecycleNode> shared_from_this()
+  {
+    return std::static_pointer_cast<nav2_util::LifecycleNode>(
+      rclcpp_lifecycle::LifecycleNode::shared_from_this());
+  }
+
 protected:
+  void print_lifecycle_node_notification();
+
   // Whether or not to create a local rclcpp::Node which can be used for ROS2 classes that don't
   // yet support lifecycle nodes
   bool use_rclcpp_node_;

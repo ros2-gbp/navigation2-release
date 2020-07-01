@@ -38,10 +38,10 @@ def generate_launch_description():
                                     os.getenv('BT_NAVIGATOR_XML'))
 
     bringup_dir = get_package_share_directory('nav2_bringup')
-    params_file = os.path.join(bringup_dir, 'params/nav2_params.yaml')
+    params_file = os.path.join(bringup_dir, 'params', 'nav2_params.yaml')
 
     # Replace the `use_astar` setting on the params file
-    param_substitutions = {'use_astar': os.getenv('ASTAR')}
+    param_substitutions = {'GridBased.use_astar': os.getenv('ASTAR')}
     configured_params = RewrittenYaml(
         source_file=params_file,
         root_key='',
@@ -61,20 +61,21 @@ def generate_launch_description():
         #              using a local copy of TB3 urdf file
         Node(
             package='tf2_ros',
-            node_executable='static_transform_publisher',
+            executable='static_transform_publisher',
             output='screen',
             arguments=['0', '0', '0', '0', '0', '0', 'base_footprint', 'base_link']),
 
         Node(
             package='tf2_ros',
-            node_executable='static_transform_publisher',
+            executable='static_transform_publisher',
             output='screen',
             arguments=['0', '0', '0', '0', '0', '0', 'base_link', 'base_scan']),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, 'launch', 'nav2_bringup_launch.py')),
-            launch_arguments={
+                os.path.join(bringup_dir, 'launch', 'bringup_launch.py')),
+            launch_arguments={'namespace': '',
+                              'use_namespace': 'False',
                               'map': map_yaml_file,
                               'use_sim_time': 'True',
                               'params_file': configured_params,

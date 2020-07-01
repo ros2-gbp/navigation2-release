@@ -22,7 +22,6 @@
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
-#include "nav2_behavior_tree/bt_conversions.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -45,7 +44,8 @@ public:
     geometry_msgs::msg::Quaternion orientation;
 
     if (!getInput("position", position) || !getInput("orientation", orientation)) {
-      RCLCPP_ERROR(node_->get_logger(),
+      RCLCPP_ERROR(
+        node_->get_logger(),
         "NavigateToPoseAction: position or orientation not provided");
       return;
     }
@@ -57,7 +57,8 @@ public:
   // Any BT node that accepts parameters must provide a requiredNodeParameters method
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({
+    return providedBasicPorts(
+      {
         BT::InputPort<geometry_msgs::msg::Point>("position", "Position"),
         BT::InputPort<geometry_msgs::msg::Quaternion>("orientation", "Orientation")
       });
@@ -73,7 +74,7 @@ BT_REGISTER_NODES(factory)
     [](const std::string & name, const BT::NodeConfiguration & config)
     {
       return std::make_unique<nav2_behavior_tree::NavigateToPoseAction>(
-        name, "NavigateToPose", config);
+        name, "navigate_to_pose", config);
     };
 
   factory.registerBuilder<nav2_behavior_tree::NavigateToPoseAction>(
