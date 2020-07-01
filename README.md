@@ -1,3 +1,55 @@
+## navigation2 (foxy) - 0.4.0-1
+
+The packages in the `navigation2` repository were released into the `foxy` distro by running `/usr/bin/bloom-release navigation2 --track foxy --rosdistro foxy --new-track` on `Wed, 01 Jul 2020 23:08:43 -0000`
+
+These packages were released:
+- `costmap_queue`
+- `dwb_core`
+- `dwb_critics`
+- `dwb_msgs`
+- `dwb_plugins`
+- `nav2_amcl`
+- `nav2_behavior_tree`
+- `nav2_bringup`
+- `nav2_bt_navigator`
+- `nav2_common`
+- `nav2_controller`
+- `nav2_core`
+- `nav2_costmap_2d`
+- `nav2_dwb_controller`
+- `nav2_gazebo_spawner`
+- `nav2_lifecycle_manager`
+- `nav2_map_server`
+- `nav2_msgs`
+- `nav2_navfn_planner`
+- `nav2_planner`
+- `nav2_recoveries`
+- `nav2_rviz_plugins`
+- `nav2_system_tests`
+- `nav2_util`
+- `nav2_voxel_grid`
+- `nav2_waypoint_follower`
+- `nav_2d_msgs`
+- `nav_2d_utils`
+- `navigation2`
+
+Version of package(s) in repository `navigation2`:
+
+- upstream repository: https://github.com/ros-planning/navigation2.git
+- release repository: unknown
+- rosdistro version: `null`
+- old version: `null`
+- new version: `0.4.0-1`
+
+Versions of tools used:
+
+- bloom version: `0.9.7`
+- catkin_pkg version: `0.4.20`
+- rosdep version: `0.19.0`
+- rosdistro version: `0.8.2`
+- vcstools version: `0.1.42`
+
+
 ## navigation2 (eloquent) - 0.3.5-1
 
 The packages in the `navigation2` repository were released into the `eloquent` distro by running `/usr/bin/bloom-release navigation2 --track eloquent --rosdistro eloquent` on `Mon, 29 Jun 2020 22:50:20 -0000`
