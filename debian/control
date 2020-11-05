@@ -1,0 +1,12 @@
+Source: ros-foxy-nav2-bringup
+Section: misc
+Priority: optional
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-foxy-ament-cmake, ros-foxy-ament-cmake-gtest, ros-foxy-ament-cmake-pytest, ros-foxy-ament-lint-auto, ros-foxy-ament-lint-common, ros-foxy-launch, ros-foxy-launch-ros, ros-foxy-launch-testing, ros-foxy-nav2-common, ros-foxy-navigation2, ros-foxy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-foxy-nav2-bringup
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-foxy-launch-ros, ros-foxy-nav2-common, ros-foxy-navigation2, ros-foxy-slam-toolbox, ros-foxy-ros-workspace
+Description: Bringup scripts and configurations for the navigation2 stack
