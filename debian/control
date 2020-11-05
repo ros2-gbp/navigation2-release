@@ -1,0 +1,12 @@
+Source: ros-foxy-nav-2d-utils
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-foxy-ament-cmake, ros-foxy-ament-lint-auto, ros-foxy-ament-lint-common, ros-foxy-geometry-msgs, ros-foxy-nav-2d-msgs, ros-foxy-nav-msgs, ros-foxy-nav2-common, ros-foxy-nav2-msgs, ros-foxy-nav2-util, ros-foxy-tf2, ros-foxy-tf2-geometry-msgs, ros-foxy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-foxy-nav-2d-utils
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-foxy-geometry-msgs, ros-foxy-nav-2d-msgs, ros-foxy-nav-msgs, ros-foxy-nav2-msgs, ros-foxy-nav2-util, ros-foxy-tf2, ros-foxy-tf2-geometry-msgs, ros-foxy-ros-workspace
+Description: A handful of useful utility functions for nav_2d packages.
