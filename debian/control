@@ -1,0 +1,12 @@
+Source: ros-galactic-nav-2d-msgs
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-galactic-ament-cmake, ros-galactic-geometry-msgs, ros-galactic-rosidl-default-generators, ros-galactic-std-msgs, ros-galactic-ros-workspace, ros-galactic-rosidl-typesupport-fastrtps-c, ros-galactic-rosidl-typesupport-fastrtps-cpp
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-galactic-nav-2d-msgs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-galactic-geometry-msgs, ros-galactic-rosidl-default-generators, ros-galactic-rosidl-default-runtime, ros-galactic-std-msgs, ros-galactic-ros-workspace
+Description: Basic message types for two dimensional navigation, extending from geometry_msgs::Pose2D.
