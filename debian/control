@@ -1,0 +1,12 @@
+Source: ros-galactic-nav2-dwb-controller
+Section: misc
+Priority: optional
+Maintainer: Carl Delsey <carl.r.delsey@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-galactic-ament-cmake, ros-galactic-costmap-queue, ros-galactic-dwb-core, ros-galactic-dwb-critics, ros-galactic-dwb-msgs, ros-galactic-dwb-plugins, ros-galactic-nav-2d-msgs, ros-galactic-nav-2d-utils, ros-galactic-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-galactic-nav2-dwb-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-galactic-costmap-queue, ros-galactic-dwb-core, ros-galactic-dwb-critics, ros-galactic-dwb-msgs, ros-galactic-dwb-plugins, ros-galactic-nav-2d-msgs, ros-galactic-nav-2d-utils, ros-galactic-ros-workspace
+Description: ROS2 controller (DWB) metapackage
