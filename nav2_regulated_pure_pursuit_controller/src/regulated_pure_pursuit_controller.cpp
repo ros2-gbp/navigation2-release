@@ -16,11 +16,13 @@
 #include <algorithm>
 #include <string>
 #include <memory>
+#include <utility>
 
 #include "nav2_regulated_pure_pursuit_controller/regulated_pure_pursuit_controller.hpp"
 #include "nav2_core/exceptions.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
+#include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
 
 using std::hypot;
 using std::min;
@@ -33,32 +35,16 @@ using namespace nav2_costmap_2d;  // NOLINT
 namespace nav2_regulated_pure_pursuit_controller
 {
 
-/**
- * Find element in iterator with the minimum calculated value
- */
-template<typename Iter, typename Getter>
-Iter min_by(Iter begin, Iter end, Getter getCompareVal)
-{
-  if (begin == end) {
-    return end;
-  }
-  auto lowest = getCompareVal(*begin);
-  Iter lowest_it = begin;
-  for (Iter it = ++begin; it != end; ++it) {
-    auto comp = getCompareVal(*it);
-    if (comp < lowest) {
-      lowest = comp;
-      lowest_it = it;
-    }
-  }
-  return lowest_it;
-}
-
 void RegulatedPurePursuitController::configure(
-  const rclcpp_lifecycle::LifecycleNode::SharedPtr & node,
+  const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
   std::string name, const std::shared_ptr<tf2_ros::Buffer> & tf,
   const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> & costmap_ros)
 {
+  auto node = parent.lock();
+  if (!node) {
+    throw std::runtime_error("Unable to lock node!");
+  }
+
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
   tf_ = tf;
@@ -67,6 +53,7 @@ void RegulatedPurePursuitController::configure(
 
   double transform_tolerance = 0.1;
   double control_frequency = 20.0;
+  goal_dist_tol_ = 0.25;  // reasonable default before first update
 
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".desired_linear_vel", rclcpp::ParameterValue(0.5));
@@ -98,7 +85,8 @@ void RegulatedPurePursuitController::configure(
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".use_regulated_linear_velocity_scaling", rclcpp::ParameterValue(true));
   declare_parameter_if_not_declared(
-    node, plugin_name_ + ".use_cost_regulated_linear_velocity_scaling", rclcpp::ParameterValue(true));
+    node, plugin_name_ + ".use_cost_regulated_linear_velocity_scaling",
+    rclcpp::ParameterValue(true));
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".cost_scaling_dist", rclcpp::ParameterValue(0.6));
   declare_parameter_if_not_declared(
@@ -115,42 +103,60 @@ void RegulatedPurePursuitController::configure(
     node, plugin_name_ + ".rotate_to_heading_min_angle", rclcpp::ParameterValue(0.785));
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".max_angular_accel", rclcpp::ParameterValue(3.2));
-  declare_parameter_if_not_declared(
-    node, plugin_name_ + ".goal_dist_tol", rclcpp::ParameterValue(0.25));
 
   node->get_parameter(plugin_name_ + ".desired_linear_vel", desired_linear_vel_);
+  base_desired_linear_vel_ = desired_linear_vel_;
   node->get_parameter(plugin_name_ + ".max_linear_accel", max_linear_accel_);
   node->get_parameter(plugin_name_ + ".max_linear_decel", max_linear_decel_);
   node->get_parameter(plugin_name_ + ".lookahead_dist", lookahead_dist_);
   node->get_parameter(plugin_name_ + ".min_lookahead_dist", min_lookahead_dist_);
   node->get_parameter(plugin_name_ + ".max_lookahead_dist", max_lookahead_dist_);
   node->get_parameter(plugin_name_ + ".lookahead_time", lookahead_time_);
-  node->get_parameter(plugin_name_ + ".rotate_to_heading_angular_vel", rotate_to_heading_angular_vel_);
+  node->get_parameter(
+    plugin_name_ + ".rotate_to_heading_angular_vel",
+    rotate_to_heading_angular_vel_);
   node->get_parameter(plugin_name_ + ".transform_tolerance", transform_tolerance);
-  node->get_parameter(plugin_name_ + ".use_velocity_scaled_lookahead_dist",
+  node->get_parameter(
+    plugin_name_ + ".use_velocity_scaled_lookahead_dist",
     use_velocity_scaled_lookahead_dist_);
-  node->get_parameter(plugin_name_ + ".min_approach_linear_velocity", min_approach_linear_velocity_);
-  node->get_parameter(plugin_name_ + ".use_approach_linear_velocity_scaling", use_approach_vel_scaling_);
-  node->get_parameter(plugin_name_ + ".max_allowed_time_to_collision", max_allowed_time_to_collision_);
-  node->get_parameter(plugin_name_ + ".use_regulated_linear_velocity_scaling", use_regulated_linear_velocity_scaling_);
-  node->get_parameter(plugin_name_ + ".use_cost_regulated_linear_velocity_scaling", use_cost_regulated_linear_velocity_scaling_);
+  node->get_parameter(
+    plugin_name_ + ".min_approach_linear_velocity",
+    min_approach_linear_velocity_);
+  node->get_parameter(
+    plugin_name_ + ".use_approach_linear_velocity_scaling",
+    use_approach_vel_scaling_);
+  node->get_parameter(
+    plugin_name_ + ".max_allowed_time_to_collision",
+    max_allowed_time_to_collision_);
+  node->get_parameter(
+    plugin_name_ + ".use_regulated_linear_velocity_scaling",
+    use_regulated_linear_velocity_scaling_);
+  node->get_parameter(
+    plugin_name_ + ".use_cost_regulated_linear_velocity_scaling",
+    use_cost_regulated_linear_velocity_scaling_);
   node->get_parameter(plugin_name_ + ".cost_scaling_dist", cost_scaling_dist_);
   node->get_parameter(plugin_name_ + ".cost_scaling_gain", cost_scaling_gain_);
-  node->get_parameter(plugin_name_ + ".inflation_cost_scaling_factor", inflation_cost_scaling_factor_);
-  node->get_parameter(plugin_name_ + ".regulated_linear_scaling_min_radius", regulated_linear_scaling_min_radius_);
-  node->get_parameter(plugin_name_ + ".regulated_linear_scaling_min_speed", regulated_linear_scaling_min_speed_);
+  node->get_parameter(
+    plugin_name_ + ".inflation_cost_scaling_factor",
+    inflation_cost_scaling_factor_);
+  node->get_parameter(
+    plugin_name_ + ".regulated_linear_scaling_min_radius",
+    regulated_linear_scaling_min_radius_);
+  node->get_parameter(
+    plugin_name_ + ".regulated_linear_scaling_min_speed",
+    regulated_linear_scaling_min_speed_);
   node->get_parameter(plugin_name_ + ".use_rotate_to_heading", use_rotate_to_heading_);
   node->get_parameter(plugin_name_ + ".rotate_to_heading_min_angle", rotate_to_heading_min_angle_);
   node->get_parameter(plugin_name_ + ".max_angular_accel", max_angular_accel_);
-  node->get_parameter(plugin_name_ + ".goal_dist_tol", goal_dist_tol_);
   node->get_parameter("controller_frequency", control_frequency);
 
   transform_tolerance_ = tf2::durationFromSec(transform_tolerance);
   control_duration_ = 1.0 / control_frequency;
 
   if (inflation_cost_scaling_factor_ <= 0.0) {
-    RCLCPP_WARN(logger_, "The value inflation_cost_scaling_factor is incorrectly set, "
-    "it should be >0. Disabling cost regulated linear velocity scaling.");
+    RCLCPP_WARN(
+      logger_, "The value inflation_cost_scaling_factor is incorrectly set, "
+      "it should be >0. Disabling cost regulated linear velocity scaling.");
     use_cost_regulated_linear_velocity_scaling_ = false;
   }
 
@@ -221,8 +227,18 @@ double RegulatedPurePursuitController::getLookAheadDistance(const geometry_msgs:
 
 geometry_msgs::msg::TwistStamped RegulatedPurePursuitController::computeVelocityCommands(
   const geometry_msgs::msg::PoseStamped & pose,
-  const geometry_msgs::msg::Twist & speed)
+  const geometry_msgs::msg::Twist & speed,
+  nav2_core::GoalChecker * goal_checker)
 {
+  // Update for the current goal checker's state
+  geometry_msgs::msg::Pose pose_tolerance;
+  geometry_msgs::msg::Twist vel_tolerance;
+  if (!goal_checker->getTolerances(pose_tolerance, vel_tolerance)) {
+    RCLCPP_WARN(logger_, "Unable to retrieve goal checker's tolerances!");
+  } else {
+    goal_dist_tol_ = pose_tolerance.position.x;
+  }
+
   // Transform path to robot base frame
   auto transformed_plan = transformGlobalPlan(pose);
 
@@ -260,8 +276,8 @@ geometry_msgs::msg::TwistStamped RegulatedPurePursuitController::computeVelocity
       lookahead_dist, curvature, speed,
       costAtPose(pose.pose.position.x, pose.pose.position.y), linear_vel);
 
-      // Apply curvature to angular velocity after constraining linear velocity
-      angular_vel = linear_vel * curvature;
+    // Apply curvature to angular velocity after constraining linear velocity
+    angular_vel = linear_vel * curvature;
   }
 
   // Collision checking on this velocity heading
@@ -359,7 +375,7 @@ bool RegulatedPurePursuitController::isCollisionImminent(
     if (i * projection_time > max_allowed_time_to_collision_) {
       break;
     }
-    
+
     i++;
 
     // apply velocity at curr_pose over distance
@@ -431,7 +447,7 @@ void RegulatedPurePursuitController::applyConstraints(
   {
     const double inscribed_radius = costmap_ros_->getLayeredCostmap()->getInscribedRadius();
     const double min_distance_to_obstacle = (-1.0 / inflation_cost_scaling_factor_) *
-    std::log(pose_cost / (INSCRIBED_INFLATED_OBSTACLE - 1)) + inscribed_radius;
+      std::log(pose_cost / (INSCRIBED_INFLATED_OBSTACLE - 1)) + inscribed_radius;
 
     if (min_distance_to_obstacle < cost_scaling_dist_) {
       cost_vel *= cost_scaling_gain_ * min_distance_to_obstacle / cost_scaling_dist_;
@@ -470,6 +486,24 @@ void RegulatedPurePursuitController::setPlan(const nav_msgs::msg::Path & path)
   global_plan_ = path;
 }
 
+void RegulatedPurePursuitController::setSpeedLimit(
+  const double & speed_limit,
+  const bool & percentage)
+{
+  if (speed_limit == nav2_costmap_2d::NO_SPEED_LIMIT) {
+    // Restore default value
+    desired_linear_vel_ = base_desired_linear_vel_;
+  } else {
+    if (percentage) {
+      // Speed limit is expressed in % from maximum speed of robot
+      desired_linear_vel_ = base_desired_linear_vel_ * speed_limit / 100.0;
+    } else {
+      // Speed limit is expressed in absolute value
+      desired_linear_vel_ = speed_limit;
+    }
+  }
+}
+
 nav_msgs::msg::Path RegulatedPurePursuitController::transformGlobalPlan(
   const geometry_msgs::msg::PoseStamped & pose)
 {
@@ -479,19 +513,18 @@ nav_msgs::msg::Path RegulatedPurePursuitController::transformGlobalPlan(
 
   // let's get the pose of the robot in the frame of the plan
   geometry_msgs::msg::PoseStamped robot_pose;
-  if (!transformPose(global_plan_.header.frame_id, pose, robot_pose))
-  {
+  if (!transformPose(global_plan_.header.frame_id, pose, robot_pose)) {
     throw nav2_core::PlannerException("Unable to transform robot pose into global plan's frame");
   }
 
   // We'll discard points on the plan that are outside the local costmap
   nav2_costmap_2d::Costmap2D * costmap = costmap_ros_->getCostmap();
   const double max_costmap_dim = std::max(costmap->getSizeInCellsX(), costmap->getSizeInCellsY());
-  const double max_transform_dist =  max_costmap_dim * costmap->getResolution() / 2.0;
+  const double max_transform_dist = max_costmap_dim * costmap->getResolution() / 2.0;
 
   // First find the closest pose on the path to the robot
   auto transformation_begin =
-    min_by(
+    nav2_util::geometry_utils::min_by(
     global_plan_.poses.begin(), global_plan_.poses.end(),
     [&robot_pose](const geometry_msgs::msg::PoseStamped & ps) {
       return euclidean_distance(robot_pose, ps);
@@ -555,7 +588,7 @@ bool RegulatedPurePursuitController::transformPose(
   return false;
 }
 
-}  // namespace nav2_pure_pursuit_controller
+}  // namespace nav2_regulated_pure_pursuit_controller
 
 // Register this controller as a nav2_core plugin
 PLUGINLIB_EXPORT_CLASS(

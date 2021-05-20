@@ -35,6 +35,7 @@
 #include <memory>
 #include <stdexcept>
 #include <functional>
+#include <mutex>
 
 using namespace std::placeholders;
 
@@ -46,17 +47,15 @@ MapSaver::MapSaver()
   RCLCPP_INFO(get_logger(), "Creating");
 
   save_map_timeout_ = std::make_shared<rclcpp::Duration>(
-    std::chrono::milliseconds(declare_parameter("save_map_timeout", 2000)));
+    rclcpp::Duration::from_seconds(declare_parameter("save_map_timeout", 2.0)));
 
   free_thresh_default_ = declare_parameter("free_thresh_default", 0.25),
   occupied_thresh_default_ = declare_parameter("occupied_thresh_default", 0.65);
-  // false only of foxy for backwards compatibility
-  map_subscribe_transient_local_ = declare_parameter("map_subscribe_transient_local", false);
+  map_subscribe_transient_local_ = declare_parameter("map_subscribe_transient_local", true);
 }
 
 MapSaver::~MapSaver()
 {
-  RCLCPP_INFO(get_logger(), "Destroying");
 }
 
 nav2_util::CallbackReturn
@@ -79,6 +78,10 @@ nav2_util::CallbackReturn
 MapSaver::on_activate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Activating");
+
+  // create bond connection
+  createBond();
+
   return nav2_util::CallbackReturn::SUCCESS;
 }
 
@@ -86,6 +89,10 @@ nav2_util::CallbackReturn
 MapSaver::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Deactivating");
+
+  // destroy bond connection
+  destroyBond();
+
   return nav2_util::CallbackReturn::SUCCESS;
 }
 
@@ -93,6 +100,9 @@ nav2_util::CallbackReturn
 MapSaver::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Cleaning up");
+
+  save_map_service_.reset();
+
   return nav2_util::CallbackReturn::SUCCESS;
 }
 
@@ -142,6 +152,9 @@ bool MapSaver::saveMapTopicToFile(
     // Pointer to map message received in the subscription callback
     nav_msgs::msg::OccupancyGrid::SharedPtr map_msg = nullptr;
 
+    // Mutex for handling map_msg shared resource
+    std::recursive_mutex access;
+
     // Correct map_topic_loc if necessary
     if (map_topic_loc == "") {
       map_topic_loc = "map";
@@ -167,17 +180,17 @@ bool MapSaver::saveMapTopicToFile(
     }
 
     // A callback function that receives map message from subscribed topic
-    auto mapCallback = [&map_msg](
+    auto mapCallback = [&map_msg, &access](
       const nav_msgs::msg::OccupancyGrid::SharedPtr msg) -> void {
+        std::lock_guard<std::recursive_mutex> guard(access);
         map_msg = msg;
       };
 
     // Add new subscription for incoming map topic.
     // Utilizing local rclcpp::Node (rclcpp_node_) from nav2_util::LifecycleNode
     // as a map listener.
-    rclcpp::QoS map_qos = rclcpp::SystemDefaultsQoS();  // initialize to default
+    rclcpp::QoS map_qos(10);  // initialize to default
     if (map_subscribe_transient_local_) {
-      map_qos = rclcpp::QoS(10);
       map_qos.transient_local();
       map_qos.reliable();
       map_qos.keep_last(1);
@@ -193,6 +206,9 @@ bool MapSaver::saveMapTopicToFile(
       }
 
       if (map_msg) {
+        std::lock_guard<std::recursive_mutex> guard(access);
+        // map_sub is no more needed
+        map_sub.reset();
         // Map message received. Saving it to file
         if (saveMapToFile(*map_msg, save_parameters_loc)) {
           RCLCPP_INFO(get_logger(), "Map saved successfully");

@@ -89,11 +89,17 @@ InflationLayer::onInitialize()
   declareParameter("inflate_unknown", rclcpp::ParameterValue(false));
   declareParameter("inflate_around_unknown", rclcpp::ParameterValue(false));
 
-  node_->get_parameter(name_ + "." + "enabled", enabled_);
-  node_->get_parameter(name_ + "." + "inflation_radius", inflation_radius_);
-  node_->get_parameter(name_ + "." + "cost_scaling_factor", cost_scaling_factor_);
-  node_->get_parameter(name_ + "." + "inflate_unknown", inflate_unknown_);
-  node_->get_parameter(name_ + "." + "inflate_around_unknown", inflate_around_unknown_);
+  {
+    auto node = node_.lock();
+    if (!node) {
+      throw std::runtime_error{"Failed to lock node"};
+    }
+    node->get_parameter(name_ + "." + "enabled", enabled_);
+    node->get_parameter(name_ + "." + "inflation_radius", inflation_radius_);
+    node->get_parameter(name_ + "." + "cost_scaling_factor", cost_scaling_factor_);
+    node->get_parameter(name_ + "." + "inflate_unknown", inflate_unknown_);
+    node->get_parameter(name_ + "." + "inflate_around_unknown", inflate_around_unknown_);
+  }
 
   current_ = true;
   seen_.clear();
@@ -155,8 +161,7 @@ InflationLayer::onFootprintChanged()
   need_reinflation_ = true;
 
   RCLCPP_DEBUG(
-    rclcpp::get_logger(
-      "nav2_costmap_2d"), "InflationLayer::onFootprintChanged(): num footprint points: %lu,"
+    logger_, "InflationLayer::onFootprintChanged(): num footprint points: %lu,"
     " inscribed_radius_ = %.3f, inflation_radius_ = %.3f",
     layered_costmap_->getFootprint().size(), inscribed_radius_, inflation_radius_);
 }
@@ -175,7 +180,7 @@ InflationLayer::updateCosts(
   // make sure the inflation list is empty at the beginning of the cycle (should always be true)
   for (auto & dist : inflation_cells_) {
     RCLCPP_FATAL_EXPRESSION(
-      rclcpp::get_logger("nav2_costmap_2d"),
+      logger_,
       !dist.empty(), "The inflation list must be empty at the beginning of inflation");
   }
 
@@ -184,8 +189,7 @@ InflationLayer::updateCosts(
 
   if (seen_.size() != size_x * size_y) {
     RCLCPP_WARN(
-      rclcpp::get_logger(
-        "nav2_costmap_2d"), "InflationLayer::updateCosts(): seen_ vector size is wrong");
+      logger_, "InflationLayer::updateCosts(): seen_ vector size is wrong");
     seen_ = std::vector<bool>(size_x * size_y, false);
   }
 
@@ -195,6 +199,10 @@ InflationLayer::updateCosts(
   // box min_i...max_j, by the amount cell_inflation_radius_.  Cells
   // up to that distance outside the box can still influence the costs
   // stored in cells inside the box.
+  const int base_min_i = min_i;
+  const int base_min_j = min_j;
+  const int base_max_i = max_i;
+  const int base_max_j = max_j;
   min_i -= static_cast<int>(cell_inflation_radius_);
   min_j -= static_cast<int>(cell_inflation_radius_);
   max_i += static_cast<int>(cell_inflation_radius_);
@@ -247,12 +255,21 @@ InflationLayer::updateCosts(
       // assign the cost associated with the distance from an obstacle to the cell
       unsigned char cost = costLookup(mx, my, sx, sy);
       unsigned char old_cost = master_array[index];
-      if (old_cost == NO_INFORMATION &&
-        (inflate_unknown_ ? (cost > FREE_SPACE) : (cost >= INSCRIBED_INFLATED_OBSTACLE)))
+      // In order to avoid artifacts appeared out of boundary areas
+      // when some layer is going after inflation_layer,
+      // we need to apply inflation_layer only to inside of given bounds
+      if (static_cast<int>(mx) >= base_min_i &&
+        static_cast<int>(my) >= base_min_j &&
+        static_cast<int>(mx) < base_max_i &&
+        static_cast<int>(my) < base_max_j)
       {
-        master_array[index] = cost;
-      } else {
-        master_array[index] = std::max(old_cost, cost);
+        if (old_cost == NO_INFORMATION &&
+          (inflate_unknown_ ? (cost > FREE_SPACE) : (cost >= INSCRIBED_INFLATED_OBSTACLE)))
+        {
+          master_array[index] = cost;
+        } else {
+          master_array[index] = std::max(old_cost, cost);
+        }
       }
 
       // attempt to put the neighbors of the current cell onto the inflation list
@@ -275,6 +292,8 @@ InflationLayer::updateCosts(
     dist.clear();
     dist.reserve(200);
   }
+
+  current_ = true;
 }
 
 /**

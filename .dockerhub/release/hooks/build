@@ -1,7 +1,8 @@
 #!/bin/bash
 set -ex
+rm -rf ../../.dockerignore
 
-export FROM_IMAGE=osrf/ros2:nightly
+export FROM_IMAGE=ros:rolling
 export FAIL_ON_BUILD_FAILURE=""
 export UNDERLAY_MIXINS="release ccache"
 export OVERLAY_MIXINS="release ccache"
@@ -12,4 +13,4 @@ docker build \
     --build-arg FAIL_ON_BUILD_FAILURE \
     --build-arg UNDERLAY_MIXINS \
     --build-arg OVERLAY_MIXINS \
-    --file ./Dockerfile ../../.
+    --file ../../Dockerfile ../../.
