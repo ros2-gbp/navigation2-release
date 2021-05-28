@@ -1,136 +1,70 @@
-# nav2_bringup
+# Nav2
+[![Build Status](https://img.shields.io/docker/pulls/rosplanning/navigation2.svg?maxAge=2592000)](https://hub.docker.com/r/rosplanning/navigation2) [![Build Status](https://img.shields.io/docker/cloud/build/rosplanning/navigation2.svg?label=docker%20build)](https://hub.docker.com/r/rosplanning/navigation2) [![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/main/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
 
-The `nav2_bringup` package is an example bringup system for Nav2 applications.
+<p align="center">
+  <img height="300" src="doc/nav2_logo.png" />
+</p>
 
-### Pre-requisites:
-* [Install ROS 2](https://index.ros.org/doc/ros2/Installation/Dashing/)
-* Install Nav2
+For detailed instructions on how to:
+- [Getting Started](https://navigation.ros.org/getting_started/index.html)
+- [Concepts](https://navigation.ros.org/concepts/index.html)
+- [Build](https://navigation.ros.org/build_instructions/index.html#build)
+- [Install](https://navigation.ros.org/build_instructions/index.html#install)
+- [General Tutorials](https://navigation.ros.org/tutorials/index.html) and [Algorithm Developer Tutorials](https://navigation.ros.org/plugin_tutorials/index.html)
+- [Configure](https://navigation.ros.org/configuration/index.html)
+- [Navigation Plugins](https://navigation.ros.org/plugins/index.html)
+- [Migration Guides](https://navigation.ros.org/migration/index.html)
+- [Contribute](https://navigation.ros.org/contribute/index.html)
 
-    ```sudo apt install ros-<ros2_distro>-navigation2```
+Please visit our [documentation site](https://navigation.ros.org/). [Please visit our community Slack here](https://join.slack.com/t/navigation2/shared_invite/zt-hu52lnnq-cKYjuhTY~sEMbZXL8p9tOw) (if this link does not work, please contact maintainers to reactivate).
 
-* Install Nav2 Bringup
+## Citation
 
-    ```sudo apt install ros-<ros2_distro>-nav2-bringup```
+If you use the navigation framework, an algorithm from this repository, or ideas from it
+please cite this work in your papers!
 
-* Install your robot specific package (ex:[Turtlebot 3](http://emanual.robotis.com/docs/en/platform/turtlebot3/ros2/))
-
-## Launch Nav2 in *Simulation* with Gazebo
-### Pre-requisites:
-
-* [Install Gazebo](http://gazebosim.org/tutorials?tut=install_ubuntu&cat=install)
-* gazebo_ros_pkgs for ROS2 installed on the system
-
-    ```sudo apt-get install ros-<ros2-distro>-gazebo*```
-* A Gazebo world for simulating the robot ([Gazebo tutorials](http://gazebosim.org/tutorials?tut=quick_start))
-* A map of that world saved to a map.pgm and map.yaml ([ROS Navigation Tutorials](https://github.com/ros-planning/navigation2/tree/main/doc/use_cases))
-
-### Terminal 1: Launch Gazebo
-
-Example: See [turtlebot3_gazebo models](https://github.com/ROBOTIS-GIT/turtlebot3_simulations/tree/ros2/turtlebot3_gazebo/models) for details
-
-```bash
-export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:<full/path/to/my_robot/models>
-gazebo --verbose -s libgazebo_ros_init.so <full/path/to/my_gazebo.world>
+ - S. Macenski, F. Martín, R. White, J. Clavero. [**The Marathon 2: A Navigation System**](https://arxiv.org/abs/2003.00368). IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2020.
+ 
+ ```bibtex
+ @InProceedings{macenski2020marathon2,
+   title = {The Marathon 2: A Navigation System},
+   author = {Macenski, Steve and Martín, Francisco and White, Ruffin and Ginés Clavero, Jonatan},
+   year = {2020},
+   booktitle = {2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+   url = {https://github.com/ros-planning/navigation2},
+   pdf = {https://arxiv.org/abs/2003.00368}
+ }
 ```
 
-### Terminal 2: Launch your robot specific transforms
+## Build Status
 
-Example: See [turtlebot3_gazebo](https://github.com/ROBOTIS-GIT/turtlebot3_simulations/tree/ros2/turtlebot3_gazebo) for details
-
-```bash
-source /opt/ros/dashing/setup.bash
-export TURTLEBOT3_MODEL=waffle
-ros2 launch turtlebot3_bringup turtlebot3_state_publisher.launch.py use_sim_time:=True
-```
-
-### Terminal 3: Launch Nav2
-
-```bash
-source /opt/ros/dashing/setup.bash
-ros2 launch nav2_bringup bringup_launch.py use_sim_time:=True autostart:=True \
-map:=<full/path/to/map.yaml>
-```
-
-### Terminal 4: Run RViz with Nav2 config file
-
-```bash
-source /opt/ros/dashing/setup.bash
-ros2 run rviz2 rviz2 -d $(ros2 pkg prefix nav2_bringup)/share/nav2_bringup/launch/nav2_default_view.rviz
-```
-
-In RViz:
-* You should see the map
-* Localize the robot using “2D Pose Estimate” button.
-* Make sure all transforms from odom are present. (odom->base_link->base_scan)
-* Send the robot a goal using "Nav2 Goal” button.
-Note: this uses a ROS2 Action to send the goal, and a pop-up window will appear on your screen with a 'cancel' button if you wish to cancel
-
-To view the robot model in RViz:
-* Add "RobotModel", set "Description Source" with "File", set "Description File" with the name of the urdf file for your robot (example: turtlebot3_burger.urdf)"
-
-### Advanced: single-terminal launch
-
-A convenience file is provided to launch Gazebo, RVIZ and Nav2 using a single command:
-
-```bash
-ros2 launch nav2_bringup tb3_simulation_launch.py <settings>
-```
-
-Where `<settings>` can used to replace any of the default options, for example:
-
-```
-world:=<full/path/to/gazebo.world>
-map:=<full/path/to/map.yaml>
-rviz_config_file:=<full/path/to/rviz_config.rviz>
-simulator:=<gzserver or gazebo>
-bt_xml_file:=<full/path/to/bt_tree.xml>
-```
+| Service | Dashing | Foxy | Main |
+| :---: | :---: | :---: | :---: |
+| ROS Build Farm | [![Build Status](http://build.ros2.org/job/Ddev__navigation2__ubuntu_bionic_amd64/badge/icon)](http://build.ros2.org/job/Ddev__navigation2__ubuntu_bionic_amd64/) | [![Build Status](http://build.ros2.org/job/Fdev__navigation2__ubuntu_focal_amd64/badge/icon)](http://build.ros2.org/job/Fdev__navigation2__ubuntu_focal_amd64/) | N/A |
+| Circle CI | N/A | N/A | [![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/main.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/main) |
 
 
-Before running the command make sure you are sourcing the `ROS2` workspace, setting the path to the Gazebo model and defining the TB3 robot model to use.
-
-```bash
-source <full/path/to/ros2/setup.bash>
-export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:<full/path/to/my_robot/models>
-export TURTLEBOT3_MODEL=waffle
-```
-
-Also, a file for launching **two** robots with **independent** navigation stacks is provided:
-
-```bash
-ros2 launch nav2_bringup multi_tb3_simulation_launch.py <settings>
-```
-
-
-## Launch Nav2 on a *Robot*
-
-### Pre-requisites:
-* Run SLAM with Navigation 2 or tele-op to drive the robot and generate a map of an area for testing first. The directions below assume this has already been done or there is already a map of the area.
-
-* Learn more about how to use Navigation 2 with SLAM to create maps;
-
-    - [Navigation 2 with SLAM](https://github.com/ros-planning/navigation2/blob/main/doc/use_cases/navigation_with_slam.md)
-
-* _Please note that currently, nav2_bringup works if you provide a map file. However, providing a map is not required to use Nav2. Nav2 can be configured to use the costmaps to navigate in an area without using a map file_
-
-* Publish all the transforms from your robot from base_link to base_scan
-
-
-### Terminal 1 : Launch Nav2 using your map.yaml
-
-```bash
-source /opt/ros/dashing/setup.bash
-ros2 launch nav2_bringup bringup_launch.py map:=<full/path/to/map.yaml> map_type:=occupancy
-```
-
-### Terminal 2 : Launch RVIZ
-
-```bash
-source /opt/ros/dashing/setup.bash
-ros2 run rviz2 rviz2 -d $(ros2 pkg prefix nav2_bringup)/share/nav2_bringup/launch/nav2_default_view.rviz
-```
-
-In RVIZ:
-* Make sure all transforms from odom are present. (odom->base_link->base_scan)
-* Localize the robot using “2D Pose Estimate” button.
-* Send the robot a goal pose using “2D Nav Goal” button.
+| Package     | Dashing Source | Dashing Debian | Foxy Source | Foxy Debian |
+| :---: | :---: | :---: | :---: | :---: |
+| Navigation2 | [![Build Status](http://build.ros2.org/job/Dsrc_uB__navigation2__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__navigation2__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__navigation2__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__navigation2__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__navigation2__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__navigation2__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__navigation2__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__navigation2__ubuntu_focal_amd64__binary/) |
+| nav2_amcl | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_amcl__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_amcl__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_amcl__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_amcl__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_amcl__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_amcl__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_amcl__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_amcl__ubuntu_focal_amd64__binary/) |
+| nav2_behavior_tree | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_behavior_tree__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_behavior_tree__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_behavior_tree__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_behavior_tree__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_behavior_tree__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_behavior_tree__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_behavior_tree__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_behavior_tree__ubuntu_focal_amd64__binary/) |
+| nav2_bringup | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_bringup__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_bringup__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_bringup__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_bringup__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_bringup__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_bringup__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_bringup__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_bringup__ubuntu_focal_amd64__binary/) |
+| nav2_bt_navigator | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_bt_navigator__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_bt_navigator__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_bt_navigator__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_bt_navigator__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_bt_navigator__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_bt_navigator__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_bt_navigator__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_bt_navigator__ubuntu_focal_amd64__binary/) |
+| nav2_common | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_common__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_common__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_common__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_common__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_common__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_common__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_common__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_common__ubuntu_focal_amd64__binary/) |
+| nav2_controller | N/A | N/A | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_controller__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_controller__ubuntu_focal_amd64__binary/) |
+| nav2_core | N/A | N/A | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_core__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_core__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_core__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_core__ubuntu_focal_amd64__binary/) |
+| nav2_costmap_2d | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_costmap_2d__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_costmap_2d__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_costmap_2d__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_costmap_2d__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_costmap_2d__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_costmap_2d__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_costmap_2d__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_costmap_2d__ubuntu_focal_amd64__binary/) |
+| nav2_dwb_controller | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_dwb_controller__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_dwb_controller__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_dwb_controller__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_dwb_controller__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_dwb_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_dwb_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_dwb_controller__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_dwb_controller__ubuntu_focal_amd64__binary/) |
+| nav2_lifecycle_manager | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_lifecycle_manager__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_lifecycle_manager__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_lifecycle_manager__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_lifecycle_manager__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_lifecycle_manager__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_lifecycle_manager__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_lifecycle_manager__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_lifecycle_manager__ubuntu_focal_amd64__binary/) |
+| nav2_map_server | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_map_server__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_map_server__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_map_server__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_map_server__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_map_server__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_map_server__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_map_server__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_map_server__ubuntu_focal_amd64__binary/) |
+| nav2_msgs | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_msgs__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_msgs__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_msgs__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_msgs__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_msgs__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_msgs__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_msgs__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_msgs__ubuntu_focal_amd64__binary/) |
+| nav2_navfn_planner | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_navfn_planner__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_navfn_planner__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_navfn_planner__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_navfn_planner__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_navfn_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_navfn_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_navfn_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_navfn_planner__ubuntu_focal_amd64__binary/) |
+| nav2_planner | N/A | N/A | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_planner__ubuntu_focal_amd64__binary/) |
+| nav2_recoveries | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_recoveries__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_recoveries__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_recoveries__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_recoveries__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_recoveries__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_recoveries__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_recoveries__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_recoveries__ubuntu_focal_amd64__binary/) |
+| nav2_regulated_pure_pursuit | N/A | N/A | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_regulated_pure_pursuit_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_regulated_pure_pursuit_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_regulated_pure_pursuit_controller__ubuntu_focal_amd64__binary/badge/icon)](https://build.ros2.org/job/Fbin_uF64__nav2_regulated_pure_pursuit_controller__ubuntu_focal_amd64__binary/) |
+| nav2_rviz_plugins | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_rviz_plugins__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_rviz_plugins__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_rviz_plugins__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_rviz_plugins__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_rviz_plugins__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_rviz_plugins__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_rviz_plugins__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_rviz_plugins__ubuntu_focal_amd64__binary/)
+| nav2_smac_planner | N/A | N/A | [![Build Status](http://build.ros2.org/job/Fsrc_uF__smac_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__smac_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__smac_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__smac_planner__ubuntu_focal_amd64__binary/) |
+| nav2_system_tests | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_system_tests__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_system_tests__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_system_tests__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_system_tests__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_system_tests__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_system_tests__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_system_tests__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_system_tests__ubuntu_focal_amd64__binary/) |
+| nav2_util | [![Build Status](http://build.ros2.org/job/Dsrc_uB__nav2_util__ubuntu_bionic__source/badge/icon)](http://build.ros2.org/job/Dsrc_uB__nav2_util__ubuntu_bionic__source/) | [![Build Status](http://build.ros2.org/job/Dbin_uB64__nav2_util__ubuntu_bionic_amd64__binary/badge/icon)](http://build.ros2.org/job/Dbin_uB64__nav2_util__ubuntu_bionic_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_util__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_util__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_util__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_util__ubuntu_focal_amd64__binary/) |
+| nav2_waypoint_follower | N/A | N/A | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_waypoint_follower__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_waypoint_follower__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_waypoint_follower__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_waypoint_follower__ubuntu_focal_amd64__binary/) |
