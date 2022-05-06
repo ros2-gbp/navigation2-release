@@ -89,12 +89,13 @@ protected:
   nav2_bt_navigator::NavigatorMuxer plugin_muxer_;
 
   // Odometry smoother object
-  std::unique_ptr<nav2_util::OdomSmoother> odom_smoother_;
+  std::shared_ptr<nav2_util::OdomSmoother> odom_smoother_;
 
   // Metrics for feedback
   std::string robot_frame_;
   std::string global_frame_;
   double transform_tolerance_;
+  std::string odom_topic_;
 
   // Spinning transform that can be used by the BT nodes
   std::shared_ptr<tf2_ros::Buffer> tf_;
