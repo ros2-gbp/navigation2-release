@@ -1,7 +1,7 @@
 /*********************************************************************
 * Software License Agreement (BSD License)
 *
-*  Copyright (c) 2021 Samsung Research Russia
+*  Copyright (c) 2022 Samsung Research Russia
 *  All rights reserved.
 *
 *  Redistribution and use in source and binary forms, with or without
@@ -33,119 +33,122 @@
 *
 * Author: Alexey Merzlyakov
 *********************************************************************/
-#include <nav2_voxel_grid/voxel_grid.hpp>
+#include <nav2_costmap_2d/costmap_2d.hpp>
 #include <gtest/gtest.h>
 
-class TestVoxel
+class CostmapAction
 {
 public:
-  explicit TestVoxel(uint32_t * data, int sz_x, int sz_y)
-  : data_(data)
+  explicit CostmapAction(
+    unsigned char * costmap, unsigned int size, unsigned char mark_val = 128)
+  : costmap_(costmap), size_(size), mark_val_(mark_val)
   {
-    size_ = sz_x * sz_y;
   }
-  inline void operator()(unsigned int off, unsigned int val)
+
+  inline void operator()(unsigned int off)
   {
     ASSERT_TRUE(off < size_);
-    data_[off] = val;
+    costmap_[off] = mark_val_;
   }
-  inline unsigned int operator()(unsigned int off)
+
+  inline unsigned int get(unsigned int off)
   {
-    return data_[off];
+    return costmap_[off];
   }
 
 private:
-  uint32_t * data_;
+  unsigned char * costmap_;
   unsigned int size_;
+  unsigned char mark_val_;
 };
 
-TEST(voxel_grid, bresenham3DBoundariesCheck)
+class CostmapTest : public nav2_costmap_2d::Costmap2D
 {
-  const int sz_x = 60;
-  const int sz_y = 60;
-  const int sz_z = 2;
+public:
+  CostmapTest(
+    unsigned int size_x, unsigned int size_y, double resolution,
+    double origin_x, double origin_y, unsigned char default_val = 0)
+  : nav2_costmap_2d::Costmap2D(size_x, size_y, resolution, origin_x, origin_y, default_val)
+  {
+  }
+
+  unsigned char * getCostmap()
+  {
+    return costmap_;
+  }
+
+  unsigned int getSize()
+  {
+    return size_x_ * size_y_;
+  }
+
+  void raytraceLine(
+    CostmapAction ca, unsigned int x0, unsigned int y0, unsigned int x1,
+    unsigned int y1,
+    unsigned int max_length = UINT_MAX, unsigned int min_length = 0)
+  {
+    nav2_costmap_2d::Costmap2D::raytraceLine(ca, x0, y0, x1, y1, max_length, min_length);
+  }
+};
+
+TEST(costmap_2d, bresenham2DBoundariesCheck)
+{
+  const unsigned int sz_x = 60;
+  const unsigned int sz_y = 60;
   const unsigned int max_length = 60;
   const unsigned int min_length = 6;
-  nav2_voxel_grid::VoxelGrid vg(sz_x, sz_y, sz_z);
-  TestVoxel tv(vg.getData(), sz_x, sz_y);
+  CostmapTest ct(sz_x, sz_y, 0.1, 0.0, 0.0);
+  CostmapAction ca(ct.getCostmap(), ct.getSize());
 
   // Initial point - some assymetrically standing point in order to cover most corner cases
-  const double x0 = 2.2;
-  const double y0 = 3.8;
-  const double z0 = 0.4;
-  // z-axis won't be domimant
-  const double z1 = 0.5;
+  const unsigned int x0 = 2;
+  const unsigned int y0 = 4;
   // (x1, y1) point will move
-  double x1, y1;
-
-  // Epsilon for outer boundaries of voxel grid array
-  const double epsilon = 0.02;
+  unsigned int x1, y1;
 
   // Running on (x, 0) edge
-  y1 = 0.0;
-  for (int i = 0; i <= sz_x; i++) {
-    if (i != sz_x) {
-      x1 = i;
-    } else {
-      x1 = i - epsilon;
-    }
-    vg.raytraceLine(tv, x0, y0, z0, x1, y1, z1, max_length, min_length);
+  y1 = 0;
+  for (x1 = 0; x1 < sz_x; x1++) {
+    ct.raytraceLine(ca, x0, y0, x1, y1, max_length, min_length);
   }
 
   // Running on (x, sz_y) edge
-  y1 = sz_y - epsilon;
-  for (int i = 0; i <= sz_x; i++) {
-    if (i != sz_x) {
-      x1 = i;
-    } else {
-      x1 = i - epsilon;
-    }
-    vg.raytraceLine(tv, x0, y0, z0, x1, y1, z1, max_length, min_length);
+  y1 = sz_y - 1;
+  for (x1 = 0; x1 < sz_x; x1++) {
+    ct.raytraceLine(ca, x0, y0, x1, y1, max_length, min_length);
   }
 
   // Running on (0, y) edge
-  x1 = 0.0;
-  for (int j = 0; j <= sz_y; j++) {
-    if (j != sz_y) {
-      y1 = j;
-    } else {
-      y1 = j - epsilon;
-    }
-    vg.raytraceLine(tv, x0, y0, z0, x1, y1, z1, max_length, min_length);
+  x1 = 0;
+  for (y1 = 0; y1 < sz_y; y1++) {
+    ct.raytraceLine(ca, x0, y0, x1, y1, max_length, min_length);
   }
 
   // Running on (sz_x, y) edge
-  x1 = sz_x - epsilon;
-  for (int j = 0; j <= sz_y; j++) {
-    if (j != sz_y) {
-      y1 = j;
-    } else {
-      y1 = j - epsilon;
-    }
-    vg.raytraceLine(tv, x0, y0, z0, x1, y1, z1, max_length, min_length);
+  x1 = sz_x - 1;
+  for (y1 = 0; y1 < sz_y; y1++) {
+    ct.raytraceLine(ca, x0, y0, x1, y1, max_length, min_length);
   }
 }
 
-TEST(voxel_grid, bresenham3DSamePoint)
+TEST(costmap_2d, bresenham2DSamePoint)
 {
-  const int sz_x = 60;
-  const int sz_y = 60;
-  const int sz_z = 2;
+  const unsigned int sz_x = 60;
+  const unsigned int sz_y = 60;
   const unsigned int max_length = 60;
   const unsigned int min_length = 0;
-  nav2_voxel_grid::VoxelGrid vg(sz_x, sz_y, sz_z);
-  TestVoxel tv(vg.getData(), sz_x, sz_y);
+  CostmapTest ct(sz_x, sz_y, 0.1, 0.0, 0.0);
+  CostmapAction ca(ct.getCostmap(), ct.getSize());
 
   // Initial point
-  const double x0 = 2.2;
-  const double y0 = 3.8;
-  const double z0 = 0.4;
+  const double x0 = 2;
+  const double y0 = 4;
 
-  unsigned int offset = int(y0) * sz_x + int(x0);
-  unsigned int val_before = tv(offset);
+  unsigned int offset = y0 * sz_x + x0;
+  unsigned char val_before = ca.get(offset);
   // Same point to check
-  vg.raytraceLine(tv, x0, y0, z0, x0, y0, z0, max_length, min_length);
-  unsigned int val_after = tv(offset);
+  ct.raytraceLine(ca, x0, y0, x0, y0, max_length, min_length);
+  unsigned char val_after = ca.get(offset);
   ASSERT_FALSE(val_before == val_after);
 }
 
