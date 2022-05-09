@@ -1,0 +1,12 @@
+Source: ros-galactic-nav2-gazebo-spawner
+Section: misc
+Priority: optional
+Maintainer: lkumarbe <carlos.orduno@intel.com>
+Build-Depends: debhelper (>= 9.0.0), python3-pytest <!nocheck>, ros-galactic-ament-copyright <!nocheck>, ros-galactic-ament-lint-auto <!nocheck>, ros-galactic-ament-lint-common <!nocheck>, ros-galactic-ros-workspace, python3-all, python3-setuptools, dh-python
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-galactic-nav2-gazebo-spawner
+Architecture: any
+Depends: ${python3:Depends}, ${misc:Depends}, ros-galactic-rclpy, ros-galactic-std-msgs, ros-galactic-ros-workspace
+Description: Package for spawning a robot model into Gazebo for Nav2
