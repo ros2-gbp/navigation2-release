@@ -1,0 +1,12 @@
+Source: ros-galactic-nav2-rviz-plugins
+Section: misc
+Priority: optional
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), qtbase5-dev, ros-galactic-ament-cmake, ros-galactic-ament-lint-auto <!nocheck>, ros-galactic-ament-lint-common <!nocheck>, ros-galactic-geometry-msgs, ros-galactic-nav-msgs, ros-galactic-nav2-lifecycle-manager, ros-galactic-nav2-msgs, ros-galactic-nav2-util, ros-galactic-pluginlib, ros-galactic-rclcpp, ros-galactic-rclcpp-lifecycle, ros-galactic-resource-retriever, ros-galactic-rviz-common, ros-galactic-rviz-default-plugins, ros-galactic-rviz-ogre-vendor, ros-galactic-rviz-rendering, ros-galactic-std-msgs, ros-galactic-tf2-geometry-msgs, ros-galactic-visualization-msgs, ros-galactic-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-galactic-nav2-rviz-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libqt5core5a, libqt5gui5, libqt5opengl5, libqt5widgets5, ros-galactic-geometry-msgs, ros-galactic-nav-msgs, ros-galactic-nav2-lifecycle-manager, ros-galactic-nav2-msgs, ros-galactic-nav2-util, ros-galactic-pluginlib, ros-galactic-rclcpp, ros-galactic-rclcpp-lifecycle, ros-galactic-resource-retriever, ros-galactic-rviz-common, ros-galactic-rviz-default-plugins, ros-galactic-rviz-ogre-vendor, ros-galactic-rviz-rendering, ros-galactic-std-msgs, ros-galactic-tf2-geometry-msgs, ros-galactic-visualization-msgs, ros-galactic-ros-workspace
+Description: Navigation 2 plugins for rviz
