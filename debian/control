@@ -1,0 +1,12 @@
+Source: ros-galactic-nav2-core
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-galactic-ament-cmake, ros-galactic-ament-cmake-gtest <!nocheck>, ros-galactic-ament-cmake-pytest <!nocheck>, ros-galactic-ament-lint-auto <!nocheck>, ros-galactic-ament-lint-common <!nocheck>, ros-galactic-geometry-msgs, ros-galactic-launch <!nocheck>, ros-galactic-launch-testing <!nocheck>, ros-galactic-nav-msgs, ros-galactic-nav2-common, ros-galactic-nav2-costmap-2d, ros-galactic-nav2-util, ros-galactic-pluginlib, ros-galactic-rclcpp, ros-galactic-rclcpp-lifecycle, ros-galactic-std-msgs, ros-galactic-tf2-ros, ros-galactic-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-galactic-nav2-core
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-galactic-geometry-msgs, ros-galactic-nav-msgs, ros-galactic-nav2-costmap-2d, ros-galactic-nav2-util, ros-galactic-pluginlib, ros-galactic-rclcpp, ros-galactic-rclcpp-lifecycle, ros-galactic-std-msgs, ros-galactic-tf2-ros, ros-galactic-ros-workspace
+Description: A set of headers for plugins core to the Nav2 stack
