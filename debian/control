@@ -1,0 +1,12 @@
+Source: ros-galactic-nav2-system-tests
+Section: misc
+Priority: optional
+Maintainer: Carlos Orduno <carlos.a.orduno@intel.com>
+Build-Depends: debhelper (>= 9.0.0), python3-zmq <!nocheck>, ros-galactic-ament-cmake, ros-galactic-ament-cmake-gtest <!nocheck>, ros-galactic-ament-cmake-pytest <!nocheck>, ros-galactic-ament-lint-auto <!nocheck>, ros-galactic-ament-lint-common <!nocheck>, ros-galactic-gazebo-ros-pkgs, ros-galactic-geometry-msgs, ros-galactic-launch <!nocheck>, ros-galactic-launch-ros, ros-galactic-launch-ros <!nocheck>, ros-galactic-launch-testing, ros-galactic-launch-testing <!nocheck>, ros-galactic-nav-msgs, ros-galactic-nav2-amcl, ros-galactic-nav2-behavior-tree, ros-galactic-nav2-common, ros-galactic-nav2-lifecycle-manager, ros-galactic-nav2-map-server, ros-galactic-nav2-msgs, ros-galactic-nav2-navfn-planner, ros-galactic-nav2-planner, ros-galactic-nav2-util, ros-galactic-rclcpp, ros-galactic-rclpy, ros-galactic-std-msgs, ros-galactic-tf2-geometry-msgs, ros-galactic-visualization-msgs, ros-galactic-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-galactic-nav2-system-tests
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, lcov, ros-galactic-gazebo-ros-pkgs, ros-galactic-geometry-msgs, ros-galactic-launch-ros, ros-galactic-launch-testing, ros-galactic-nav-msgs, ros-galactic-nav2-amcl, ros-galactic-nav2-behavior-tree, ros-galactic-nav2-bringup, ros-galactic-nav2-lifecycle-manager, ros-galactic-nav2-map-server, ros-galactic-nav2-msgs, ros-galactic-nav2-navfn-planner, ros-galactic-nav2-planner, ros-galactic-nav2-util, ros-galactic-navigation2, ros-galactic-rclcpp, ros-galactic-rclpy, ros-galactic-robot-state-publisher, ros-galactic-std-msgs, ros-galactic-tf2-geometry-msgs, ros-galactic-visualization-msgs, ros-galactic-ros-workspace
+Description: TODO
