@@ -33,8 +33,8 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 
 set(nav2_rviz_plugins_headers_to_moc
-  include/nav2_rviz_plugins/goal_pose_updater
-  include/nav2_rviz_plugins/goal_common
+  include/nav2_rviz_plugins/goal_pose_updater.hpp
+  include/nav2_rviz_plugins/goal_common.hpp
   include/nav2_rviz_plugins/goal_tool.hpp
   include/nav2_rviz_plugins/nav2_panel.hpp
   include/nav2_rviz_plugins/particle_cloud_display/flat_weighted_arrows_array.hpp
@@ -90,9 +90,6 @@ target_link_libraries(${library_name}
 # which is appropriate when building the dll but not consuming it.
 # TODO: Make this specific to this project (not rviz default plugins)
 target_compile_definitions(${library_name} PRIVATE "RVIZ_DEFAULT_PLUGINS_BUILDING_LIBRARY")
-
-# prevent pluginlib from using boost
-target_compile_definitions(${library_name} PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 
 pluginlib_export_plugin_description_file(rviz_common plugins_description.xml)
 

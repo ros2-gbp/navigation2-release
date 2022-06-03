@@ -16,7 +16,6 @@
 
 import argparse
 import math
-import os
 import sys
 import time
 
@@ -37,30 +36,26 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
 from rclpy.qos import QoSProfile
 
-import zmq
-
 
 class NavTester(Node):
 
-    def __init__(
-        self,
-        initial_pose: Pose,
-        goal_pose: Pose,
-        namespace: str = ''
-    ):
+    def __init__(self, initial_pose: Pose, goal_pose: Pose, namespace: str = ''):
         super().__init__(node_name='nav2_tester', namespace=namespace)
-        self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
-                                                      'initialpose', 10)
+        self.initial_pose_pub = self.create_publisher(
+            PoseWithCovarianceStamped, 'initialpose', 10
+        )
         self.goal_pub = self.create_publisher(PoseStamped, 'goal_pose', 10)
 
         pose_qos = QoSProfile(
-          durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-          reliability=QoSReliabilityPolicy.RELIABLE,
-          history=QoSHistoryPolicy.KEEP_LAST,
-          depth=1)
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
 
-        self.model_pose_sub = self.create_subscription(PoseWithCovarianceStamped,
-                                                       'amcl_pose', self.poseCallback, pose_qos)
+        self.model_pose_sub = self.create_subscription(
+            PoseWithCovarianceStamped, 'amcl_pose', self.poseCallback, pose_qos
+        )
         self.initial_pose_received = False
         self.initial_pose = initial_pose
         self.goal_pose = goal_pose
@@ -99,13 +94,6 @@ class NavTester(Node):
         while not self.action_client.wait_for_server(timeout_sec=1.0):
             self.info_msg("'NavigateToPose' action server not available, waiting...")
 
-        if (os.getenv('GROOT_MONITORING') == 'True'):
-            if self.grootMonitoringGetStatus():
-                self.error_msg('Behavior Tree must not be running already!')
-                self.error_msg('Are you running multiple goals/bts..?')
-                return False
-            self.info_msg('This Error above MUST Fail and is o.k.!')
-
         self.goal_pose = goal_pose if goal_pose is not None else self.goal_pose
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = self.getStampedPoseMsg(self.goal_pose)
@@ -124,17 +112,6 @@ class NavTester(Node):
         get_result_future = goal_handle.get_result_async()
 
         future_return = True
-        if (os.getenv('GROOT_MONITORING') == 'True'):
-            try:
-                if not self.grootMonitoringReloadTree():
-                    self.error_msg('Failed GROOT_BT - Reload Tree from ZMQ Server')
-                    future_return = False
-                if not self.grootMonitoringGetStatus():
-                    self.error_msg('Failed GROOT_BT - Get Status from ZMQ Publisher')
-                    future_return = False
-            except Exception as e:  # noqa: B902
-                self.error_msg(f'Failed GROOT_BT - ZMQ Tests: {e}')
-                future_return = False
 
         self.info_msg("Waiting for 'NavigateToPose' action to complete")
         rclpy.spin_until_future_complete(self, get_result_future)
@@ -147,75 +124,6 @@ class NavTester(Node):
             return False
 
         self.info_msg('Goal succeeded!')
-        return True
-
-    def grootMonitoringReloadTree(self):
-        # ZeroMQ Context
-        context = zmq.Context()
-
-        sock = context.socket(zmq.REQ)
-        port = 1667  # default server port for groot monitoring
-        # # Set a Timeout so we do not spin till infinity
-        sock.setsockopt(zmq.RCVTIMEO, 1000)
-        # sock.setsockopt(zmq.LINGER, 0)
-
-        sock.connect(f'tcp://localhost: {port}')
-        self.info_msg(f'ZMQ Server Port: {port}')
-
-        # this should fail
-        try:
-            sock.recv()
-            self.error_msg('ZMQ Reload Tree Test 1/3 - This should have failed!')
-            # Only works when ZMQ server receives a request first
-            sock.close()
-            return False
-        except zmq.error.ZMQError:
-            self.info_msg('ZMQ Reload Tree Test 1/3: Check')
-        try:
-            # request tree from server
-            sock.send_string('')
-            # receive tree from server as flat_buffer
-            sock.recv()
-            self.info_msg('ZMQ Reload Tree Test 2/3: Check')
-        except zmq.error.Again:
-            self.info_msg('ZMQ Reload Tree Test 2/3 - Failed to load tree')
-            sock.close()
-            return False
-
-        # this should fail
-        try:
-            sock.recv()
-            self.error_msg('ZMQ Reload Tree Test 3/3 - This should have failed!')
-            # Tree should only be loadable ONCE after ZMQ server received a request
-            sock.close()
-            return False
-        except zmq.error.ZMQError:
-            self.info_msg('ZMQ Reload Tree Test 3/3: Check')
-
-        return True
-
-    def grootMonitoringGetStatus(self):
-        # ZeroMQ Context
-        context = zmq.Context()
-        # Define the socket using the 'Context'
-        sock = context.socket(zmq.SUB)
-        # Set a Timeout so we do not spin till infinity
-        sock.setsockopt(zmq.RCVTIMEO, 2000)
-        # sock.setsockopt(zmq.LINGER, 0)
-
-        # Define subscription and messages with prefix to accept.
-        sock.setsockopt_string(zmq.SUBSCRIBE, '')
-        port = 1666  # default publishing port for groot monitoring
-        sock.connect(f'tcp://127.0.0.1:{port}')
-
-        for request in range(3):
-            try:
-                sock.recv()
-            except zmq.error.Again:
-                self.error_msg('ZMQ - Did not receive any status')
-                sock.close()
-                return False
-        self.info_msg('ZMQ - Did receive status')
         return True
 
     def poseCallback(self, msg):
@@ -254,7 +162,7 @@ class NavTester(Node):
             self.info_msg(f'{node_service} service not available, waiting...')
         req = GetState.Request()  # empty request
         state = 'UNKNOWN'
-        while (state != 'active'):
+        while state != 'active':
             self.info_msg(f'Getting {node_name} state...')
             future = state_client.call_async(req)
             rclpy.spin_until_future_complete(self, future)
@@ -262,7 +170,9 @@ class NavTester(Node):
                 state = future.result().current_state.label
                 self.info_msg(f'Result of get_state: {state}')
             else:
-                self.error_msg(f'Exception while calling service: {future.exception()!r}')
+                self.error_msg(
+                    f'Exception while calling service: {future.exception()!r}'
+                )
             time.sleep(5)
 
     def shutdown(self):
@@ -319,18 +229,18 @@ def test_RobotMovesToGoal(robot_tester):
 def run_all_tests(robot_tester):
     # set transforms to use_sim_time
     result = True
-    if (result):
+    if result:
         robot_tester.wait_for_node_active('amcl')
         robot_tester.wait_for_initial_pose()
         robot_tester.wait_for_node_active('bt_navigator')
         result = robot_tester.runNavigateAction()
 
-    if (result):
+    if result:
         result = test_RobotMovesToGoal(robot_tester)
 
     # Add more tests here if desired
 
-    if (result):
+    if result:
         robot_tester.info_msg('Test PASSED')
     else:
         robot_tester.error_msg('Test FAILED')
@@ -358,10 +268,19 @@ def get_testers(args):
         init_x, init_y, final_x, final_y = args.robot[0]
         tester = NavTester(
             initial_pose=fwd_pose(float(init_x), float(init_y)),
-            goal_pose=fwd_pose(float(final_x), float(final_y)))
+            goal_pose=fwd_pose(float(final_x), float(final_y)),
+        )
         tester.info_msg(
-            'Starting tester, robot going from ' + init_x + ', ' + init_y +
-            ' to ' + final_x + ', ' + final_y + '.')
+            'Starting tester, robot going from '
+            + init_x
+            + ', '
+            + init_y
+            + ' to '
+            + final_x
+            + ', '
+            + final_y
+            + '.'
+        )
         testers.append(tester)
         return testers
 
@@ -371,28 +290,61 @@ def get_testers(args):
         tester = NavTester(
             namespace=namespace,
             initial_pose=fwd_pose(float(init_x), float(init_y)),
-            goal_pose=fwd_pose(float(final_x), float(final_y)))
+            goal_pose=fwd_pose(float(final_x), float(final_y)),
+        )
         tester.info_msg(
-            'Starting tester for ' + namespace +
-            ' going from ' + init_x + ', ' + init_y +
-            ' to ' + final_x + ', ' + final_y)
+            'Starting tester for '
+            + namespace
+            + ' going from '
+            + init_x
+            + ', '
+            + init_y
+            + ' to '
+            + final_x
+            + ', '
+            + final_y
+        )
         testers.append(tester)
     return testers
+
+
+def check_args(expect_failure: str):
+    # Check if --expect_failure is True or False
+    if expect_failure != 'True' and expect_failure != 'False':
+        print(
+            '\033[1;37;41m' + ' -e flag must be set to True or False only. ' + '\033[0m'
+        )
+        exit(1)
+    else:
+        return eval(expect_failure)
 
 
 def main(argv=sys.argv[1:]):
     # The robot(s) positions from the input arguments
     parser = argparse.ArgumentParser(description='System-level navigation tester node')
+    parser.add_argument('-e', '--expect_failure')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-r', '--robot', action='append', nargs=4,
-                       metavar=('init_x', 'init_y', 'final_x', 'final_y'),
-                       help='The robot starting and final positions.')
-    group.add_argument('-rs', '--robots', action='append', nargs=5,
-                       metavar=('name', 'init_x', 'init_y', 'final_x', 'final_y'),
-                       help="The robot's namespace and starting and final positions. " +
-                            'Repeating the argument for multiple robots is supported.')
+    group.add_argument(
+        '-r',
+        '--robot',
+        action='append',
+        nargs=4,
+        metavar=('init_x', 'init_y', 'final_x', 'final_y'),
+        help='The robot starting and final positions.',
+    )
+    group.add_argument(
+        '-rs',
+        '--robots',
+        action='append',
+        nargs=5,
+        metavar=('name', 'init_x', 'init_y', 'final_x', 'final_y'),
+        help="The robot's namespace and starting and final positions. "
+        + 'Repeating the argument for multiple robots is supported.',
+    )
 
     args, unknown = parser.parse_known_args()
+
+    expect_failure = check_args(args.expect_failure)
 
     rclpy.init()
 
@@ -404,7 +356,7 @@ def main(argv=sys.argv[1:]):
 
     for tester in testers:
         passed = run_all_tests(tester)
-        if not passed:
+        if passed != expect_failure:
             break
 
     for tester in testers:
@@ -413,7 +365,7 @@ def main(argv=sys.argv[1:]):
 
     testers[0].info_msg('Done Shutting Down.')
 
-    if not passed:
+    if passed != expect_failure:
         testers[0].info_msg('Exiting failed')
         exit(1)
     else:

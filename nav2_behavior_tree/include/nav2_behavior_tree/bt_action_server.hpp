@@ -40,7 +40,8 @@ public:
   typedef std::function<bool (typename ActionT::Goal::ConstSharedPtr)> OnGoalReceivedCallback;
   typedef std::function<void ()> OnLoopCallback;
   typedef std::function<void (typename ActionT::Goal::ConstSharedPtr)> OnPreemptCallback;
-  typedef std::function<void (typename ActionT::Result::SharedPtr)> OnCompletionCallback;
+  typedef std::function<void (typename ActionT::Result::SharedPtr,
+      nav2_behavior_tree::BtStatus)> OnCompletionCallback;
 
   /**
    * @brief A constructor for nav2_behavior_tree::BtActionServer class
@@ -168,7 +169,7 @@ public:
    * @brief Getter function for the current BT tree
    * @return BT::Tree Current behavior tree
    */
-  BT::Tree getTree() const
+  const BT::Tree & getTree() const
   {
     return tree_;
   }
@@ -230,11 +231,6 @@ protected:
 
   // Default timeout value while waiting for response from a server
   std::chrono::milliseconds default_server_timeout_;
-
-  // Parameters for Groot monitoring
-  bool enable_groot_monitoring_;
-  int groot_zmq_publisher_port_;
-  int groot_zmq_server_port_;
 
   // User-provided callbacks
   OnGoalReceivedCallback on_goal_received_callback_;

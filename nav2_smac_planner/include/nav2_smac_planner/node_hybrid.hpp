@@ -38,35 +38,16 @@ namespace nav2_smac_planner
 typedef std::vector<float> LookupTable;
 typedef std::pair<double, double> TrigValues;
 
-// Need seperate pose struct for motion table operations
-
-/**
- * @struct nav2_smac_planner::MotionPose
- * @brief A struct for poses in motion primitives
- */
-struct MotionPose
+typedef std::pair<float, unsigned int> ObstacleHeuristicElement;
+struct ObstacleHeuristicComparator
 {
-  /**
-   * @brief A constructor for nav2_smac_planner::MotionPose
-   */
-  MotionPose() {}
-
-  /**
-   * @brief A constructor for nav2_smac_planner::MotionPose
-   * @param x X pose
-   * @param y Y pose
-   * @param theta Angle of pose
-   */
-  MotionPose(const float & x, const float & y, const float & theta)
-  : _x(x), _y(y), _theta(theta)
-  {}
-
-  float _x;
-  float _y;
-  float _theta;
+  bool operator()(const ObstacleHeuristicElement & a, const ObstacleHeuristicElement & b) const
+  {
+    return a.first > b.first;
+  }
 };
 
-typedef std::vector<MotionPose> MotionPoses;
+typedef std::vector<ObstacleHeuristicElement> ObstacleHeuristicQueue;
 
 // Must forward declare
 class NodeHybrid;
@@ -115,6 +96,20 @@ struct HybridMotionTable
    */
   MotionPoses getProjections(const NodeHybrid * node);
 
+  /**
+   * @brief Get the angular bin to use from a raw orientation
+   * @param theta Angle in radians
+   * @return bin index of closest angle to request
+   */
+  unsigned int getClosestAngularBin(const double & theta);
+
+  /**
+   * @brief Get the raw orientation from an angular bin
+   * @param bin_idx Index of the bin
+   * @return Raw orientation in radians
+   */
+  float getAngleFromBin(const unsigned int & bin_idx);
+
   MotionModel motion_model = MotionModel::UNKNOWN;
   MotionPoses projections;
   unsigned int size_x;
@@ -126,6 +121,7 @@ struct HybridMotionTable
   float non_straight_penalty;
   float cost_penalty;
   float reverse_penalty;
+  float travel_distance_reward;
   ompl::base::StateSpacePtr state_space;
   std::vector<std::vector<double>> delta_xs;
   std::vector<std::vector<double>> delta_ys;
@@ -396,7 +392,8 @@ public:
    */
   static float getObstacleHeuristic(
     const Coordinates & node_coords,
-    const Coordinates & goal_coords);
+    const Coordinates & goal_coords,
+    const double & cost_penalty);
 
   /**
    * @brief Compute the Distance heuristic
@@ -418,6 +415,7 @@ public:
    */
   static void resetObstacleHeuristic(
     nav2_costmap_2d::Costmap2D * costmap,
+    const unsigned int & start_x, const unsigned int & start_y,
     const unsigned int & goal_x, const unsigned int & goal_y);
 
   /**
@@ -433,6 +431,13 @@ public:
     const bool & traverse_unknown,
     NodeVector & neighbors);
 
+  /**
+   * @brief Set the starting pose for planning, as a node index
+   * @param path Reference to a vector of indicies of generated path
+   * @return whether the path was able to be backtraced
+   */
+  bool backtracePath(CoordinateVector & path);
+
   NodeHybrid * parent;
   Coordinates pose;
 
@@ -441,7 +446,8 @@ public:
   static HybridMotionTable motion_table;
   // Wavefront lookup and queue for continuing to expand as needed
   static LookupTable obstacle_heuristic_lookup_table;
-  static std::queue<unsigned int> obstacle_heuristic_queue;
+  static ObstacleHeuristicQueue obstacle_heuristic_queue;
+
   static nav2_costmap_2d::Costmap2D * sampled_costmap;
   static CostmapDownsampler downsampler;
   // Dubin / Reeds-Shepp lookup and size for dereferencing

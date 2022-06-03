@@ -35,7 +35,7 @@
 #include "nav2_util/string_utils.hpp"
 #include "nav2_amcl/sensors/laser/laser.hpp"
 #include "tf2/convert.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "tf2/LinearMath/Transform.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/message_filter.h"
@@ -48,17 +48,18 @@
 #include "tf2/utils.h"
 #pragma GCC diagnostic pop
 
-#include "portable_utils.h"
+#include "nav2_amcl/portable_utils.hpp"
 
 using namespace std::placeholders;
+using rcl_interfaces::msg::ParameterType;
 using namespace std::chrono_literals;
 
 namespace nav2_amcl
 {
 using nav2_util::geometry_utils::orientationAroundZAxis;
 
-AmclNode::AmclNode()
-: nav2_util::LifecycleNode("amcl", "", true)
+AmclNode::AmclNode(const rclcpp::NodeOptions & options)
+: nav2_util::LifecycleNode("amcl", "", options)
 {
   RCLCPP_INFO(get_logger(), "Creating");
 
@@ -174,7 +175,7 @@ AmclNode::AmclNode()
     "resample_interval", rclcpp::ParameterValue(1),
     "Number of filter updates required before resampling");
 
-  add_parameter("robot_model_type", rclcpp::ParameterValue(std::string("differential")));
+  add_parameter("robot_model_type", rclcpp::ParameterValue("nav2_amcl::DifferentialMotionModel"));
 
   add_parameter(
     "save_pose_rate", rclcpp::ParameterValue(0.5),
@@ -221,6 +222,10 @@ AmclNode::AmclNode()
   add_parameter(
     "map_topic", rclcpp::ParameterValue("map"),
     "Topic to subscribe to in order to receive the map to localize on");
+
+  add_parameter(
+    "first_map_only", rclcpp::ParameterValue(false),
+    "Set this to true, when you want to load a new map published from the map_server");
 }
 
 AmclNode::~AmclNode()
@@ -231,7 +236,8 @@ nav2_util::CallbackReturn
 AmclNode::on_configure(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Configuring");
-
+  callback_group_ = create_callback_group(
+    rclcpp::CallbackGroupType::MutuallyExclusive, false);
   initParameters();
   initTransforms();
   initParticleFilter();
@@ -240,31 +246,10 @@ AmclNode::on_configure(const rclcpp_lifecycle::State & /*state*/)
   initPubSub();
   initServices();
   initOdometry();
-
+  executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  executor_->add_callback_group(callback_group_, get_node_base_interface());
+  executor_thread_ = std::make_unique<nav2_util::NodeThread>(executor_);
   return nav2_util::CallbackReturn::SUCCESS;
-}
-
-void
-AmclNode::waitForTransforms()
-{
-  std::string tf_error;
-
-  RCLCPP_INFO(get_logger(), "Checking that transform thread is ready");
-
-  while (rclcpp::ok() &&
-    !tf_buffer_->canTransform(
-      global_frame_id_, odom_frame_id_, tf2::TimePointZero,
-      transform_tolerance_, &tf_error))
-  {
-    RCLCPP_INFO(
-      get_logger(), "Timed out waiting for transform from %s to %s"
-      " to become available, tf error: %s",
-      odom_frame_id_.c_str(), global_frame_id_.c_str(), tf_error.c_str());
-
-    // The error string will accumulate and errors will typically be the same, so the last
-    // will do for the warning above. Reset the string here to avoid accumulation.
-    tf_error.clear();
-  }
 }
 
 nav2_util::CallbackReturn
@@ -297,6 +282,13 @@ AmclNode::on_activate(const rclcpp_lifecycle::State & /*state*/)
     handleInitialPose(last_published_pose_);
   }
 
+  auto node = shared_from_this();
+  // Add callback for dynamic parameters
+  dyn_params_handler_ = node->add_on_set_parameters_callback(
+    std::bind(
+      &AmclNode::dynamicParametersCallback,
+      this, std::placeholders::_1));
+
   // create bond connection
   createBond();
 
@@ -314,6 +306,9 @@ AmclNode::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   pose_pub_->on_deactivate();
   particle_cloud_pub_->on_deactivate();
 
+  // reset dynamic parameter handler
+  dyn_params_handler_.reset();
+
   // destroy bond connection
   destroyBond();
 
@@ -324,6 +319,8 @@ nav2_util::CallbackReturn
 AmclNode::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Cleaning up");
+
+  executor_thread_.reset();
 
   // Get rid of the inputs first (services and message filter input), so we
   // don't continue to process incoming messages
@@ -391,26 +388,6 @@ AmclNode::on_shutdown(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Shutting down");
   return nav2_util::CallbackReturn::SUCCESS;
-}
-
-void
-AmclNode::checkLaserReceived()
-{
-  if (last_laser_received_ts_.nanoseconds() == 0) {
-    RCLCPP_WARN(
-      get_logger(), "Laser scan has not been received"
-      " (and thus no pose updates have been published)."
-      " Verify that data is being published on the %s topic.", scan_topic_.c_str());
-    return;
-  }
-
-  rclcpp::Duration d = now() - last_laser_received_ts_;
-  if (d.nanoseconds() * 1e-9 > laser_check_interval_.count()) {
-    RCLCPP_WARN(
-      get_logger(), "No laser scan received (and thus no pose updates have been published) for %f"
-      " seconds.  Verify that data is being published on the %s topic.",
-      d.nanoseconds() * 1e-9, scan_topic_.c_str());
-  }
 }
 
 bool
@@ -1099,7 +1076,7 @@ AmclNode::initParameters()
   get_parameter("z_max", z_max_);
   get_parameter("z_rand", z_rand_);
   get_parameter("z_short", z_short_);
-  get_parameter("first_map_only_", first_map_only_);
+  get_parameter("first_map_only", first_map_only_);
   get_parameter("always_reset_initial_pose", always_reset_initial_pose_);
   get_parameter("scan_topic", scan_topic_);
   get_parameter("map_topic", map_topic_);
@@ -1151,6 +1128,206 @@ AmclNode::initParameters()
   if (always_reset_initial_pose_) {
     initial_pose_is_known_ = false;
   }
+}
+
+/**
+  * @brief Callback executed when a parameter change is detected
+  * @param event ParameterEvent message
+  */
+rcl_interfaces::msg::SetParametersResult
+AmclNode::dynamicParametersCallback(
+  std::vector<rclcpp::Parameter> parameters)
+{
+  std::lock_guard<std::recursive_mutex> cfl(mutex_);
+  rcl_interfaces::msg::SetParametersResult result;
+  double save_pose_rate;
+  double tmp_tol;
+
+  int max_particles = max_particles_;
+  int min_particles = min_particles_;
+
+  bool reinit_pf = false;
+  bool reinit_odom = false;
+  bool reinit_laser = false;
+  bool reinit_map = false;
+
+  for (auto parameter : parameters) {
+    const auto & param_type = parameter.get_type();
+    const auto & param_name = parameter.get_name();
+
+    if (param_type == ParameterType::PARAMETER_DOUBLE) {
+      if (param_name == "alpha1") {
+        alpha1_ = parameter.as_double();
+        reinit_odom = true;
+      } else if (param_name == "alpha2") {
+        alpha2_ = parameter.as_double();
+        reinit_odom = true;
+      } else if (param_name == "alpha3") {
+        alpha3_ = parameter.as_double();
+        reinit_odom = true;
+      } else if (param_name == "alpha4") {
+        alpha4_ = parameter.as_double();
+        reinit_odom = true;
+      } else if (param_name == "alpha5") {
+        alpha5_ = parameter.as_double();
+        reinit_odom = true;
+      } else if (param_name == "beam_skip_distance") {
+        beam_skip_distance_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "beam_skip_error_threshold") {
+        beam_skip_error_threshold_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "beam_skip_threshold") {
+        beam_skip_threshold_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "lambda_short") {
+        lambda_short_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "laser_likelihood_max_dist") {
+        laser_likelihood_max_dist_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "laser_max_range") {
+        laser_max_range_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "laser_min_range") {
+        laser_min_range_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "pf_err") {
+        pf_err_ = parameter.as_double();
+        reinit_pf = true;
+      } else if (param_name == "pf_z") {
+        pf_z_ = parameter.as_double();
+        reinit_pf = true;
+      } else if (param_name == "recovery_alpha_fast") {
+        alpha_fast_ = parameter.as_double();
+        reinit_pf = true;
+      } else if (param_name == "recovery_alpha_slow") {
+        alpha_slow_ = parameter.as_double();
+        reinit_pf = true;
+      } else if (param_name == "save_pose_rate") {
+        save_pose_rate = parameter.as_double();
+        save_pose_period_ = tf2::durationFromSec(1.0 / save_pose_rate);
+      } else if (param_name == "sigma_hit") {
+        sigma_hit_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "transform_tolerance") {
+        tmp_tol = parameter.as_double();
+        transform_tolerance_ = tf2::durationFromSec(tmp_tol);
+        reinit_laser = true;
+      } else if (param_name == "update_min_a") {
+        a_thresh_ = parameter.as_double();
+      } else if (param_name == "update_min_d") {
+        d_thresh_ = parameter.as_double();
+      } else if (param_name == "z_hit") {
+        z_hit_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "z_max") {
+        z_max_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "z_rand") {
+        z_rand_ = parameter.as_double();
+        reinit_laser = true;
+      } else if (param_name == "z_short") {
+        z_short_ = parameter.as_double();
+        reinit_laser = true;
+      }
+    } else if (param_type == ParameterType::PARAMETER_STRING) {
+      if (param_name == "base_frame_id") {
+        base_frame_id_ = parameter.as_string();
+      } else if (param_name == "global_frame_id") {
+        global_frame_id_ = parameter.as_string();
+      } else if (param_name == "map_topic") {
+        map_topic_ = parameter.as_string();
+        reinit_map = true;
+      } else if (param_name == "laser_model_type") {
+        sensor_model_type_ = parameter.as_string();
+        reinit_laser = true;
+      } else if (param_name == "odom_frame_id") {
+        odom_frame_id_ = parameter.as_string();
+        reinit_laser = true;
+      } else if (param_name == "scan_topic") {
+        scan_topic_ = parameter.as_string();
+        reinit_laser = true;
+      } else if (param_name == "robot_model_type") {
+        robot_model_type_ = parameter.as_string();
+        reinit_odom = true;
+      }
+    } else if (param_type == ParameterType::PARAMETER_BOOL) {
+      if (param_name == "do_beamskip") {
+        do_beamskip_ = parameter.as_bool();
+        reinit_laser = true;
+      } else if (param_name == "tf_broadcast") {
+        tf_broadcast_ = parameter.as_bool();
+      } else if (param_name == "set_initial_pose") {
+        set_initial_pose_ = parameter.as_bool();
+      } else if (param_name == "first_map_only") {
+        first_map_only_ = parameter.as_bool();
+      }
+    } else if (param_type == ParameterType::PARAMETER_INTEGER) {
+      if (param_name == "max_beams") {
+        max_beams_ = parameter.as_int();
+        reinit_laser = true;
+      } else if (param_name == "max_particles") {
+        max_particles_ = parameter.as_int();
+        reinit_pf = true;
+      } else if (param_name == "min_particles") {
+        min_particles_ = parameter.as_int();
+        reinit_pf = true;
+      } else if (param_name == "resample_interval") {
+        resample_interval_ = parameter.as_int();
+      }
+    }
+  }
+
+  // Checking if the minimum particles is greater than max_particles_
+  if (min_particles_ > max_particles_) {
+    RCLCPP_ERROR(
+      this->get_logger(),
+      "You've set min_particles to be greater than max particles,"
+      " this isn't allowed.");
+    // sticking to the old values
+    max_particles_ = max_particles;
+    min_particles_ = min_particles;
+    result.successful = false;
+    return result;
+  }
+
+  // Re-initialize the particle filter
+  if (reinit_pf) {
+    if (pf_ != NULL) {
+      pf_free(pf_);
+      pf_ = NULL;
+    }
+    initParticleFilter();
+  }
+
+  // Re-initialize the odometry
+  if (reinit_odom) {
+    motion_model_.reset();
+    initOdometry();
+  }
+
+  // Re-initialize the lasers and it's filters
+  if (reinit_laser) {
+    lasers_.clear();
+    lasers_update_.clear();
+    frame_to_laser_.clear();
+    laser_scan_connection_.disconnect();
+    laser_scan_sub_.reset();
+
+    initMessageFilters();
+  }
+
+  // Re-initialize the map
+  if (reinit_map) {
+    map_sub_.reset();
+    map_sub_ = create_subscription<nav_msgs::msg::OccupancyGrid>(
+      map_topic_, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
+      std::bind(&AmclNode::mapReceived, this, std::placeholders::_1));
+  }
+
+  result.successful = true;
+  return result;
 }
 
 void
@@ -1254,13 +1431,14 @@ AmclNode::initTransforms()
   RCLCPP_INFO(get_logger(), "initTransforms");
 
   // Initialize transform listener and broadcaster
-  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(rclcpp_node_->get_clock());
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
   auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
-    rclcpp_node_->get_node_base_interface(),
-    rclcpp_node_->get_node_timers_interface());
+    get_node_base_interface(),
+    get_node_timers_interface(),
+    callback_group_);
   tf_buffer_->setCreateTimerInterface(timer_interface);
   tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-  tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(rclcpp_node_);
+  tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(shared_from_this());
 
   sent_first_transform_ = false;
   latest_tf_valid_ = false;
@@ -1270,11 +1448,18 @@ AmclNode::initTransforms()
 void
 AmclNode::initMessageFilters()
 {
-  laser_scan_sub_ = std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan>>(
-    rclcpp_node_.get(), scan_topic_, rmw_qos_profile_sensor_data);
+  auto sub_opt = rclcpp::SubscriptionOptions();
+  sub_opt.callback_group = callback_group_;
+  laser_scan_sub_ = std::make_unique<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
+      rclcpp_lifecycle::LifecycleNode>>(
+    shared_from_this(), scan_topic_, rmw_qos_profile_sensor_data, sub_opt);
 
   laser_scan_filter_ = std::make_unique<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(
-    *laser_scan_sub_, *tf_buffer_, odom_frame_id_, 10, rclcpp_node_, transform_tolerance_);
+    *laser_scan_sub_, *tf_buffer_, odom_frame_id_, 10,
+    get_node_logging_interface(),
+    get_node_clock_interface(),
+    transform_tolerance_);
+
 
   laser_scan_connection_ = laser_scan_filter_->registerCallback(
     std::bind(
@@ -1339,9 +1524,8 @@ AmclNode::initOdometry()
     init_cov_[2] = last_published_pose_.pose.covariance[35];
   }
 
-  motion_model_ = std::unique_ptr<nav2_amcl::MotionModel>(
-    nav2_amcl::MotionModel::createMotionModel(
-      robot_model_type_, alpha1_, alpha2_, alpha3_, alpha4_, alpha5_));
+  motion_model_ = plugin_loader_.createSharedInstance(robot_model_type_);
+  motion_model_->initialize(alpha1_, alpha2_, alpha3_, alpha4_, alpha5_);
 
   latest_odom_pose_ = geometry_msgs::msg::PoseStamped();
 }
@@ -1383,3 +1567,10 @@ AmclNode::initLaserScan()
 }
 
 }  // namespace nav2_amcl
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+// Register the component with class_loader.
+// This acts as a sort of entry point, allowing the component to be discoverable when its library
+// is being loaded into a running process.
+RCLCPP_COMPONENTS_REGISTER_NODE(nav2_amcl::AmclNode)

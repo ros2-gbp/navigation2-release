@@ -63,7 +63,7 @@ NavigateThroughPosesNavigator::getDefaultBTFilepath(
       pkg_share_dir +
       "/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml");
   }
-  
+
   node->get_parameter("default_nav_through_poses_bt_xml", default_bt_xml_filename);
 
   return default_bt_xml_filename;
@@ -87,7 +87,9 @@ NavigateThroughPosesNavigator::goalReceived(ActionT::Goal::ConstSharedPtr goal)
 }
 
 void
-NavigateThroughPosesNavigator::goalCompleted(typename ActionT::Result::SharedPtr /*result*/)
+NavigateThroughPosesNavigator::goalCompleted(
+  typename ActionT::Result::SharedPtr /*result*/,
+  const nav2_behavior_tree::BtStatus /*final_bt_status*/)
 {
 }
 

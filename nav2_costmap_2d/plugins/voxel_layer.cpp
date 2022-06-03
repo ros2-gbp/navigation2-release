@@ -53,6 +53,7 @@ PLUGINLIB_EXPORT_CLASS(nav2_costmap_2d::VoxelLayer, nav2_costmap_2d::Layer)
 using nav2_costmap_2d::NO_INFORMATION;
 using nav2_costmap_2d::LETHAL_OBSTACLE;
 using nav2_costmap_2d::FREE_SPACE;
+using rcl_interfaces::msg::ParameterType;
 
 namespace nav2_costmap_2d
 {
@@ -102,10 +103,17 @@ void VoxelLayer::onInitialize()
 
   unknown_threshold_ += (VOXEL_BITS - size_z_);
   matchSize();
+
+  // Add callback for dynamic parameters
+  dyn_params_handler_ = node->add_on_set_parameters_callback(
+    std::bind(
+      &VoxelLayer::dynamicParametersCallback,
+      this, std::placeholders::_1));
 }
 
 VoxelLayer::~VoxelLayer()
 {
+  dyn_params_handler_.reset();
 }
 
 void VoxelLayer::matchSize()
@@ -137,6 +145,8 @@ void VoxelLayer::updateBounds(
   double robot_x, double robot_y, double robot_yaw, double * min_x,
   double * min_y, double * max_x, double * max_y)
 {
+  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
+
   if (rolling_window_) {
     updateOrigin(robot_x - getSizeInMetersX() / 2, robot_y - getSizeInMetersY() / 2);
   }
@@ -243,59 +253,6 @@ void VoxelLayer::updateBounds(
   }
 
   updateFootprint(robot_x, robot_y, robot_yaw, min_x, min_y, max_x, max_y);
-}
-
-void VoxelLayer::clearNonLethal(
-  double wx, double wy, double w_size_x, double w_size_y,
-  bool clear_no_info)
-{
-  // get the cell coordinates of the center point of the window
-  unsigned int mx, my;
-  if (!worldToMap(wx, wy, mx, my)) {
-    return;
-  }
-
-  // compute the bounds of the window
-  double start_x = wx - w_size_x / 2;
-  double start_y = wy - w_size_y / 2;
-  double end_x = start_x + w_size_x;
-  double end_y = start_y + w_size_y;
-
-  // scale the window based on the bounds of the costmap
-  start_x = std::max(origin_x_, start_x);
-  start_y = std::max(origin_y_, start_y);
-
-  end_x = std::min(origin_x_ + getSizeInMetersX(), end_x);
-  end_y = std::min(origin_y_ + getSizeInMetersY(), end_y);
-
-  // get the map coordinates of the bounds of the window
-  unsigned int map_sx, map_sy, map_ex, map_ey;
-
-  // check for legality just in case
-  if (!worldToMap(start_x, start_y, map_sx, map_sy) || !worldToMap(end_x, end_y, map_ex, map_ey)) {
-    return;
-  }
-
-  // we know that we want to clear all non-lethal obstacles in this
-  // window to get it ready for inflation
-  unsigned int index = getIndex(map_sx, map_sy);
-  unsigned char * current = &costmap_[index];
-  for (unsigned int j = map_sy; j <= map_ey; ++j) {
-    for (unsigned int i = map_sx; i <= map_ex; ++i) {
-      // if the cell is a lethal obstacle... we'll keep it and queue it,
-      // otherwise... we'll clear it
-      if (*current != LETHAL_OBSTACLE) {
-        if (clear_no_info || *current != NO_INFORMATION) {
-          *current = FREE_SPACE;
-          voxel_grid_.clearVoxelColumn(index);
-        }
-      }
-      current++;
-      index++;
-    }
-    current += size_x_ - (map_ex - map_sx) - 1;
-    index += size_x_ - (map_ex - map_sx) - 1;
-  }
 }
 
 void VoxelLayer::raytraceFreespace(
@@ -513,6 +470,67 @@ void VoxelLayer::updateOrigin(double new_origin_x, double new_origin_y)
   // make sure to clean up
   delete[] local_map;
   delete[] local_voxel_map;
+}
+
+/**
+  * @brief Callback executed when a parameter change is detected
+  * @param event ParameterEvent message
+  */
+rcl_interfaces::msg::SetParametersResult
+VoxelLayer::dynamicParametersCallback(
+  std::vector<rclcpp::Parameter> parameters)
+{
+  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
+  rcl_interfaces::msg::SetParametersResult result;
+  bool resize_map_needed = false;
+
+  for (auto parameter : parameters) {
+    const auto & param_type = parameter.get_type();
+    const auto & param_name = parameter.get_name();
+
+    if (param_type == ParameterType::PARAMETER_DOUBLE) {
+      if (param_name == name_ + "." + "max_obstacle_height") {
+        max_obstacle_height_ = parameter.as_double();
+      } else if (param_name == name_ + "." + "origin_z") {
+        origin_z_ = parameter.as_double();
+        resize_map_needed = true;
+      } else if (param_name == name_ + "." + "z_resolution") {
+        z_resolution_ = parameter.as_double();
+        resize_map_needed = true;
+      }
+    } else if (param_type == ParameterType::PARAMETER_BOOL) {
+      if (param_name == name_ + "." + "enabled") {
+        enabled_ = parameter.as_bool();
+        current_ = false;
+      } else if (param_name == name_ + "." + "footprint_clearing_enabled") {
+        footprint_clearing_enabled_ = parameter.as_bool();
+      } else if (param_name == name_ + "." + "publish_voxel_map") {
+        RCLCPP_WARN(
+          logger_, "publish voxel map is not a dynamic parameter "
+          "cannot be changed while running. Rejecting parameter update.");
+        continue;
+      }
+
+    } else if (param_type == ParameterType::PARAMETER_INTEGER) {
+      if (param_name == name_ + "." + "z_voxels") {
+        size_z_ = parameter.as_int();
+        resize_map_needed = true;
+      } else if (param_name == name_ + "." + "unknown_threshold") {
+        unknown_threshold_ = parameter.as_int() + (VOXEL_BITS - size_z_);
+      } else if (param_name == name_ + "." + "mark_threshold") {
+        mark_threshold_ = parameter.as_int();
+      } else if (param_name == name_ + "." + "combination_method") {
+        combination_method_ = parameter.as_int();
+      }
+    }
+  }
+
+  if (resize_map_needed) {
+    matchSize();
+  }
+
+  result.successful = true;
+  return result;
 }
 
 }  // namespace nav2_costmap_2d

@@ -20,7 +20,9 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <mutex>
 
+#include "nav2_costmap_2d/footprint_collision_checker.hpp"
 #include "nav2_core/controller.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "pluginlib/class_loader.hpp"
@@ -58,8 +60,8 @@ public:
    */
   void configure(
     const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-    std::string name, const std::shared_ptr<tf2_ros::Buffer> & tf,
-    const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> & costmap_ros) override;
+    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   /**
    * @brief Cleanup controller state machine
@@ -110,11 +112,14 @@ public:
 
 protected:
   /**
-   * @brief Transforms global plan into same frame as pose, clips far away poses and possibly prunes passed poses
+   * @brief Transforms global plan into same frame as pose and clips poses ineligible for lookaheadPoint
+   * Points ineligible to be selected as a lookahead point if they are any of the following:
+   * - Outside the local_costmap (collision avoidance cannot be assured)
    * @param pose pose to transform
    * @return Path in new frame
    */
-  nav_msgs::msg::Path transformGlobalPlan(const geometry_msgs::msg::PoseStamped & pose);
+  nav_msgs::msg::Path transformGlobalPlan(
+    const geometry_msgs::msg::PoseStamped & pose);
 
   /**
    * @brief Transform a pose to another frame.
@@ -176,21 +181,25 @@ protected:
    * @param carrot_pose Pose of carrot
    * @param linear_vel linear velocity to forward project
    * @param angular_vel angular velocity to forward project
+   * @param carrot_dist Distance to the carrot for PP
    * @return Whether collision is imminent
    */
   bool isCollisionImminent(
     const geometry_msgs::msg::PoseStamped &,
-    const double &, const double &);
+    const double &, const double &,
+    const double &);
 
   /**
-   * @brief Whether point is in collision
+   * @brief checks for collision at projected pose
    * @param x Pose of pose x
    * @param y Pose of pose y
    * @param theta orientation of Yaw
    * @return Whether in collision
    */
-  bool inCollision(const double & x, const double & y);
-
+  bool inCollision(
+    const double & x,
+    const double & y,
+    const double & theta);
   /**
    * @brief Cost at a point
    * @param x Pose of pose x
@@ -214,6 +223,20 @@ protected:
     const double & pose_cost, double & linear_vel, double & sign);
 
   /**
+   * @brief Find the intersection a circle and a line segment.
+   * This assumes the circle is centered at the origin.
+   * If no intersection is found, a floating point error will occur.
+   * @param p1 first endpoint of line segment
+   * @param p2 second endpoint of line segment
+   * @param r radius of circle
+   * @return point of intersection
+   */
+  static geometry_msgs::msg::Point circleSegmentIntersection(
+    const geometry_msgs::msg::Point & p1,
+    const geometry_msgs::msg::Point & p2,
+    double r);
+
+  /**
    * @brief Get lookahead point
    * @param lookahead_dist Optimal lookahead distance
    * @param path Current global path
@@ -226,8 +249,22 @@ protected:
    * @param pose Pose input to determine the cusp position
    * @return robot distance from the cusp
    */
-  double findDirectionChange(const geometry_msgs::msg::PoseStamped & pose);
+  double findVelocitySignChange(const geometry_msgs::msg::PoseStamped & pose);
 
+  /**
+   * Get the greatest extent of the costmap in meters from the center.
+   * @return max of distance from center in meters to edge of costmap
+   */
+  double getCostmapMaxExtent() const;
+
+  /**
+   * @brief Callback executed when a parameter change is detected
+   * @param event ParameterEvent message
+   */
+  rcl_interfaces::msg::SetParametersResult
+  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+
+  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::string plugin_name_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
@@ -243,10 +280,9 @@ protected:
   double lookahead_time_;
   bool use_velocity_scaled_lookahead_dist_;
   tf2::Duration transform_tolerance_;
-  bool use_approach_vel_scaling_;
   double min_approach_linear_velocity_;
   double control_duration_;
-  double max_allowed_time_to_collision_;
+  double max_allowed_time_to_collision_up_to_carrot_;
   bool use_regulated_linear_velocity_scaling_;
   bool use_cost_regulated_linear_velocity_scaling_;
   double cost_scaling_dist_;
@@ -259,12 +295,20 @@ protected:
   double rotate_to_heading_min_angle_;
   double goal_dist_tol_;
   bool allow_reversing_;
+  double max_robot_pose_search_dist_;
+  bool use_interpolation_;
 
   nav_msgs::msg::Path global_plan_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> global_path_pub_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PointStamped>>
   carrot_pub_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> carrot_arc_pub_;
+  std::unique_ptr<nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>>
+  collision_checker_;
+
+  // Dynamic parameters handler
+  std::mutex mutex_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
 };
 
 }  // namespace nav2_regulated_pure_pursuit_controller

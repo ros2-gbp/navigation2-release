@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 #include <unordered_map>
+#include <mutex>
 
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -37,6 +38,7 @@
 #include "pluginlib/class_loader.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "nav2_core/global_planner.hpp"
+#include "nav2_msgs/srv/is_path_valid.hpp"
 
 namespace nav2_planner
 {
@@ -50,8 +52,9 @@ class PlannerServer : public nav2_util::LifecycleNode
 public:
   /**
    * @brief A constructor for nav2_planner::PlannerServer
+   * @param options Additional options to control creation of the node.
    */
-  PlannerServer();
+  explicit PlannerServer(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
   /**
    * @brief A destructor for nav2_planner::PlannerServer
    */
@@ -199,10 +202,30 @@ protected:
   void computePlanThroughPoses();
 
   /**
+   * @brief The service callback to determine if the path is still valid
+   * @param request to the service
+   * @param response from the service
+   */
+  void isPathValid(
+    const std::shared_ptr<nav2_msgs::srv::IsPathValid::Request> request,
+    std::shared_ptr<nav2_msgs::srv::IsPathValid::Response> response);
+
+  /**
    * @brief Publish a path for visualization purposes
    * @param path Reference to Global Path
    */
   void publishPlan(const nav_msgs::msg::Path & path);
+
+  /**
+   * @brief Callback executed when a parameter change is detected
+   * @param event ParameterEvent message
+   */
+  rcl_interfaces::msg::SetParametersResult
+  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+
+  // Dynamic parameters handler
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+  std::mutex dynamic_params_lock_;
 
   // Planner
   PlannerMap planners_;
@@ -227,6 +250,9 @@ protected:
 
   // Publishers for the path
   rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>::SharedPtr plan_publisher_;
+
+  // Service to deterime if the path is valid
+  rclcpp::Service<nav2_msgs::srv::IsPathValid>::SharedPtr is_path_valid_service_;
 };
 
 }  // namespace nav2_planner

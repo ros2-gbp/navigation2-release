@@ -24,8 +24,11 @@
 namespace nav2_waypoint_follower
 {
 
-WaypointFollower::WaypointFollower()
-: nav2_util::LifecycleNode("WaypointFollower", "", false),
+using rcl_interfaces::msg::ParameterType;
+using std::placeholders::_1;
+
+WaypointFollower::WaypointFollower(const rclcpp::NodeOptions & options)
+: nav2_util::LifecycleNode("waypoint_follower", "", options),
   waypoint_task_executor_loader_("nav2_waypoint_follower",
     "nav2_core::WaypointTaskExecutor")
 {
@@ -37,7 +40,7 @@ WaypointFollower::WaypointFollower()
     this, std::string("waypoint_task_executor_plugin"),
     rclcpp::ParameterValue(std::string("wait_at_waypoint")));
   nav2_util::declare_parameter_if_not_declared(
-    this, std::string("waypoint_task_executor_plugin.plugin"),
+    this, std::string("wait_at_waypoint.plugin"),
     rclcpp::ParameterValue(std::string("nav2_waypoint_follower::WaitAtWaypoint")));
 }
 
@@ -101,6 +104,11 @@ WaypointFollower::on_activate(const rclcpp_lifecycle::State & /*state*/)
 
   action_server_->activate();
 
+  auto node = shared_from_this();
+  // Add callback for dynamic parameters
+  dyn_params_handler_ = node->add_on_set_parameters_callback(
+    std::bind(&WaypointFollower::dynamicParametersCallback, this, _1));
+
   // create bond connection
   createBond();
 
@@ -113,6 +121,7 @@ WaypointFollower::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   RCLCPP_INFO(get_logger(), "Deactivating");
 
   action_server_->deactivate();
+  dyn_params_handler_.reset();
 
   // destroy bond connection
   destroyBond();
@@ -305,4 +314,36 @@ WaypointFollower::goalResponseCallback(
   }
 }
 
+rcl_interfaces::msg::SetParametersResult
+WaypointFollower::dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters)
+{
+  // No locking required as action server is running on same single threaded executor
+  rcl_interfaces::msg::SetParametersResult result;
+
+  for (auto parameter : parameters) {
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
+
+    if (type == ParameterType::PARAMETER_INTEGER) {
+      if (name == "loop_rate") {
+        loop_rate_ = parameter.as_int();
+      }
+    } else if (type == ParameterType::PARAMETER_BOOL) {
+      if (name == "stop_on_failure") {
+        stop_on_failure_ = parameter.as_bool();
+      }
+    }
+  }
+
+  result.successful = true;
+  return result;
+}
+
 }  // namespace nav2_waypoint_follower
+
+#include "rclcpp_components/register_node_macro.hpp"
+
+// Register the component with class_loader.
+// This acts as a sort of entry point, allowing the component to be discoverable when its library
+// is being loaded into a running process.
+RCLCPP_COMPONENTS_REGISTER_NODE(nav2_waypoint_follower::WaypointFollower)
