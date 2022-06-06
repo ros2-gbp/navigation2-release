@@ -1,0 +1,12 @@
+Source: ros-humble-navigation2
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-humble-ament-cmake, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-navigation2
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-nav2-amcl, ros-humble-nav2-behavior-tree, ros-humble-nav2-behaviors, ros-humble-nav2-bt-navigator, ros-humble-nav2-controller, ros-humble-nav2-core, ros-humble-nav2-costmap-2d, ros-humble-nav2-dwb-controller, ros-humble-nav2-lifecycle-manager, ros-humble-nav2-map-server, ros-humble-nav2-msgs, ros-humble-nav2-navfn-planner, ros-humble-nav2-planner, ros-humble-nav2-regulated-pure-pursuit-controller, ros-humble-nav2-rotation-shim-controller, ros-humble-nav2-rviz-plugins, ros-humble-nav2-simple-commander, ros-humble-nav2-smac-planner, ros-humble-nav2-smoother, ros-humble-nav2-theta-star-planner, ros-humble-nav2-util, ros-humble-nav2-voxel-grid, ros-humble-nav2-waypoint-follower, ros-humble-ros-workspace
+Description: ROS2 Navigation Stack
