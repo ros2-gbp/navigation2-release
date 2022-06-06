@@ -1,0 +1,13 @@
+Source: ros-humble-nav2-costmap-2d
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-humble-ament-cmake, ros-humble-ament-cmake-gtest <!nocheck>, ros-humble-ament-lint-auto <!nocheck>, ros-humble-ament-lint-common <!nocheck>, ros-humble-angles, ros-humble-geometry-msgs, ros-humble-laser-geometry, ros-humble-launch <!nocheck>, ros-humble-launch-testing <!nocheck>, ros-humble-map-msgs, ros-humble-message-filters, ros-humble-nav-msgs, ros-humble-nav2-common, ros-humble-nav2-lifecycle-manager <!nocheck>, ros-humble-nav2-map-server <!nocheck>, ros-humble-nav2-msgs, ros-humble-nav2-util, ros-humble-nav2-voxel-grid, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-rclcpp-lifecycle, ros-humble-sensor-msgs, ros-humble-std-msgs, ros-humble-tf2, ros-humble-tf2-geometry-msgs, ros-humble-tf2-ros, ros-humble-tf2-sensor-msgs, ros-humble-visualization-msgs, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-nav2-costmap-2d
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-angles, ros-humble-geometry-msgs, ros-humble-laser-geometry, ros-humble-map-msgs, ros-humble-message-filters, ros-humble-nav-msgs, ros-humble-nav2-msgs, ros-humble-nav2-util, ros-humble-nav2-voxel-grid, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-rclcpp-lifecycle, ros-humble-sensor-msgs, ros-humble-std-msgs, ros-humble-tf2, ros-humble-tf2-geometry-msgs, ros-humble-tf2-ros, ros-humble-tf2-sensor-msgs, ros-humble-visualization-msgs, ros-humble-ros-workspace
+Description: This package provides an implementation of a 2D costmap that takes in sensor data from the world, builds a 2D or 3D occupancy grid of the data (depending on whether a voxel based implementation is used), and inflates costs in a 2D costmap based on the occupancy grid and a user specified inflation radius.
+ This package also provides support for map_server based initialization of a costmap, rolling window based costmaps, and parameter based subscription to and configuration of sensor topics.
