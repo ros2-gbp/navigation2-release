@@ -1,94 +1,86 @@
-# Nav2 Theta Star Planner
-The Theta Star Planner is a global planning plugin meant to be used with the Nav2 Planner Server. The `nav2_theta_star_planner` implements a highly optimized version of the Theta\* Planner (specifically the [Lazy Theta\* P variant](http://idm-lab.org/bib/abstracts/papers/aaai10b.pdf)) meant to plan any-angle paths using A\*. The planner supports differential-drive and omni-directional robots.
+# Nav2
+[![GitHub Workflow Status](https://github.com/ros-planning/navigation2/actions/workflows/update_ci_image.yaml/badge.svg)](https://github.com/ros-planning/navigation2/actions/workflows/update_ci_image.yaml)
+[![codecov](https://codecov.io/gh/ros-planning/navigation2/branch/main/graph/badge.svg)](https://codecov.io/gh/ros-planning/navigation2)
 
-See its [Configuration Guide Page](https://navigation.ros.org/configuration/packages/configuring-thetastar.html) for additional parameter descriptions.
+<p align="center">
+  <img height="300" src="doc/nav2_logo.png" />
+</p>
 
-## Features 
-- The planner uses A\* search along with line of sight (LOS) checks to form any-angle paths thus avoiding zig-zag paths that may be present in the usual implementation of A\*
-- As it also considers the costmap traversal cost during execution it tends to smoothen the paths automatically, thus mitigating the need to smoothen the path (The presence of sharp turns depends on the resolution of the map, and it decreases as the map resolution increases)
-- Uses the costs from the costmap to penalise high cost regions
-- Allows to control the path behavior to either be any angle directed or to be in the middle of the spaces
-- Is well suited for smaller robots of the omni-directional and differential drive kind
-- The algorithmic part of the planner has been segregated from the plugin part to allow for reusability
+For detailed instructions on how to:
+- [Getting Started](https://navigation.ros.org/getting_started/index.html)
+- [Concepts](https://navigation.ros.org/concepts/index.html)
+- [Build](https://navigation.ros.org/build_instructions/index.html#build)
+- [Install](https://navigation.ros.org/build_instructions/index.html#install)
+- [General Tutorials](https://navigation.ros.org/tutorials/index.html) and [Algorithm Developer Tutorials](https://navigation.ros.org/plugin_tutorials/index.html)
+- [Configure](https://navigation.ros.org/configuration/index.html)
+- [Navigation Plugins](https://navigation.ros.org/plugins/index.html)
+- [Migration Guides](https://navigation.ros.org/migration/index.html)
+- [Container Images for Building Nav2](https://github.com/orgs/ros-planning/packages/container/package/navigation2)
+- [Contribute](https://navigation.ros.org/contribute/index.html)
 
-## Metrics
-For the below example the planner took ~46ms (averaged value) to compute the path of 87.5m -
-![example.png](img/00-37.png)
+Please visit our [documentation site](https://navigation.ros.org/). [Please visit our community Slack here](https://join.slack.com/t/navigation2/shared_invite/zt-hu52lnnq-cKYjuhTY~sEMbZXL8p9tOw) (if this link does not work, please contact maintainers to reactivate).
 
-The parameters were set to - `w_euc_cost: 1.0`, `w_traversal_cost: 5.0` and the `global_costmap`'s `inflation_layer` parameters are set as - `cost_scaling_factor:5.0`, `inflation_radius: 5.5`
+## Citation
 
-## Cost Function Details
-### Symbols and their meanings
-**g(a)** - cost function cost for the node 'a'
+If you use the navigation framework, an algorithm from this repository, or ideas from it
+please cite this work in your papers!
 
-**h(a)** - heuristic function cost for the node 'a'
-
-**f(a)** - total cost (g(a) + h(a)) for the node 'a'
-
-**LETHAL_COST** - a value of the costmap traversal cost that inscribes an obstacle with
-respect to a function, value = 253
-
-**curr** - represents the node whose neighbours are being added to the list
-
-**neigh** - one of the neighboring nodes of curr
-
-**par** - parent node of curr
-
-**euc_cost(a,b)** - euclidean distance between the node type 'a' and type 'b'
-
-**costmap_cost(a,b)** - the costmap traversal cost (ranges from 0 - 252, 254 = unknown value) between the node type 'a' and type 'b'
-
-### Cost function
-```
-g(neigh) = g(curr) + w_euc_cost*euc_cost(curr, neigh) + w_traversal_cost*(costmap_cost(curr,neigh)/LETHAL_COST)^2
-h(neigh) = w_heuristic_cost * euc_cost(neigh, goal)
-f(neigh) = g(neigh) + h(neigh)
-```
-Because of how the program works when the 'neigh' init_rclcpp is to be expanded, depending
-on the result of the LOS check, (if the LOS check returns true) the value of g(neigh) might change to `g(par) +
-w1*euc_cost(par, neigh) + w2*(costmap(par,neigh)/LETHAL_COST)^2`
-
-## Parameters
-The parameters of the planner are :
-- ` .how_many_corners ` : to choose between 4-connected and 8-connected graph expansions, the accepted values are 4 and 8
-- ` .w_euc_cost ` : weight applied on the length of the path. 
-- ` .w_traversal_cost ` : it tunes how harshly the nodes of high cost are penalised. From the above g(neigh) equation you can see that the cost-aware component of the cost function forms a parabolic curve, thus this parameter would, on increasing its value, make that curve steeper allowing for a greater differentiation (as the delta of costs would increase, when the graph becomes steep) among the nodes of different costs.
-Below are the default values of the parameters :
-```
-planner_server:
-  ros__parameters:
-    planner_plugin_types: ["nav2_theta_star_planner/ThetaStarPlanner"]
-    use_sim_time: True
-    planner_plugin_ids: ["GridBased"]
-    GridBased:
-      how_many_corners: 8
-      w_euc_cost: 1.0
-      w_traversal_cost: 2.0
+ - S. Macenski, F. Martín, R. White, J. Clavero. [**The Marathon 2: A Navigation System**](https://arxiv.org/abs/2003.00368). IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2020.
+ 
+ ```bibtex
+ @InProceedings{macenski2020marathon2,
+   title = {The Marathon 2: A Navigation System},
+   author = {Macenski, Steve and Martín, Francisco and White, Ruffin and Ginés Clavero, Jonatan},
+   year = {2020},
+   booktitle = {2020 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+   url = {https://github.com/ros-planning/navigation2},
+   pdf = {https://arxiv.org/abs/2003.00368}
+ }
 ```
 
-## Usage Notes
+ If you use our work on VSLAM and formal comparisons for service robot needs, please cite the paper:
 
-### Tuning the Parameters
-Before starting off, do note that the costmap_cost(curr,neigh) component after being operated (ie before being multiplied to its parameter and being substituted in g(init_rclcpp)) varies from 0 to 1.
+ - A. Merzlyakov, S. Macenski. [**A Comparison of Modern General-Purpose Visual SLAM Approaches**](https://arxiv.org/abs/2107.07589). IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2021.
 
-This planner uses the costs associated with each cell from the `global_costmap` as a measure of the point's proximity to the obstacles. Providing a gentle potential field that covers the entirety of the region (thus leading to only small pocket like regions of cost = 0) is recommended in order to achieve paths that pass through the middle of the spaces. A good starting point could be to set the `inflation_layer`'s parameters as - `cost_scaling_factor: 10.0`, `inflation_radius: 5.5` and then decrease the value of `cost_scaling_factor` to achieve the said potential field.
+ ```bibtex
+ @InProceedings{vslamComparison2021,
+   title = {A Comparison of Modern General-Purpose Visual SLAM Approaches},
+   author = {Merzlyakov, Alexey and Macenski, Steven},
+   year = {2021},
+   booktitle = {2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)},
+   pdf = {https://arxiv.org/abs/2107.07589}
+ }
+```
 
-Providing a gentle potential field over the region allows the planner to exchange the increase in path lengths for a decrease in the accumulated traversal cost, thus leading to an increase in the distance from the obstacles. This around a corner allows for naturally smoothing the turns and removes the requirement for an external path smoother.
+## Build Status
 
-`w_heuristic_cost` is an internal setting that is not user changable. It has been provided to have an admissible heuristic, restricting its value to the minimum of `w_euc_cost` and `1.0` to make sure the heuristic and travel costs are admissible and consistent.
+| Service | Foxy  | Galactic | Main |
+| :---: | :---: | :---: | :---: |
+| ROS Build Farm | [![Build Status](http://build.ros2.org/job/Fdev__navigation2__ubuntu_focal_amd64/badge/icon)](http://build.ros2.org/job/Fdev__navigation2__ubuntu_focal_amd64/) |  [![Build Status](http://build.ros2.org/job/Gdev__navigation2__ubuntu_focal_amd64/badge/icon)](http://build.ros2.org/job/Gdev__navigation2__ubuntu_focal_amd64/) | N/A |
+| Circle CI | N/A | N/A | [![Build Status](https://circleci.com/gh/ros-planning/navigation2/tree/main.svg?style=svg)](https://circleci.com/gh/ros-planning/navigation2/tree/main) |
 
-To begin with, you can set the parameters to its default values and then try increasing the value of `w_traversal_cost` to achieve those middling paths, but this would adversly make the paths less taut. So it is recommend ed that you simultaneously tune the value of `w_euc_cost`. Increasing `w_euc_cost` increases the tautness of the path, which leads to more straight line like paths (any-angled paths). Do note that the query time from the planner would increase for higher values of `w_traversal_cost` as more nodes would have to be expanded to lower the cost of the path, to counteract this you may also try setting `w_euc_cost` to a higher value and check if it reduces the query time.
 
-Also note that changes to `w_traversal_cost` might cause slow downs, in case the number of node expanisions increase thus tuning it along with `w_euc_cost` is the way to go to.
-
-While tuning the planner's parameters you can also change the `inflation_layer`'s parameters (of the global costmap) to tune the behavior of the paths.
-
-### Path Smoothing
-Because of how the cost function works, the output path has a natural tendency to form smooth curves around corners, though the smoothness of the path depends on how wide the turn is, and the number of cells in that turn.
-
-This planner is recommended to be used with local planners like DWB or TEB (or other any local planner / controllers that form a local trajectory to be traversed) as these take into account the abrupt turns which might arise due to the planner not being able to find a smoother turns owing to the aforementioned reasons.
-
-While smoother paths can be achieved by increasing the costmap resolution (ie using a costmap of 1cm resolution rather than a 5cm one) it is not recommended to do so because it might increase the query times from the planner. Test the planners performance on the higher cm/px costmaps before making a switch to finer costmaps.
-
-### When to use this planner?
-This planner could be used in scenarios where planning speed matters over an extremely smooth path, which could anyways be handled by using a local planner/controller as mentioned above. Because of the any-angled nature of paths you can traverse environments diagonally (wherever it is allowed, eg: in a wide open region). Another use case would be when you have corridors that are misaligned in the map image, in such a case this planner would be able to give straight-line like paths as it considers line of sight and thus avoid giving jagged paths which arises with other planners because of the finite directions of motion they consider.
+| Package | Foxy Source | Foxy Debian | Galactic Source | Galactic Debian |
+| :---: | :---: | :---: | :---: | :---: |
+| Navigation2 | [![Build Status](http://build.ros2.org/job/Fsrc_uF__navigation2__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__navigation2__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__navigation2__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__navigation2__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__navigation2__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__navigation2__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__navigation2__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__navigation2__ubuntu_focal_amd64__binary/) |
+| nav2_amcl | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_amcl__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_amcl__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_amcl__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_amcl__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_amcl__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_amcl__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_amcl__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_amcl__ubuntu_focal_amd64__binary/) |
+| nav2_behavior_tree | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_behavior_tree__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_behavior_tree__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_behavior_tree__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_behavior_tree__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_behavior_tree__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_behavior_tree__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_behavior_tree__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_behavior_tree__ubuntu_focal_amd64__binary/) |
+| nav2_bringup | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_bringup__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_bringup__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_bringup__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_bringup__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_bringup__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_bringup__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_bringup__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_bringup__ubuntu_focal_amd64__binary/) |
+| nav2_bt_navigator | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_bt_navigator__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_bt_navigator__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_bt_navigator__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_bt_navigator__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_bt_navigator__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_bt_navigator__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_bt_navigator__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_bt_navigator__ubuntu_focal_amd64__binary/) |
+| nav2_common | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_common__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_common__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_common__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_common__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_common__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_common__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_common__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_common__ubuntu_focal_amd64__binary/) |
+| nav2_controller | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_controller__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_controller__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_controller__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_controller__ubuntu_focal_amd64__binary/) |
+| nav2_core | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_core__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_core__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_core__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_core__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_core__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_core__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_core__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_core__ubuntu_focal_amd64__binary/) |
+| nav2_costmap_2d | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_costmap_2d__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_costmap_2d__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_costmap_2d__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_costmap_2d__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_costmap_2d__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_costmap_2d__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_costmap_2d__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_costmap_2d__ubuntu_focal_amd64__binary/) |
+| nav2_dwb_controller | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_dwb_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_dwb_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_dwb_controller__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_dwb_controller__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_dwb_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_dwb_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_dwb_controller__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_dwb_controller__ubuntu_focal_amd64__binary/) |
+| nav2_lifecycle_manager | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_lifecycle_manager__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_lifecycle_manager__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_lifecycle_manager__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_lifecycle_manager__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_lifecycle_manager__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_lifecycle_manager__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_lifecycle_manager__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_lifecycle_manager__ubuntu_focal_amd64__binary/) |
+| nav2_map_server | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_map_server__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_map_server__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_map_server__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_map_server__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_map_server__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_map_server__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_map_server__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_map_server__ubuntu_focal_amd64__binary/) |
+| nav2_msgs | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_msgs__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_msgs__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_msgs__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_msgs__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_msgs__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_msgs__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_msgs__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_msgs__ubuntu_focal_amd64__binary/) |
+| nav2_navfn_planner | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_navfn_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_navfn_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_navfn_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_navfn_planner__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_navfn_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_navfn_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_navfn_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_navfn_planner__ubuntu_focal_amd64__binary/) |
+| nav2_planner | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_planner__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_planner__ubuntu_focal_amd64__binary/) |
+| nav2_recoveries | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_recoveries__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_recoveries__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_recoveries__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_recoveries__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_recoveries__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_recoveries__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_recoveries__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_recoveries__ubuntu_focal_amd64__binary/) |
+| nav2_regulated_pure_pursuit | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_regulated_pure_pursuit_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_regulated_pure_pursuit_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_regulated_pure_pursuit_controller__ubuntu_focal_amd64__binary/badge/icon)](https://build.ros2.org/job/Fbin_uF64__nav2_regulated_pure_pursuit_controller__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_regulated_pure_pursuit_controller__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_regulated_pure_pursuit_controller__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_regulated_pure_pursuit_controller__ubuntu_focal_amd64__binary/badge/icon)](https://build.ros2.org/job/Gbin_uF64__nav2_regulated_pure_pursuit_controller__ubuntu_focal_amd64__binary/) |
+| nav2_rviz_plugins | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_rviz_plugins__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_rviz_plugins__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_rviz_plugins__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_rviz_plugins__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_rviz_plugins__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_rviz_plugins__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_rviz_plugins__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_rviz_plugins__ubuntu_focal_amd64__binary/)
+| nav2_smac_planner | [![Build Status](http://build.ros2.org/job/Fsrc_uF__smac_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__smac_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__smac_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__smac_planner__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_smac_planner__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_smac_planner__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_smac_planner__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_smac_planner__ubuntu_focal_amd64__binary/) |
+| nav2_system_tests | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_system_tests__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_system_tests__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_system_tests__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_system_tests__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_system_tests__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_system_tests__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_system_tests__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_system_tests__ubuntu_focal_amd64__binary/) |
+| nav2_util | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_util__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_util__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_util__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_util__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_util__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_util__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_util__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_util__ubuntu_focal_amd64__binary/) |
+| nav2_waypoint_follower | [![Build Status](http://build.ros2.org/job/Fsrc_uF__nav2_waypoint_follower__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Fsrc_uF__nav2_waypoint_follower__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Fbin_uF64__nav2_waypoint_follower__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Fbin_uF64__nav2_waypoint_follower__ubuntu_focal_amd64__binary/) | [![Build Status](http://build.ros2.org/job/Gsrc_uF__nav2_waypoint_follower__ubuntu_focal__source/badge/icon)](http://build.ros2.org/job/Gsrc_uF__nav2_waypoint_follower__ubuntu_focal__source/) | [![Build Status](http://build.ros2.org/job/Gbin_uF64__nav2_waypoint_follower__ubuntu_focal_amd64__binary/badge/icon)](http://build.ros2.org/job/Gbin_uF64__nav2_waypoint_follower__ubuntu_focal_amd64__binary/) |
