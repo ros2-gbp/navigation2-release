@@ -1,3 +1,63 @@
+## navigation2 (humble) - 1.1.2-1
+
+The packages in the `navigation2` repository were released into the `humble` distro by running `/usr/bin/bloom-release navigation2 --rosdistro humble --track humble` on `Wed, 24 Aug 2022 23:18:16 -0000`
+
+These packages were released:
+- `costmap_queue`
+- `dwb_core`
+- `dwb_critics`
+- `dwb_msgs`
+- `dwb_plugins`
+- `nav2_amcl`
+- `nav2_behavior_tree`
+- `nav2_behaviors`
+- `nav2_bringup`
+- `nav2_bt_navigator`
+- `nav2_collision_monitor`
+- `nav2_common`
+- `nav2_constrained_smoother`
+- `nav2_controller`
+- `nav2_core`
+- `nav2_costmap_2d`
+- `nav2_dwb_controller`
+- `nav2_lifecycle_manager`
+- `nav2_map_server`
+- `nav2_msgs`
+- `nav2_navfn_planner`
+- `nav2_planner`
+- `nav2_regulated_pure_pursuit_controller`
+- `nav2_rotation_shim_controller`
+- `nav2_rviz_plugins`
+- `nav2_simple_commander`
+- `nav2_smac_planner`
+- `nav2_smoother`
+- `nav2_system_tests`
+- `nav2_theta_star_planner`
+- `nav2_util`
+- `nav2_velocity_smoother`
+- `nav2_voxel_grid`
+- `nav2_waypoint_follower`
+- `nav_2d_msgs`
+- `nav_2d_utils`
+- `navigation2`
+
+Version of package(s) in repository `navigation2`:
+
+- upstream repository: https://github.com/ros-planning/navigation2.git
+- release repository: https://github.com/SteveMacenski/navigation2-release.git
+- rosdistro version: `1.1.0-2`
+- old version: `1.1.0-2`
+- new version: `1.1.2-1`
+
+Versions of tools used:
+
+- bloom version: `0.11.2`
+- catkin_pkg version: `0.5.2`
+- rosdep version: `0.22.1`
+- rosdistro version: `0.9.0`
+- vcstools version: `0.1.42`
+
+
 ## navigation2 (humble) - 1.1.0-2
 
 The packages in the `navigation2` repository were released into the `humble` distro by running `/usr/bin/bloom-release navigation2 --rosdistro humble --track humble` on `Mon, 06 Jun 2022 22:08:08 -0000`
