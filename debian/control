@@ -1,0 +1,12 @@
+Source: ros-humble-nav-2d-utils
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-humble-ament-cmake, ros-humble-ament-cmake-gtest <!nocheck>, ros-humble-ament-lint-auto <!nocheck>, ros-humble-ament-lint-common <!nocheck>, ros-humble-geometry-msgs, ros-humble-nav-2d-msgs, ros-humble-nav-msgs, ros-humble-nav2-common, ros-humble-nav2-msgs, ros-humble-nav2-util, ros-humble-std-msgs, ros-humble-tf2, ros-humble-tf2-geometry-msgs, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-nav-2d-utils
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-geometry-msgs, ros-humble-nav-2d-msgs, ros-humble-nav-msgs, ros-humble-nav2-msgs, ros-humble-nav2-util, ros-humble-std-msgs, ros-humble-tf2, ros-humble-tf2-geometry-msgs, ros-humble-ros-workspace
+Description: A handful of useful utility functions for nav_2d packages.
