@@ -1,0 +1,12 @@
+Source: ros-humble-dwb-plugins
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-humble-ament-cmake, ros-humble-ament-cmake-gtest <!nocheck>, ros-humble-ament-lint-auto <!nocheck>, ros-humble-ament-lint-common <!nocheck>, ros-humble-angles, ros-humble-dwb-core, ros-humble-nav-2d-msgs, ros-humble-nav-2d-utils, ros-humble-nav2-common, ros-humble-nav2-util, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-dwb-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-angles, ros-humble-dwb-core, ros-humble-nav-2d-msgs, ros-humble-nav-2d-utils, ros-humble-nav2-util, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-ros-workspace
+Description: Standard implementations of the GoalChecker and TrajectoryGenerators for dwb_core
