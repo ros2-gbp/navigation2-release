@@ -100,7 +100,6 @@ See inline description of parameters in the `SmacPlanner`. This includes comment
 planner_server:
   ros__parameters:
     planner_plugins: ["GridBased"]
-    use_sim_time: True
 
     GridBased:
       plugin: "nav2_smac_planner/SmacPlannerHybrid"
@@ -188,7 +187,7 @@ When tuning, the "reasonable" range for each penalty is listed below. While you 
 - Change: 0.0 - 0.3
 - Reverse: 1.3 - 5.0
 
-Note that change penalty must be greater than 0.0. The Non-staight, reverse, and cost penalties must be greater than 1.0, strictly.
+Note that change penalty must be greater than 0.0. The non-straight, reverse, and cost penalties must be greater than 1.0, strictly.
 
 ### No path found for clearly valid goals or long compute times
 

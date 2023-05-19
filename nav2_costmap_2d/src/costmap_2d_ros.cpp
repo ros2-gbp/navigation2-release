@@ -58,13 +58,27 @@ using rcl_interfaces::msg::ParameterType;
 
 namespace nav2_costmap_2d
 {
-Costmap2DROS::Costmap2DROS(const std::string & name)
-: Costmap2DROS(name, "/", name) {}
+Costmap2DROS::Costmap2DROS(const std::string & name, const bool & use_sim_time)
+: Costmap2DROS(name, "/", name, use_sim_time) {}
+
+Costmap2DROS::Costmap2DROS()
+: nav2_util::LifecycleNode("costmap", ""),
+  name_("costmap"),
+  default_plugins_{"static_layer", "obstacle_layer", "inflation_layer"},
+  default_types_{
+    "nav2_costmap_2d::StaticLayer",
+    "nav2_costmap_2d::ObstacleLayer",
+    "nav2_costmap_2d::InflationLayer"}
+{
+  declare_parameter("map_topic", rclcpp::ParameterValue(std::string("map")));
+  init();
+}
 
 Costmap2DROS::Costmap2DROS(
   const std::string & name,
   const std::string & parent_namespace,
-  const std::string & local_namespace)
+  const std::string & local_namespace,
+  const bool & use_sim_time)
 : nav2_util::LifecycleNode(name, "",
     // NodeOption arguments take precedence over the ones provided on the command line
     // use this to make sure the node is placed on the provided namespace
@@ -73,7 +87,8 @@ Costmap2DROS::Costmap2DROS(
     rclcpp::NodeOptions().arguments({
     "--ros-args", "-r", std::string("__ns:=") +
     nav2_util::add_namespaces(parent_namespace, local_namespace),
-    "--ros-args", "-r", name + ":" + std::string("__node:=") + name
+    "--ros-args", "-r", name + ":" + std::string("__node:=") + name,
+    "--ros-args", "-p", "use_sim_time:=" + std::string(use_sim_time ? "true" : "false"),
   })),
   name_(name),
   parent_namespace_(parent_namespace),
@@ -82,6 +97,14 @@ Costmap2DROS::Costmap2DROS(
     "nav2_costmap_2d::StaticLayer",
     "nav2_costmap_2d::ObstacleLayer",
     "nav2_costmap_2d::InflationLayer"}
+{
+  declare_parameter(
+    "map_topic", rclcpp::ParameterValue(
+      (parent_namespace_ == "/" ? "/" : parent_namespace_ + "/") + std::string("map")));
+  init();
+}
+
+void Costmap2DROS::init()
 {
   RCLCPP_INFO(get_logger(), "Creating Costmap");
 
@@ -94,9 +117,6 @@ Costmap2DROS::Costmap2DROS(
   declare_parameter("height", rclcpp::ParameterValue(5));
   declare_parameter("width", rclcpp::ParameterValue(5));
   declare_parameter("lethal_cost_threshold", rclcpp::ParameterValue(100));
-  declare_parameter(
-    "map_topic", rclcpp::ParameterValue(
-      (parent_namespace_ == "/" ? "/" : parent_namespace_ + "/") + std::string("map")));
   declare_parameter("observation_sources", rclcpp::ParameterValue(std::string("")));
   declare_parameter("origin_x", rclcpp::ParameterValue(0.0));
   declare_parameter("origin_y", rclcpp::ParameterValue(0.0));
@@ -153,12 +173,18 @@ Costmap2DROS::on_configure(const rclcpp_lifecycle::State & /*state*/)
     RCLCPP_INFO(get_logger(), "Using plugin \"%s\"", plugin_names_[i].c_str());
 
     std::shared_ptr<Layer> plugin = plugin_loader_.createSharedInstance(plugin_types_[i]);
+
+    // lock the costmap because no update is allowed until the plugin is initialized
+    std::unique_lock<Costmap2D::mutex_t> lock(*(layered_costmap_->getCostmap()->getMutex()));
+
     layered_costmap_->addPlugin(plugin);
 
     // TODO(mjeronimo): instead of get(), use a shared ptr
     plugin->initialize(
       layered_costmap_.get(), plugin_names_[i], tf_buffer_.get(),
       shared_from_this(), callback_group_);
+
+    lock.unlock();
 
     RCLCPP_INFO(get_logger(), "Initialized plugin \"%s\"", plugin_names_[i].c_str());
   }
@@ -167,11 +193,17 @@ Costmap2DROS::on_configure(const rclcpp_lifecycle::State & /*state*/)
     RCLCPP_INFO(get_logger(), "Using costmap filter \"%s\"", filter_names_[i].c_str());
 
     std::shared_ptr<Layer> filter = plugin_loader_.createSharedInstance(filter_types_[i]);
+
+    // lock the costmap because no update is allowed until the filter is initialized
+    std::unique_lock<Costmap2D::mutex_t> lock(*(layered_costmap_->getCostmap()->getMutex()));
+
     layered_costmap_->addFilter(filter);
 
     filter->initialize(
       layered_costmap_.get(), filter_names_[i], tf_buffer_.get(),
       shared_from_this(), callback_group_);
+
+    lock.unlock();
 
     RCLCPP_INFO(get_logger(), "Initialized costmap filter \"%s\"", filter_names_[i].c_str());
   }
@@ -189,6 +221,20 @@ Costmap2DROS::on_configure(const rclcpp_lifecycle::State & /*state*/)
     shared_from_this(),
     layered_costmap_->getCostmap(), global_frame_,
     "costmap", always_send_full_costmap_);
+
+  auto layers = layered_costmap_->getPlugins();
+
+  for (auto & layer : *layers) {
+    auto costmap_layer = std::dynamic_pointer_cast<CostmapLayer>(layer);
+    if (costmap_layer != nullptr) {
+      layer_publishers_.emplace_back(
+        std::make_unique<Costmap2DPublisher>(
+          shared_from_this(),
+          costmap_layer.get(), global_frame_,
+          layer->getName(), always_send_full_costmap_)
+      );
+    }
+  }
 
   // Set the footprint
   if (use_radius_) {
@@ -213,8 +259,12 @@ Costmap2DROS::on_activate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Activating");
 
-  costmap_publisher_->on_activate();
   footprint_pub_->on_activate();
+  costmap_publisher_->on_activate();
+
+  for (auto & layer_pub : layer_publishers_) {
+    layer_pub->on_activate();
+  }
 
   // First, make sure that the transform between the robot base frame
   // and the global frame is available
@@ -260,14 +310,22 @@ Costmap2DROS::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   RCLCPP_INFO(get_logger(), "Deactivating");
 
   dyn_params_handler.reset();
-  costmap_publisher_->on_deactivate();
-  footprint_pub_->on_deactivate();
 
   stop();
 
   // Map thread stuff
   map_update_thread_shutdown_ = true;
-  map_update_thread_->join();
+
+  if (map_update_thread_->joinable()) {
+    map_update_thread_->join();
+  }
+
+  footprint_pub_->on_deactivate();
+  costmap_publisher_->on_deactivate();
+
+  for (auto & layer_pub : layer_publishers_) {
+    layer_pub->on_deactivate();
+  }
 
   return nav2_util::CallbackReturn::SUCCESS;
 }
@@ -277,6 +335,13 @@ Costmap2DROS::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Cleaning up");
 
+  costmap_publisher_.reset();
+  clear_costmap_service_.reset();
+
+  for (auto & layer_pub : layer_publishers_) {
+    layer_pub.reset();
+  }
+
   layered_costmap_.reset();
 
   tf_listener_.reset();
@@ -285,8 +350,6 @@ Costmap2DROS::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
   footprint_sub_.reset();
   footprint_pub_.reset();
 
-  costmap_publisher_.reset();
-  clear_costmap_service_.reset();
 
   executor_thread_.reset();
   return nav2_util::CallbackReturn::SUCCESS;
@@ -428,12 +491,22 @@ Costmap2DROS::mapUpdateLoop(double frequency)
         layered_costmap_->getBounds(&x0, &xn, &y0, &yn);
         costmap_publisher_->updateBounds(x0, xn, y0, yn);
 
+        for (auto & layer_pub: layer_publishers_) {
+          layer_pub->updateBounds(x0, xn, y0, yn);
+        }
+
         auto current_time = now();
         if ((last_publish_ + publish_cycle_ < current_time) ||  // publish_cycle_ is due
-          (current_time < last_publish_))      // time has moved backwards, probably due to a switch to sim_time // NOLINT
+          (current_time <
+          last_publish_))      // time has moved backwards, probably due to a switch to sim_time // NOLINT
         {
           RCLCPP_DEBUG(get_logger(), "Publish costmap at %s", name_.c_str());
           costmap_publisher_->publishCostmap();
+
+          for (auto & layer_pub: layer_publishers_) {
+            layer_pub->publishCostmap();
+          }
+
           last_publish_ = current_time;
         }
       }
@@ -517,18 +590,23 @@ void
 Costmap2DROS::stop()
 {
   stop_updates_ = true;
-  std::vector<std::shared_ptr<Layer>> * plugins = layered_costmap_->getPlugins();
-  std::vector<std::shared_ptr<Layer>> * filters = layered_costmap_->getFilters();
-  // unsubscribe from topics
-  for (std::vector<std::shared_ptr<Layer>>::iterator plugin = plugins->begin();
-    plugin != plugins->end(); ++plugin)
-  {
-    (*plugin)->deactivate();
-  }
-  for (std::vector<std::shared_ptr<Layer>>::iterator filter = filters->begin();
-    filter != filters->end(); ++filter)
-  {
-    (*filter)->deactivate();
+
+  // layered_costmap_ is set only if on_configure has been called
+  if (layered_costmap_) {
+    std::vector<std::shared_ptr<Layer>> * plugins = layered_costmap_->getPlugins();
+    std::vector<std::shared_ptr<Layer>> * filters = layered_costmap_->getFilters();
+
+    // unsubscribe from topics
+    for (std::vector<std::shared_ptr<Layer>>::iterator plugin = plugins->begin();
+      plugin != plugins->end(); ++plugin)
+    {
+      (*plugin)->deactivate();
+    }
+    for (std::vector<std::shared_ptr<Layer>>::iterator filter = filters->begin();
+      filter != filters->end(); ++filter)
+    {
+      (*filter)->deactivate();
+    }
   }
   initialized_ = false;
   stopped_ = true;

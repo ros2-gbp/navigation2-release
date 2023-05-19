@@ -125,10 +125,92 @@ RUN sed --in-place \
 
 # test overlay build
 ARG RUN_TESTS
-ARG FAIL_ON_TEST_FAILURE=True
+ARG FAIL_ON_TEST_FAILURE
 RUN if [ -n "$RUN_TESTS" ]; then \
         . install/setup.sh && \
         colcon test && \
         colcon test-result \
           || ([ -z "$FAIL_ON_TEST_FAILURE" ] || exit 1) \
     fi
+
+# multi-stage for developing
+FROM builder AS dever
+
+# edit apt for caching
+RUN mv /etc/apt/apt.conf.d/docker-clean /etc/apt/
+
+# install developer dependencies
+RUN apt-get update && \
+    apt-get install -y \
+      bash-completion \
+      gdb && \
+    pip3 install \
+      bottle \
+      glances
+
+# source underlay for shell
+RUN echo 'source "$UNDERLAY_WS/install/setup.bash"' >> /etc/bash.bashrc
+
+# multi-stage for caddy
+FROM caddy:builder AS caddyer
+
+# build custom modules
+RUN xcaddy build \
+    --with github.com/caddyserver/replace-response
+
+# multi-stage for visualizing
+FROM dever AS visualizer
+
+# install demo dependencies
+RUN apt-get update && apt-get install -y \
+      ros-$ROS_DISTRO-aws-robomaker-small-warehouse-world \
+      ros-$ROS_DISTRO-rviz2 \
+      ros-$ROS_DISTRO-turtlebot3-simulations
+
+# install gzweb dependacies
+RUN apt-get install -y --no-install-recommends \
+      imagemagick \
+      libboost-all-dev \
+      libgazebo-dev \
+      libgts-dev \
+      libjansson-dev \
+      libtinyxml-dev \
+      nodejs \
+      npm \
+      psmisc \
+      xvfb
+
+# clone gzweb
+ENV GZWEB_WS /opt/gzweb
+RUN git clone https://github.com/osrf/gzweb.git $GZWEB_WS
+
+# setup gzweb
+RUN cd $GZWEB_WS && . /usr/share/gazebo/setup.sh && \
+    GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:$(find /opt/ros/$ROS_DISTRO/share \
+      -mindepth 1 -maxdepth 2 -type d -name "models" | paste -s -d: -) && \
+    xvfb-run -s "-screen 0 1280x1024x24" ./deploy.sh -m local && \
+    ln -s $GZWEB_WS/http/client/assets http/client/assets/models
+
+# patch gzsever
+RUN GZSERVER=$(which gzserver) && \
+    mv $GZSERVER $GZSERVER.orig && \
+    echo '#!/bin/bash' > $GZSERVER && \
+    echo 'exec xvfb-run -s "-screen 0 1280x1024x24" gzserver.orig "$@"' >> $GZSERVER && \
+    chmod +x $GZSERVER
+
+# install foxglove dependacies
+RUN apt-get install -y --no-install-recommends \
+      ros-$ROS_DISTRO-foxglove-bridge
+
+# setup foxglove
+ENV FOXGLOVE_WS /opt/foxglove
+# Use custom fork until PR is merged:
+# https://github.com/foxglove/studio/pull/5987
+# COPY --from=ghcr.io/foxglove/studio /src $FOXGLOVE_WS
+COPY --from=ghcr.io/ruffsl/foxglove_studio@sha256:8a2f2be0a95f24b76b0d7aa536f1c34f3e224022eed607cbf7a164928488332e /src $FOXGLOVE_WS
+
+# install web server
+COPY --from=caddyer /usr/bin/caddy /usr/bin/caddy
+
+# multi-stage for exporting
+FROM tester AS exporter
