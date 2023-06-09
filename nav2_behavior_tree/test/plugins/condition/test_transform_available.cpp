@@ -19,7 +19,7 @@
 #include <chrono>
 #include <string>
 
-#include "utils/test_behavior_tree_fixture.hpp"
+#include "../../test_behavior_tree_fixture.hpp"
 #include "nav2_behavior_tree/plugins/condition/transform_available_condition.hpp"
 
 class TransformAvailableConditionTestFixture : public ::testing::Test

@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef UTILS__TEST_TRANSFORM_HANDLER_HPP_
-#define UTILS__TEST_TRANSFORM_HANDLER_HPP_
+#ifndef TEST_TRANSFORM_HANDLER_HPP_
+#define TEST_TRANSFORM_HANDLER_HPP_
 
 #include <memory>
 #include <string>
@@ -162,4 +162,4 @@ private:
 
 }  // namespace nav2_behavior_tree
 
-#endif  // UTILS__TEST_TRANSFORM_HANDLER_HPP_
+#endif  // TEST_TRANSFORM_HANDLER_HPP_

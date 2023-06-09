@@ -52,6 +52,8 @@ This process is then repeated a number of times and returns a converged solution
  | gamma                      | double | Default: 0.015. A trade-off between smoothness (high) and low energy (low). This is a complex parameter that likely won't need to be changed from the default of `0.1` which works well for a broad range of cases. See Section 3D-2 in "Information Theoretic Model Predictive Control: Theory and Applications to Autonomous Driving" for detailed information.       |
  | visualize                  | bool   | Default: false. Publish visualization of trajectories, which can slow down the controller significantly. Use only for debugging.                                                                                                                                       |
  | retry_attempt_limit        | int    | Default 1. Number of attempts to find feasible trajectory on failure for soft-resets before reporting failure.                                                                                                                                                                                                       |
+| reset_period            | double    | Default 1.0. required time of inactivity to reset optimizer  (only in Humble due to backport ABI policies)            |
+
 #### Trajectory Visualizer
  | Parameter             | Type   | Definition                                                                                                  |
  | ---------------       | ------ | ----------------------------------------------------------------------------------------------------------- |
@@ -101,6 +103,8 @@ This process is then repeated a number of times and returns a converged solution
  | collision_cost       | double | Default 10000.0. Cost to apply to a true collision in a trajectory.                                          |
  | collision_margin_distance   | double    | Default 0.10. Margin distance from collision to apply severe penalty, similar to footprint inflation. Between 0.05-0.2 is reasonable. |
  | near_goal_distance          | double    | Default 0.5. Distance near goal to stop applying preferential obstacle term to allow robot to smoothly converge to goal pose in close proximity to obstacles.   
+ | cost_scaling_factor       | double    | Default 10.0. Exponential decay factor across inflation radius. This should be the same as for your inflation layer (Humble only)
+ | inflation_radius          | double    | Default 0.55. Radius to inflate costmap around lethal obstacles. This should be the same as for your inflation layer (Humble only)
 
 #### Path Align Critic
  | Parameter                  | Type   | Definition                                                                                                                         |

@@ -27,7 +27,6 @@
 #include "tf2_ros/transform_listener.h"
 
 #include "nav2_util/lifecycle_node.hpp"
-#include "nav2_msgs/msg/collision_monitor_state.hpp"
 
 #include "nav2_collision_monitor/types.hpp"
 #include "nav2_collision_monitor/polygon.hpp"
@@ -111,8 +110,7 @@ protected:
    */
   bool getParameters(
     std::string & cmd_vel_in_topic,
-    std::string & cmd_vel_out_topic,
-    std::string & state_topic);
+    std::string & cmd_vel_out_topic);
   /**
    * @brief Supporting routine creating and configuring all polygons
    * @param base_frame_id Robot base frame ID
@@ -147,14 +145,14 @@ protected:
   void process(const Velocity & cmd_vel_in);
 
   /**
-   * @brief Processes the polygon of STOP, SLOWDOWN and LIMIT action type
+   * @brief Processes the polygon of STOP and SLOWDOWN action type
    * @param polygon Polygon to process
    * @param collision_points Array of 2D obstacle points
    * @param velocity Desired robot velocity
    * @param robot_action Output processed robot action
    * @return True if returned action is caused by current polygon, otherwise false
    */
-  bool processStopSlowdownLimit(
+  bool processStopSlowdown(
     const std::shared_ptr<Polygon> polygon,
     const std::vector<Point> & collision_points,
     const Velocity & velocity,
@@ -175,11 +173,11 @@ protected:
     Action & robot_action) const;
 
   /**
-   * @brief Log and publish current robot action and polygon
-   * @param robot_action Robot action to notify
+   * @brief Prints robot action and polygon caused it (if it was)
+   * @param robot_action Robot action to print
    * @param action_polygon Pointer to a polygon causing a selected action
    */
-  void notifyActionState(
+  void printAction(
     const Action & robot_action, const std::shared_ptr<Polygon> action_polygon) const;
 
   /**
@@ -205,10 +203,6 @@ protected:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_in_sub_;
   /// @brief Output cmd_vel publisher
   rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_out_pub_;
-
-  /// @brief CollisionMonitor state publisher
-  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::CollisionMonitorState>::SharedPtr
-    state_pub_;
 
   /// @brief Whether main routine is active
   bool process_active_;

@@ -27,17 +27,13 @@ macro(nav2_package)
       "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
   endif()
 
-  # Default to C++17
+  # Default to C++14
   if(NOT CMAKE_CXX_STANDARD)
-    if ("cxx_std_17" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
-      set(CMAKE_CXX_STANDARD 17)
-    else()
-      message( FATAL_ERROR "cxx_std_17 could not be found.")
-    endif()
+    set(CMAKE_CXX_STANDARD 17)
   endif()
 
   if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wdeprecated -fPIC -Wnon-virtual-dtor)
+    add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wdeprecated -fPIC)
   endif()
 
   option(COVERAGE_ENABLED "Enable code coverage" FALSE)

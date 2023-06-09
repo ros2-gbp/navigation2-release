@@ -70,10 +70,7 @@ int Circle::getPointsInside(const std::vector<Point> & points) const
   return num;
 }
 
-bool Circle::getParameters(
-  std::string & polygon_sub_topic,
-  std::string & polygon_pub_topic,
-  std::string & footprint_topic)
+bool Circle::getParameters(std::string & polygon_pub_topic, std::string & footprint_topic)
 {
   auto node = node_.lock();
   if (!node) {
@@ -84,8 +81,7 @@ bool Circle::getParameters(
     return false;
   }
 
-  // There is no polygon or footprint subscription for the Circle. Thus, set strings as empty.
-  polygon_sub_topic.clear();
+  // There is no footprint subscription for the Circle. Thus, set string as empty.
   footprint_topic.clear();
 
   try {

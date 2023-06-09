@@ -31,7 +31,6 @@ find_package(rviz_rendering REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
-find_package(yaml_cpp_vendor REQUIRED)
 
 set(nav2_rviz_plugins_headers_to_moc
   include/nav2_rviz_plugins/goal_pose_updater.hpp
@@ -72,7 +71,6 @@ set(dependencies
   rviz_rendering
   std_msgs
   tf2_geometry_msgs
-  yaml_cpp_vendor
 )
 
 ament_target_dependencies(${library_name}

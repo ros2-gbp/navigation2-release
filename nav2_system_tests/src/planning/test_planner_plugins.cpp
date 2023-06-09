@@ -21,7 +21,6 @@
 #include "planner_tester.hpp"
 #include "nav2_util/lifecycle_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_core/planner_exceptions.hpp"
 
 using namespace std::chrono_literals;
 
@@ -130,12 +129,8 @@ TEST(testPluginMap, Failures)
   auto path = obj->getPlan(start, goal, plugin_none);
   EXPECT_EQ(path.header.frame_id, std::string("map"));
 
-  try {
-    path = obj->getPlan(start, goal, plugin_fake);
-    FAIL() << "Failed to throw invalid planner id exception";
-  } catch (const nav2_core::InvalidPlanner & ex) {
-    EXPECT_EQ(ex.what(), std::string("Planner id fake is invalid"));
-  }
+  path = obj->getPlan(start, goal, plugin_fake);
+  EXPECT_EQ(path.poses.size(), 0ul);
 
   obj->onCleanup(state);
 }

@@ -24,7 +24,7 @@
 
 #include "behaviortree_cpp_v3/bt_factory.h"
 
-#include "utils/test_action_server.hpp"
+#include "../../test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/truncate_path_action.hpp"
 
 

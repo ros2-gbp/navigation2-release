@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include <memory>
 
 #include "nav2_behavior_tree/plugins/action/spin_action.hpp"
@@ -39,24 +40,6 @@ void SpinAction::on_tick()
   if (is_recovery_) {
     increment_recovery_count();
   }
-}
-
-BT::NodeStatus SpinAction::on_success()
-{
-  setOutput("error_code_id", ActionGoal::NONE);
-  return BT::NodeStatus::SUCCESS;
-}
-
-BT::NodeStatus SpinAction::on_aborted()
-{
-  setOutput("error_code_id", result_.result->error_code);
-  return BT::NodeStatus::FAILURE;
-}
-
-BT::NodeStatus SpinAction::on_cancelled()
-{
-  setOutput("error_code_id", ActionGoal::NONE);
-  return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace nav2_behavior_tree

@@ -19,7 +19,6 @@
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 
 #include "nav2_util/node_utils.hpp"
-#include "nav2_util/robot_utils.hpp"
 
 namespace nav2_collision_monitor
 {

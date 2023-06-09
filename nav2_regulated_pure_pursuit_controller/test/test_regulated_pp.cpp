@@ -25,7 +25,7 @@
 #include "path_utils/path_utils.hpp"
 #include "nav2_regulated_pure_pursuit_controller/regulated_pure_pursuit_controller.hpp"
 #include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
-#include "nav2_core/controller_exceptions.hpp"
+#include "nav2_core/exceptions.hpp"
 
 class RclCppFixture
 {
@@ -41,9 +41,9 @@ public:
   BasicAPIRPP()
   : nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController() {}
 
-  nav_msgs::msg::Path getPlan() {return path_handler_->getPlan();}
+  nav_msgs::msg::Path getPlan() {return global_plan_;}
 
-  double getSpeed() {return params_->desired_linear_vel;}
+  double getSpeed() {return desired_linear_vel_;}
 
   std::unique_ptr<geometry_msgs::msg::PointStamped> createCarrotMsgWrapper(
     const geometry_msgs::msg::PoseStamped & carrot_pose)
@@ -51,9 +51,9 @@ public:
     return createCarrotMsg(carrot_pose);
   }
 
-  void setVelocityScaledLookAhead() {params_->use_velocity_scaled_lookahead_dist = true;}
-  void setCostRegulationScaling() {params_->use_cost_regulated_linear_velocity_scaling = true;}
-  void resetVelocityRegulationScaling() {params_->use_regulated_linear_velocity_scaling = false;}
+  void setVelocityScaledLookAhead() {use_velocity_scaled_lookahead_dist_ = true;}
+  void setCostRegulationScaling() {use_cost_regulated_linear_velocity_scaling_ = true;}
+  void resetVelocityRegulationScaling() {use_regulated_linear_velocity_scaling_ = false;}
 
   double getLookAheadDistanceWrapper(const geometry_msgs::msg::Twist & twist)
   {
@@ -110,7 +110,7 @@ public:
   nav_msgs::msg::Path transformGlobalPlanWrapper(
     const geometry_msgs::msg::PoseStamped & pose)
   {
-    return path_handler_->transformGlobalPlan(pose, params_->max_robot_pose_search_dist);
+    return transformGlobalPlan(pose);
   }
 };
 
@@ -168,16 +168,8 @@ TEST(RegulatedPurePursuitTest, createCarrotMsg)
 
 TEST(RegulatedPurePursuitTest, findVelocitySignChange)
 {
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testRPPfindVelocitySignChange");
   auto ctrl = std::make_shared<BasicAPIRPP>();
-
-  std::string name = "PathFollower";
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
-  auto costmap = std::make_shared<nav2_costmap_2d::Costmap2DROS>("fake_costmap");
-  rclcpp_lifecycle::State state;
-  costmap->on_configure(state);
-  ctrl->configure(node, name, tf, costmap);
-
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testRPPfindVelocitySignChange");
   geometry_msgs::msg::PoseStamped pose;
   pose.header.frame_id = "smb";
   auto time = node->get_clock()->now();
@@ -612,7 +604,6 @@ TEST(RegulatedPurePursuitTest, testDynamicParameter)
       rclcpp::Parameter("test.use_velocity_scaled_lookahead_dist", false),
       rclcpp::Parameter("test.use_regulated_linear_velocity_scaling", false),
       rclcpp::Parameter("test.use_cost_regulated_linear_velocity_scaling", false),
-      rclcpp::Parameter("test.inflation_cost_scaling_factor", 1.0),
       rclcpp::Parameter("test.allow_reversing", false),
       rclcpp::Parameter("test.use_rotate_to_heading", false)});
 
@@ -639,36 +630,11 @@ TEST(RegulatedPurePursuitTest, testDynamicParameter)
   EXPECT_EQ(node->get_parameter("test.regulated_linear_scaling_min_speed").as_double(), 4.0);
   EXPECT_EQ(node->get_parameter("test.use_velocity_scaled_lookahead_dist").as_bool(), false);
   EXPECT_EQ(node->get_parameter("test.use_regulated_linear_velocity_scaling").as_bool(), false);
-  EXPECT_EQ(node->get_parameter("test.inflation_cost_scaling_factor").as_double(), 1.0);
   EXPECT_EQ(
     node->get_parameter(
       "test.use_cost_regulated_linear_velocity_scaling").as_bool(), false);
   EXPECT_EQ(node->get_parameter("test.allow_reversing").as_bool(), false);
   EXPECT_EQ(node->get_parameter("test.use_rotate_to_heading").as_bool(), false);
-
-  // Should fail
-  auto results2 = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("test.inflation_cost_scaling_factor", -1.0)});
-
-  rclcpp::spin_until_future_complete(
-    node->get_node_base_interface(),
-    results2);
-
-  auto results3 = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("test.use_rotate_to_heading", true)});
-
-  rclcpp::spin_until_future_complete(
-    node->get_node_base_interface(),
-    results3);
-
-  auto results4 = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("test.allow_reversing", false),
-      rclcpp::Parameter("test.use_rotate_to_heading", true),
-      rclcpp::Parameter("test.allow_reversing", true)});
-
-  rclcpp::spin_until_future_complete(
-    node->get_node_base_interface(),
-    results4);
 }
 
 class TransformGlobalPlanTest : public ::testing::Test
@@ -678,8 +644,8 @@ protected:
   {
     ctrl_ = std::make_shared<BasicAPIRPP>();
     node_ = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testRPP");
-    costmap_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("fake_costmap");
     tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+    costmap_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>("fake_costmap");
   }
 
   void configure_costmap(uint16_t width, double resolution)
@@ -770,7 +736,6 @@ TEST_F(TransformGlobalPlanTest, no_pruning_on_large_costmap)
   robot_pose.pose.position.z = 0.0;
   // A really big costmap
   // the max_costmap_extent should be 50m
-
   configure_costmap(100u, 0.1);
   configure_controller(5.0);
   setup_transforms(robot_pose.pose.position);
@@ -884,7 +849,7 @@ TEST_F(TransformGlobalPlanTest, all_poses_outside_of_costmap)
   ctrl_->setPlan(global_plan);
 
   // Transform the plan
-  EXPECT_THROW(ctrl_->transformGlobalPlanWrapper(robot_pose), nav2_core::ControllerException);
+  EXPECT_THROW(ctrl_->transformGlobalPlanWrapper(robot_pose), nav2_core::PlannerException);
 }
 
 // Should shortcut the circle if the circle is shorter than max_robot_pose_search_dist

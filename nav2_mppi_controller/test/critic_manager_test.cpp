@@ -46,8 +46,6 @@ public:
   CriticManagerWrapper()
   : CriticManager() {}
 
-  virtual ~CriticManagerWrapper() = default;
-
   virtual void loadCritics()
   {
     critics_.clear();
@@ -80,8 +78,6 @@ public:
   CriticManagerWrapperEnum()
   : CriticManager() {}
 
-  virtual ~CriticManagerWrapperEnum() = default;
-
   unsigned int getCriticNum()
   {
     return critics_.size();
@@ -92,7 +88,7 @@ TEST(CriticManagerTests, BasicCriticOperations)
 {
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -130,7 +126,7 @@ TEST(CriticManagerTests, CriticLoadingTest)
     "critic_manager.critics",
     rclcpp::ParameterValue(std::vector<std::string>{"ConstraintCritic", "PreferForwardCritic"}));
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State state;
   costmap_ros->on_configure(state);
