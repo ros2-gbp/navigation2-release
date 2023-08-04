@@ -1,0 +1,12 @@
+Source: ros-iron-nav2-smac-planner
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), libeigen3-dev, nlohmann-json3-dev, ros-iron-ament-cmake, ros-iron-ament-cmake-gtest <!nocheck>, ros-iron-ament-cmake-pytest <!nocheck>, ros-iron-ament-lint-auto <!nocheck>, ros-iron-ament-lint-common <!nocheck>, ros-iron-angles, ros-iron-builtin-interfaces, ros-iron-eigen3-cmake-module, ros-iron-geometry-msgs, ros-iron-nav-msgs, ros-iron-nav2-common, ros-iron-nav2-core, ros-iron-nav2-costmap-2d, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-ompl, ros-iron-pluginlib, ros-iron-rclcpp, ros-iron-rclcpp-action, ros-iron-rclcpp-lifecycle, ros-iron-tf2-ros, ros-iron-visualization-msgs, ros-iron-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-iron-nav2-smac-planner
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libeigen3-dev, nlohmann-json3-dev, ros-iron-angles, ros-iron-builtin-interfaces, ros-iron-eigen3-cmake-module, ros-iron-geometry-msgs, ros-iron-nav-msgs, ros-iron-nav2-common, ros-iron-nav2-core, ros-iron-nav2-costmap-2d, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-ompl, ros-iron-pluginlib, ros-iron-rclcpp, ros-iron-rclcpp-action, ros-iron-rclcpp-lifecycle, ros-iron-tf2-ros, ros-iron-visualization-msgs, ros-iron-ros-workspace
+Description: Smac global planning plugin: A*, Hybrid-A*, State Lattice
