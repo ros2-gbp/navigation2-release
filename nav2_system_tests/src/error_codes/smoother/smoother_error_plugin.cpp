@@ -12,24 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_BEHAVIORS__PLUGINS__BACK_UP_HPP_
-#define NAV2_BEHAVIORS__PLUGINS__BACK_UP_HPP_
+#include "smoother_error_plugin.hpp"
 
-#include <memory>
-
-#include "drive_on_heading.hpp"
-#include "nav2_msgs/action/back_up.hpp"
-
-using BackUpAction = nav2_msgs::action::BackUp;
-
-
-namespace nav2_behaviors
-{
-class BackUp : public DriveOnHeading<nav2_msgs::action::BackUp>
-{
-public:
-  Status onRun(const std::shared_ptr<const BackUpAction::Goal> command) override;
-};
-}
-
-#endif  // NAV2_BEHAVIORS__PLUGINS__BACK_UP_HPP_
+#include "pluginlib/class_list_macros.hpp"
+PLUGINLIB_EXPORT_CLASS(nav2_system_tests::UnknownErrorSmoother, nav2_core::Smoother)
+PLUGINLIB_EXPORT_CLASS(nav2_system_tests::TimeOutErrorSmoother, nav2_core::Smoother)
+PLUGINLIB_EXPORT_CLASS(nav2_system_tests::SmoothedPathInCollision, nav2_core::Smoother)
+PLUGINLIB_EXPORT_CLASS(nav2_system_tests::FailedToSmoothPath, nav2_core::Smoother)
+PLUGINLIB_EXPORT_CLASS(nav2_system_tests::InvalidPath, nav2_core::Smoother)

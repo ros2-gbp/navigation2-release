@@ -31,7 +31,7 @@ using rcl_interfaces::msg::ParameterType;
 
 SmacPlannerLattice::SmacPlannerLattice()
 : _a_star(nullptr),
-  _collision_checker(nullptr, 1),
+  _collision_checker(nullptr, 1, nullptr),
   _smoother(nullptr),
   _costmap(nullptr)
 {
@@ -169,7 +169,7 @@ void SmacPlannerLattice::configure(
   // increments causing "wobbly" checks that could cause larger robots to virtually show collisions
   // in valid configurations. This approximation helps to bound orientation error for all checks
   // in exchange for slight inaccuracies in the collision headings in terminal search states.
-  _collision_checker = GridCollisionChecker(_costmap, 72u);
+  _collision_checker = GridCollisionChecker(_costmap, 72u, node);
   _collision_checker.setFootprint(
     costmap_ros->getRobotFootprint(),
     costmap_ros->getUseRadius(),
@@ -247,13 +247,21 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
 
   // Set starting point, in A* bin search coordinates
   unsigned int mx, my;
-  _costmap->worldToMap(start.pose.position.x, start.pose.position.y, mx, my);
+  if (!_costmap->worldToMap(start.pose.position.x, start.pose.position.y, mx, my)) {
+    throw nav2_core::StartOutsideMapBounds(
+            "Start Coordinates of(" + std::to_string(start.pose.position.x) + ", " +
+            std::to_string(start.pose.position.y) + ") was outside bounds");
+  }
   _a_star->setStart(
     mx, my,
     NodeLattice::motion_table.getClosestAngularBin(tf2::getYaw(start.pose.orientation)));
 
   // Set goal point, in A* bin search coordinates
-  _costmap->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my);
+  if (!_costmap->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my)) {
+    throw nav2_core::GoalOutsideMapBounds(
+            "Goal Coordinates of(" + std::to_string(goal.pose.position.x) + ", " +
+            std::to_string(goal.pose.position.y) + ") was outside bounds");
+  }
   _a_star->setGoal(
     mx, my,
     NodeLattice::motion_table.getClosestAngularBin(tf2::getYaw(goal.pose.orientation)));
@@ -274,27 +282,16 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   NodeLattice::CoordinateVector path;
   int num_iterations = 0;
   std::string error;
-  try {
-    if (!_a_star->createPath(
-        path, num_iterations, _tolerance / static_cast<float>(_costmap->getResolution())))
-    {
-      if (num_iterations < _a_star->getMaxIterations()) {
-        error = std::string("no valid path found");
-      } else {
-        error = std::string("exceeded maximum iterations");
-      }
-    }
-  } catch (const std::runtime_error & e) {
-    error = "invalid use: ";
-    error += e.what();
-  }
 
-  if (!error.empty()) {
-    RCLCPP_WARN(
-      _logger,
-      "%s: failed to create plan, %s.",
-      _name.c_str(), error.c_str());
-    return plan;
+  // Note: All exceptions thrown are handled by the planner server and returned to the action
+  if (!_a_star->createPath(
+      path, num_iterations, _tolerance / static_cast<float>(_costmap->getResolution())))
+  {
+    if (num_iterations < _a_star->getMaxIterations()) {
+      throw nav2_core::NoValidPathCouldBeFound("no valid path found");
+    } else {
+      throw nav2_core::PlannerTimedOut("exceeded maximum iterations");
+    }
   }
 
   // Convert to world coordinates

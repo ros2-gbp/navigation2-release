@@ -61,8 +61,8 @@ def generate_launch_description():
         output='screen')
 
     namespaced_rviz_config_file = ReplaceString(
-            source_file=rviz_config_file,
-            replacements={'<robot_namespace>': ('/', namespace)})
+        source_file=rviz_config_file,
+        replacements={'<robot_namespace>': ('/', namespace)})
 
     start_namespaced_rviz_cmd = Node(
         condition=IfCondition(use_namespace),
@@ -71,7 +71,8 @@ def generate_launch_description():
         namespace=namespace,
         arguments=['-d', namespaced_rviz_config_file],
         output='screen',
-        remappings=[('/tf', 'tf'),
+        remappings=[('/map', 'map'),
+                    ('/tf', 'tf'),
                     ('/tf_static', 'tf_static'),
                     ('/goal_pose', 'goal_pose'),
                     ('/clicked_point', 'clicked_point'),
