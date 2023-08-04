@@ -23,7 +23,6 @@
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
 #include "nav2_msgs/action/follow_waypoints.hpp"
-#include "nav2_msgs/msg/missed_waypoint.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "nav2_util/simple_action_server.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
@@ -42,12 +41,6 @@ enum class ActionStatus
   PROCESSING = 1,
   FAILED = 2,
   SUCCEEDED = 3
-};
-
-struct GoalStatus
-{
-  ActionStatus status;
-  int error_code;
 };
 
 /**
@@ -140,10 +133,10 @@ protected:
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
   std::shared_future<rclcpp_action::ClientGoalHandle<ClientT>::SharedPtr> future_goal_handle_;
-
   bool stop_on_failure_;
+  ActionStatus current_goal_status_;
   int loop_rate_;
-  GoalStatus current_goal_status_;
+  std::vector<int> failed_ids_;
 
   // Task Execution At Waypoint Plugin
   pluginlib::ClassLoader<nav2_core::WaypointTaskExecutor>

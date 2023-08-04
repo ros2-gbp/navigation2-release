@@ -168,13 +168,6 @@ public:
   }
 
   /**
-   * @brief Perform preshutdown activities before our Context is shutdown.
-   * Note that this is related to our Context's shutdown sequence, not the
-   * lifecycle node state machine.
-   */
-  virtual void on_rcl_preshutdown();
-
-  /**
    * @brief Create bond connection to lifecycle manager
    */
   void createBond();
@@ -189,19 +182,6 @@ protected:
    * @brief Print notifications for lifecycle node
    */
   void printLifecycleNodeNotification();
-
-  /**
-   * Register our preshutdown callback for this Node's rcl Context.
-   * The callback fires before this Node's Context is shutdown.
-   * Note this is not directly related to the lifecycle state machine.
-   */
-  void register_rcl_preshutdown_callback();
-  std::unique_ptr<rclcpp::PreShutdownCallbackHandle> rcl_preshutdown_cb_handle_{nullptr};
-
-  /**
-   * Run some common cleanup steps shared between rcl preshutdown and destruction.
-   */
-  void runCleanups();
 
   // Connection to tell that server is still up
   std::unique_ptr<bond::Bond> bond_{nullptr};
