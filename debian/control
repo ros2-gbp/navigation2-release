@@ -1,0 +1,12 @@
+Source: ros-iron-nav2-mppi-controller
+Section: misc
+Priority: optional
+Maintainer: Aleksei Budyakov <budyakov.aleksei@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), libbenchmark-dev, libomp-dev, libxsimd-dev, libxtensor-dev, ros-iron-ament-cmake, ros-iron-ament-cmake-gtest <!nocheck>, ros-iron-ament-cmake-ros, ros-iron-ament-lint-auto <!nocheck>, ros-iron-ament-lint-common <!nocheck>, ros-iron-geometry-msgs, ros-iron-nav2-common, ros-iron-nav2-core, ros-iron-nav2-costmap-2d, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-pluginlib, ros-iron-rclcpp, ros-iron-std-msgs, ros-iron-tf2, ros-iron-tf2-eigen, ros-iron-tf2-geometry-msgs, ros-iron-tf2-ros, ros-iron-visualization-msgs, ros-iron-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-iron-nav2-mppi-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libbenchmark-dev, libomp-dev, libxsimd-dev, libxtensor-dev, ros-iron-geometry-msgs, ros-iron-nav2-common, ros-iron-nav2-core, ros-iron-nav2-costmap-2d, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-pluginlib, ros-iron-rclcpp, ros-iron-std-msgs, ros-iron-tf2, ros-iron-tf2-eigen, ros-iron-tf2-geometry-msgs, ros-iron-tf2-ros, ros-iron-visualization-msgs, ros-iron-ros-workspace
+Description: nav2_mppi_controller
