@@ -23,7 +23,6 @@
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xnoalias.hpp>
 
-#include "nav2_core/controller_exceptions.hpp"
 #include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
 
 namespace mppi
@@ -108,7 +107,7 @@ void Optimizer::setOffset(double controller_frequency)
       "shifting is ON");
     settings_.shift_control_sequence = true;
   } else {
-    throw nav2_core::ControllerException(
+    throw std::runtime_error(
             "Controller period more then model dt, set it equal to model dt");
   }
 }
@@ -172,7 +171,7 @@ bool Optimizer::fallback(bool fail)
 
   if (++counter > settings_.retry_attempt_limit) {
     counter = 0;
-    throw nav2_core::NoValidControl("Optimizer fail to compute path");
+    throw std::runtime_error("Optimizer fail to compute path");
   }
 
   return true;
@@ -286,8 +285,8 @@ void Optimizer::integrateStateVelocities(
 
   const auto yaw_offseted = xt::view(traj_yaws, xt::range(1, _));
 
-  xt::noalias(xt::view(yaw_cos, 0)) = std::cos(initial_yaw);
-  xt::noalias(xt::view(yaw_sin, 0)) = std::sin(initial_yaw);
+  xt::noalias(xt::view(yaw_cos, 0)) = cosf(initial_yaw);
+  xt::noalias(xt::view(yaw_sin, 0)) = sinf(initial_yaw);
   xt::noalias(xt::view(yaw_cos, xt::range(1, _))) = xt::cos(yaw_offseted);
   xt::noalias(xt::view(yaw_sin, xt::range(1, _))) = xt::sin(yaw_offseted);
 
@@ -316,8 +315,8 @@ void Optimizer::integrateStateVelocities(
 
   auto && yaw_cos = xt::xtensor<float, 2>::from_shape(trajectories.yaws.shape());
   auto && yaw_sin = xt::xtensor<float, 2>::from_shape(trajectories.yaws.shape());
-  xt::noalias(xt::view(yaw_cos, xt::all(), 0)) = std::cos(initial_yaw);
-  xt::noalias(xt::view(yaw_sin, xt::all(), 0)) = std::sin(initial_yaw);
+  xt::noalias(xt::view(yaw_cos, xt::all(), 0)) = cosf(initial_yaw);
+  xt::noalias(xt::view(yaw_sin, xt::all(), 0)) = sinf(initial_yaw);
   xt::noalias(xt::view(yaw_cos, xt::all(), xt::range(1, _))) = xt::cos(yaws_cutted);
   xt::noalias(xt::view(yaw_sin, xt::all(), xt::range(1, _))) = xt::sin(yaws_cutted);
 
@@ -358,16 +357,16 @@ void Optimizer::updateControlSequence()
   auto bounded_noises_vx = state_.cvx - control_sequence_.vx;
   auto bounded_noises_wz = state_.cwz - control_sequence_.wz;
   xt::noalias(costs_) +=
-    s.gamma / std::pow(s.sampling_std.vx, 2) * xt::sum(
+    s.gamma / powf(s.sampling_std.vx, 2) * xt::sum(
     xt::view(control_sequence_.vx, xt::newaxis(), xt::all()) * bounded_noises_vx, 1, immediate);
   xt::noalias(costs_) +=
-    s.gamma / std::pow(s.sampling_std.wz, 2) * xt::sum(
+    s.gamma / powf(s.sampling_std.wz, 2) * xt::sum(
     xt::view(control_sequence_.wz, xt::newaxis(), xt::all()) * bounded_noises_wz, 1, immediate);
 
   if (isHolonomic()) {
     auto bounded_noises_vy = state_.cvy - control_sequence_.vy;
     xt::noalias(costs_) +=
-      s.gamma / std::pow(s.sampling_std.vy, 2) * xt::sum(
+      s.gamma / powf(s.sampling_std.vy, 2) * xt::sum(
       xt::view(control_sequence_.vy, xt::newaxis(), xt::all()) * bounded_noises_vy,
       1, immediate);
   }
@@ -378,8 +377,10 @@ void Optimizer::updateControlSequence()
   auto && softmaxes_extened = xt::eval(xt::view(softmaxes, xt::all(), xt::newaxis()));
 
   xt::noalias(control_sequence_.vx) = xt::sum(state_.cvx * softmaxes_extened, 0, immediate);
-  xt::noalias(control_sequence_.vy) = xt::sum(state_.cvy * softmaxes_extened, 0, immediate);
   xt::noalias(control_sequence_.wz) = xt::sum(state_.cwz * softmaxes_extened, 0, immediate);
+  if (isHolonomic()) {
+    xt::noalias(control_sequence_.vy) = xt::sum(state_.cvy * softmaxes_extened, 0, immediate);
+  }
 
   applyControlSequenceConstraints();
 }
@@ -409,7 +410,7 @@ void Optimizer::setMotionModel(const std::string & model)
   } else if (model == "Ackermann") {
     motion_model_ = std::make_shared<AckermannMotionModel>(parameters_handler_);
   } else {
-    throw nav2_core::ControllerException(
+    throw std::runtime_error(
             std::string(
               "Model " + model + " is not valid! Valid options are DiffDrive, Omni, "
               "or Ackermann"));

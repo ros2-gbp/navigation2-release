@@ -21,11 +21,11 @@
 #include <set>
 #include <exception>
 #include <vector>
-#include <limits>
 
 #include "nav2_msgs/action/navigate_to_pose.hpp"
 #include "nav2_behavior_tree/bt_action_server.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
+#include "nav2_util/node_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -60,37 +60,6 @@ BtActionServer<ActionT>::BtActionServer(
   if (!node->has_parameter("default_server_timeout")) {
     node->declare_parameter("default_server_timeout", 20);
   }
-
-  std::vector<std::string> error_code_names = {
-    "follow_path_error_code",
-    "compute_path_error_code"
-  };
-
-  if (!node->has_parameter("error_code_names")) {
-    const rclcpp::ParameterValue value = node->declare_parameter(
-      "error_code_names",
-      rclcpp::PARAMETER_STRING_ARRAY);
-    if (value.get_type() == rclcpp::PARAMETER_NOT_SET) {
-      std::string error_codes_str;
-      for (const auto & error_code : error_code_names) {
-        error_codes_str += " " + error_code;
-      }
-      RCLCPP_WARN_STREAM(
-        logger_, "Error_code parameters were not set. Using default values of:"
-          << error_codes_str + "\n"
-          << "Make sure these match your BT and there are not other sources of error codes you"
-          "reported to your application");
-      rclcpp::Parameter error_code_names_param("error_code_names", error_code_names);
-      node->set_parameter(error_code_names_param);
-    } else {
-      error_code_names = value.get<std::vector<std::string>>();
-      std::string error_codes_str;
-      for (const auto & error_code : error_code_names) {
-        error_codes_str += " " + error_code;
-      }
-      RCLCPP_INFO_STREAM(logger_, "Error_code parameters were set to:" << error_codes_str);
-    }
-  }
 }
 
 template<class ActionT>
@@ -114,13 +83,21 @@ bool BtActionServer<ActionT>::on_configure()
       "-r",
       std::string("__node:=") +
       std::string(node->get_name()) + "_" + client_node_name + "_rclcpp_node",
-      "-p",
-      "use_sim_time:=" +
-      std::string(node->get_parameter("use_sim_time").as_bool() ? "true" : "false"),
       "--"});
 
   // Support for handling the topic-based goal pose from rviz
   client_node_ = std::make_shared<rclcpp::Node>("_", options);
+
+  // Declare parameters for common client node applications to share with BT nodes
+  // Declare if not declared in case being used an external application, then copying
+  // all of the main node's parameters to the client for BT nodes to obtain
+  nav2_util::declare_parameter_if_not_declared(
+    node, "global_frame", rclcpp::ParameterValue(std::string("map")));
+  nav2_util::declare_parameter_if_not_declared(
+    node, "robot_base_frame", rclcpp::ParameterValue(std::string("base_link")));
+  nav2_util::declare_parameter_if_not_declared(
+    node, "transform_tolerance", rclcpp::ParameterValue(0.1));
+  nav2_util::copy_all_parameters(node, client_node_);
 
   action_server_ = std::make_shared<ActionServer>(
     node->get_node_base_interface(),
@@ -135,9 +112,6 @@ bool BtActionServer<ActionT>::on_configure()
   bt_loop_duration_ = std::chrono::milliseconds(timeout);
   node->get_parameter("default_server_timeout", timeout);
   default_server_timeout_ = std::chrono::milliseconds(timeout);
-
-  // Get error code id names to grab off of the blackboard
-  error_code_names_ = node->get_parameter("error_code_names").as_string_array();
 
   // Create the class that registers our custom nodes and executes the BT
   bt_ = std::make_unique<nav2_behavior_tree::BehaviorTreeEngine>(plugin_lib_names_);
@@ -205,9 +179,13 @@ bool BtActionServer<ActionT>::loadBehaviorTree(const std::string & bt_xml_filena
     return false;
   }
 
+  auto xml_string = std::string(
+    std::istreambuf_iterator<char>(xml_file),
+    std::istreambuf_iterator<char>());
+
   // Create the Behavior Tree from the XML input
   try {
-    tree_ = bt_->createTreeFromFile(filename, blackboard_);
+    tree_ = bt_->createTreeFromText(xml_string, blackboard_);
   } catch (const std::exception & e) {
     RCLCPP_ERROR(logger_, "Exception when loading BT: %s", e.what());
     return false;
@@ -257,9 +235,6 @@ void BtActionServer<ActionT>::executeCallback()
   // Give server an opportunity to populate the result message or simple give
   // an indication that the action is complete.
   auto result = std::make_shared<typename ActionT::Result>();
-
-  populateErrorCode(result);
-
   on_completion_callback_(result, rc);
 
   switch (rc) {
@@ -277,30 +252,6 @@ void BtActionServer<ActionT>::executeCallback()
       RCLCPP_INFO(logger_, "Goal canceled");
       action_server_->terminate_all(result);
       break;
-  }
-}
-
-template<class ActionT>
-void BtActionServer<ActionT>::populateErrorCode(
-  typename std::shared_ptr<typename ActionT::Result> result)
-{
-  int highest_priority_error_code = std::numeric_limits<int>::max();
-  for (const auto & error_code : error_code_names_) {
-    try {
-      int current_error_code = blackboard_->get<int>(error_code);
-      if (current_error_code != 0 && current_error_code < highest_priority_error_code) {
-        highest_priority_error_code = current_error_code;
-      }
-    } catch (...) {
-      RCLCPP_DEBUG(
-        logger_,
-        "Failed to get error code: %s from blackboard",
-        error_code.c_str());
-    }
-  }
-
-  if (highest_priority_error_code != std::numeric_limits<int>::max()) {
-    result->error_code = highest_priority_error_code;
   }
 }
 

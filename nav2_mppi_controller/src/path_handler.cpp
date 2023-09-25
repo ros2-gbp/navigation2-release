@@ -105,12 +105,12 @@ geometry_msgs::msg::PoseStamped PathHandler::transformToGlobalPlanFrame(
   const geometry_msgs::msg::PoseStamped & pose)
 {
   if (global_plan_up_to_inversion_.poses.empty()) {
-    throw nav2_core::InvalidPath("Received plan with zero length");
+    throw std::runtime_error("Received plan with zero length");
   }
 
   geometry_msgs::msg::PoseStamped robot_pose;
   if (!transformPose(global_plan_up_to_inversion_.header.frame_id, pose, robot_pose)) {
-    throw nav2_core::ControllerTFError(
+    throw std::runtime_error(
             "Unable to transform robot pose into global plan's frame");
   }
 
@@ -136,7 +136,7 @@ nav_msgs::msg::Path PathHandler::transformPath(
   }
 
   if (transformed_plan.poses.empty()) {
-    throw nav2_core::InvalidPath("Resulting plan has 0 poses in it.");
+    throw std::runtime_error("Resulting plan has 0 poses in it.");
   }
 
   return transformed_plan;
@@ -166,8 +166,8 @@ bool PathHandler::transformPose(
 double PathHandler::getMaxCostmapDist()
 {
   const auto & costmap = costmap_->getCostmap();
-  return std::max(costmap->getSizeInCellsX(), costmap->getSizeInCellsY()) *
-         costmap->getResolution() / 2.0;
+  return static_cast<double>(std::max(costmap->getSizeInCellsX(), costmap->getSizeInCellsY())) *
+         costmap->getResolution() * 0.50;
 }
 
 void PathHandler::setPath(const nav_msgs::msg::Path & plan)
@@ -190,11 +190,11 @@ bool PathHandler::isWithinInversionTolerances(const geometry_msgs::msg::PoseStam
 {
   // Keep full path if we are within tolerance of the inversion pose
   const auto last_pose = global_plan_up_to_inversion_.poses.back();
-  double distance = std::hypot(
+  float distance = hypotf(
     robot_pose.pose.position.x - last_pose.pose.position.x,
     robot_pose.pose.position.y - last_pose.pose.position.y);
 
-  double angle_distance = angles::shortest_angular_distance(
+  float angle_distance = angles::shortest_angular_distance(
     tf2::getYaw(robot_pose.pose.orientation),
     tf2::getYaw(last_pose.pose.orientation));
 

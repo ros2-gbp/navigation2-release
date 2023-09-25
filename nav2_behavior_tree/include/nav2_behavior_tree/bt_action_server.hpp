@@ -189,13 +189,6 @@ protected:
    */
   void executeCallback();
 
-  /**
-   * @brief updates the action server result to the highest priority error code posted on the
-   * blackboard
-   * @param result the action server result to be updated
-   */
-  void populateErrorCode(typename std::shared_ptr<typename ActionT::Result> result);
-
   // Action name
   std::string action_name_;
 
@@ -217,9 +210,6 @@ protected:
 
   // Libraries to pull plugins (BT Nodes) from
   std::vector<std::string> plugin_lib_names_;
-
-  // Error code id names
-  std::vector<std::string> error_code_names_;
 
   // A regular, non-spinning ROS node that we can use for calls to the action client
   rclcpp::Node::SharedPtr client_node_;

@@ -29,7 +29,6 @@
 #include "builtin_interfaces/msg/time.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_core/controller_exceptions.hpp"
 
 #include "nav2_mppi_controller/tools/parameters_handler.hpp"
 
@@ -151,8 +150,8 @@ protected:
   double max_robot_pose_search_dist_{0};
   double prune_distance_{0};
   double transform_tolerance_{0};
-  double inversion_xy_tolerance_{0.2};
-  double inversion_yaw_tolerance{0.4};
+  float inversion_xy_tolerance_{0.2};
+  float inversion_yaw_tolerance{0.4};
   bool enforce_path_inversion_{false};
   unsigned int inversion_locale_{0u};
 };
