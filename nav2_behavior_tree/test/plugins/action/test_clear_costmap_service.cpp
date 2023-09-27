@@ -20,7 +20,7 @@
 
 #include "behaviortree_cpp_v3/bt_factory.h"
 
-#include "utils/test_service.hpp"
+#include "../../test_service.hpp"
 #include "nav2_behavior_tree/plugins/action/clear_costmap_service.hpp"
 
 class ClearEntireCostmapService : public TestService<nav2_msgs::srv::ClearEntireCostmap>
