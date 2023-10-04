@@ -1,0 +1,12 @@
+Source: ros-iron-nav2-controller
+Section: misc
+Priority: optional
+Maintainer: Carl Delsey <carl.r.delsey@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-iron-ament-cmake, ros-iron-ament-cmake-gtest <!nocheck>, ros-iron-ament-cmake-pytest <!nocheck>, ros-iron-ament-lint-auto <!nocheck>, ros-iron-ament-lint-common <!nocheck>, ros-iron-angles, ros-iron-nav-2d-msgs, ros-iron-nav-2d-utils, ros-iron-nav2-common, ros-iron-nav2-core, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-pluginlib, ros-iron-rclcpp, ros-iron-rclcpp-action, ros-iron-std-msgs, ros-iron-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-iron-nav2-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-iron-angles, ros-iron-nav-2d-msgs, ros-iron-nav-2d-utils, ros-iron-nav2-core, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-pluginlib, ros-iron-rclcpp, ros-iron-rclcpp-action, ros-iron-std-msgs, ros-iron-ros-workspace
+Description: Controller action interface
