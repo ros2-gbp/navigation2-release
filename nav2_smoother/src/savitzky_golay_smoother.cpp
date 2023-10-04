@@ -15,7 +15,6 @@
 #include <vector>
 #include <memory>
 #include "nav2_smoother/savitzky_golay_smoother.hpp"
-#include "nav2_core/smoother_exceptions.hpp"
 
 namespace nav2_smoother
 {
@@ -72,7 +71,7 @@ bool SavitzkyGolaySmoother::smooth(
         RCLCPP_WARN(
           logger_,
           "Smoothing time exceeded allowed duration of %0.2f.", max_time.seconds());
-        throw nav2_core::SmootherTimedOut("Smoothing time exceed allowed duration");
+        return false;
       }
 
       // Smooth path segment

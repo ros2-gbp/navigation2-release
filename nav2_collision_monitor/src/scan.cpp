@@ -17,8 +17,6 @@
 #include <cmath>
 #include <functional>
 
-#include "nav2_util/robot_utils.hpp"
-
 namespace nav2_collision_monitor
 {
 

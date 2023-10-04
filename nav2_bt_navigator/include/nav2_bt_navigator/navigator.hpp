@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2023 Samsung Research America
+// Copyright (c) 2021 Samsung Research America
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_CORE__BEHAVIOR_TREE_NAVIGATOR_HPP_
-#define NAV2_CORE__BEHAVIOR_TREE_NAVIGATOR_HPP_
+#ifndef NAV2_BT_NAVIGATOR__NAVIGATOR_HPP_
+#define NAV2_BT_NAVIGATOR__NAVIGATOR_HPP_
 
 #include <memory>
 #include <string>
@@ -27,7 +27,7 @@
 #include "pluginlib/class_loader.hpp"
 #include "nav2_behavior_tree/bt_action_server.hpp"
 
-namespace nav2_core
+namespace nav2_bt_navigator
 {
 
 /**
@@ -107,65 +107,19 @@ protected:
 };
 
 /**
- * @class NavigatorBase
- * @brief Navigator interface to allow navigators to be stored in a vector and
- * accessed via pluginlib due to templates. These functions will be implemented
- * by BehaviorTreeNavigator, not the user. The user should implement the virtual
- * methods from BehaviorTreeNavigator to implement their navigator action.
- */
-class NavigatorBase
-{
-public:
-  NavigatorBase() = default;
-  virtual ~NavigatorBase() = default;
-
-  /**
-   * @brief Configuration of the navigator's backend BT and actions
-   * @return bool If successful
-   */
-  virtual bool on_configure(
-    rclcpp_lifecycle::LifecycleNode::WeakPtr parent_node,
-    const std::vector<std::string> & plugin_lib_names,
-    const FeedbackUtils & feedback_utils,
-    nav2_core::NavigatorMuxer * plugin_muxer,
-    std::shared_ptr<nav2_util::OdomSmoother> odom_smoother) = 0;
-
-  /**
-   * @brief Activation of the navigator's backend BT and actions
-   * @return bool If successful
-   */
-  virtual bool on_activate() = 0;
-
-  /**
-   * @brief Deactivation of the navigator's backend BT and actions
-   * @return bool If successful
-   */
-  virtual bool on_deactivate() = 0;
-
-  /**
-   * @brief Cleanup a navigator
-   * @return bool If successful
-   */
-  virtual bool on_cleanup() = 0;
-};
-
-/**
- * @class BehaviorTreeNavigator
+ * @class Navigator
  * @brief Navigator interface that acts as a base class for all BT-based Navigator action's plugins
- * All methods from NavigatorBase are marked as final so they may not be overrided by derived
- * methods - instead, users should use the appropriate APIs provided after BT Action handling.
  */
 template<class ActionT>
-class BehaviorTreeNavigator : public NavigatorBase
+class Navigator
 {
 public:
-  using Ptr = std::shared_ptr<nav2_core::BehaviorTreeNavigator<ActionT>>;
+  using Ptr = std::shared_ptr<nav2_bt_navigator::Navigator<ActionT>>;
 
   /**
    * @brief A Navigator constructor
    */
-  BehaviorTreeNavigator()
-  : NavigatorBase()
+  Navigator()
   {
     plugin_muxer_ = nullptr;
   }
@@ -173,7 +127,7 @@ public:
   /**
    * @brief Virtual destructor
    */
-  virtual ~BehaviorTreeNavigator() = default;
+  virtual ~Navigator() = default;
 
   /**
    * @brief Configuration to setup the navigator's backend BT and actions
@@ -189,8 +143,8 @@ public:
     rclcpp_lifecycle::LifecycleNode::WeakPtr parent_node,
     const std::vector<std::string> & plugin_lib_names,
     const FeedbackUtils & feedback_utils,
-    nav2_core::NavigatorMuxer * plugin_muxer,
-    std::shared_ptr<nav2_util::OdomSmoother> odom_smoother) final
+    nav2_bt_navigator::NavigatorMuxer * plugin_muxer,
+    std::shared_ptr<nav2_util::OdomSmoother> odom_smoother)
   {
     auto node = parent_node.lock();
     logger_ = node->get_logger();
@@ -207,12 +161,10 @@ public:
       getName(),
       plugin_lib_names,
       default_bt_xml_filename,
-      std::bind(&BehaviorTreeNavigator::onGoalReceived, this, std::placeholders::_1),
-      std::bind(&BehaviorTreeNavigator::onLoop, this),
-      std::bind(&BehaviorTreeNavigator::onPreempt, this, std::placeholders::_1),
-      std::bind(
-        &BehaviorTreeNavigator::onCompletion, this,
-        std::placeholders::_1, std::placeholders::_2));
+      std::bind(&Navigator::onGoalReceived, this, std::placeholders::_1),
+      std::bind(&Navigator::onLoop, this),
+      std::bind(&Navigator::onPreempt, this, std::placeholders::_1),
+      std::bind(&Navigator::onCompletion, this, std::placeholders::_1, std::placeholders::_2));
 
     bool ok = true;
     if (!bt_action_server_->on_configure()) {
@@ -232,7 +184,7 @@ public:
    * @brief Activation of the navigator's backend BT and actions
    * @return bool If successful
    */
-  bool on_activate() final
+  bool on_activate()
   {
     bool ok = true;
 
@@ -247,7 +199,7 @@ public:
    * @brief Deactivation of the navigator's backend BT and actions
    * @return bool If successful
    */
-  bool on_deactivate() final
+  bool on_deactivate()
   {
     bool ok = true;
     if (!bt_action_server_->on_deactivate()) {
@@ -261,7 +213,7 @@ public:
    * @brief Cleanup a navigator
    * @return bool If successful
    */
-  bool on_cleanup() final
+  bool on_cleanup()
   {
     bool ok = true;
     if (!bt_action_server_->on_cleanup()) {
@@ -273,13 +225,22 @@ public:
     return cleanup() && ok;
   }
 
-  virtual std::string getDefaultBTFilepath(rclcpp_lifecycle::LifecycleNode::WeakPtr node) = 0;
-
   /**
    * @brief Get the action name of this navigator to expose
    * @return string Name of action to expose
    */
   virtual std::string getName() = 0;
+
+  virtual std::string getDefaultBTFilepath(rclcpp_lifecycle::LifecycleNode::WeakPtr node) = 0;
+
+  /**
+   * @brief Get the action server
+   * @return Action server pointer
+   */
+  std::unique_ptr<nav2_behavior_tree::BtActionServer<ActionT>> & getActionServer()
+  {
+    return bt_action_server_;
+  }
 
 protected:
   /**
@@ -373,6 +334,6 @@ protected:
   NavigatorMuxer * plugin_muxer_;
 };
 
-}  // namespace nav2_core
+}  // namespace nav2_bt_navigator
 
-#endif  // NAV2_CORE__BEHAVIOR_TREE_NAVIGATOR_HPP_
+#endif  // NAV2_BT_NAVIGATOR__NAVIGATOR_HPP_
