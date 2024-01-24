@@ -28,9 +28,7 @@ namespace nav2_behaviors
 class BackUp : public DriveOnHeading<nav2_msgs::action::BackUp>
 {
 public:
-  using BackUpActionGoal = BackUpAction::Goal;
-
-  ResultStatus onRun(const std::shared_ptr<const BackUpActionGoal> command) override;
+  Status onRun(const std::shared_ptr<const BackUpAction::Goal> command) override;
 };
 }
 

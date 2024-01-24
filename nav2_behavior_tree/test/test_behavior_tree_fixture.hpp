@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef UTILS__TEST_BEHAVIOR_TREE_FIXTURE_HPP_
-#define UTILS__TEST_BEHAVIOR_TREE_FIXTURE_HPP_
+#ifndef TEST_BEHAVIOR_TREE_FIXTURE_HPP_
+#define TEST_BEHAVIOR_TREE_FIXTURE_HPP_
 
 #include <gtest/gtest.h>
 #include <memory>
@@ -90,4 +90,4 @@ BT::NodeConfiguration * nav2_behavior_tree::BehaviorTreeTestFixture::config_ = n
 std::shared_ptr<BT::BehaviorTreeFactory>
 nav2_behavior_tree::BehaviorTreeTestFixture::factory_ = nullptr;
 
-#endif  // UTILS__TEST_BEHAVIOR_TREE_FIXTURE_HPP_
+#endif  // TEST_BEHAVIOR_TREE_FIXTURE_HPP_

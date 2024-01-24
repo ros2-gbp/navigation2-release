@@ -1,5 +1,4 @@
 // Copyright (c) 2022 Samsung Research America, @artofnothingness Alexey Budyakov
-// Copyright (c) 2023 Open Navigation LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,26 +40,12 @@ using namespace mppi::critics;  // NOLINT
 using namespace mppi::utils;  // NOLINT
 using xt::evaluation_strategy::immediate;
 
-class PathAngleCriticWrapper : public PathAngleCritic
-{
-public:
-  PathAngleCriticWrapper()
-  : PathAngleCritic()
-  {
-  }
-
-  void setMode(int mode)
-  {
-    mode_ = static_cast<PathAngleMode>(mode);
-  }
-};
-
 TEST(CriticTests, ConstraintsCritic)
 {
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -132,7 +117,7 @@ TEST(CriticTests, GoalAngleCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -184,7 +169,7 @@ TEST(CriticTests, GoalCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -233,7 +218,7 @@ TEST(CriticTests, PathAngleCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -255,7 +240,7 @@ TEST(CriticTests, PathAngleCritic)
   // Initialization testing
 
   // Make sure initializes correctly
-  PathAngleCriticWrapper critic;
+  PathAngleCritic critic;
   critic.on_configure(node, "mppi", "critic", costmap_ros, &param_handler);
   EXPECT_EQ(critic.getName(), "critic");
 
@@ -283,64 +268,6 @@ TEST(CriticTests, PathAngleCritic)
   critic.score(data);
   EXPECT_GT(xt::sum(costs, immediate)(), 0.0);
   EXPECT_NEAR(costs(0), 3.6315, 1e-2);  // atan2(4,-1) [1.81] * 2.0 weight
-
-  // Set mode to no directional preferences + reset costs
-  critic.setMode(1);
-  costs = xt::zeros<float>({1000});
-
-  // provide state pose and path close but outside of tol. with more than PI/2 angular diff.
-  path.x(6) = 1.0;  // angle between path point and pose < max_angle_to_furthest_
-  path.y(6) = 0.0;
-  critic.score(data);
-  EXPECT_NEAR(xt::sum(costs, immediate)(), 0.0, 1e-6);
-
-  // provide state pose and path close but outside of tol. with more than PI/2 angular diff.
-  path.x(6) = -1.0;  // angle between path pt and pose < max_angle_to_furthest_ IF non-directional
-  path.y(6) = 0.0;
-  critic.score(data);
-  EXPECT_NEAR(xt::sum(costs, immediate)(), 0.0, 1e-6);
-
-  // provide state pose and path close but outside of tol. with more than PI/2 angular diff.
-  path.x(6) = -1.0;  // angle between path point and pose < max_angle_to_furthest_
-  path.y(6) = 4.0;
-  critic.score(data);
-  EXPECT_GT(xt::sum(costs, immediate)(), 0.0);
-  // should use reverse orientation as the closer angle in no dir preference mode
-  EXPECT_NEAR(costs(0), 2.6516, 1e-2);
-
-  // Set mode to consider path directionality + reset costs
-  critic.setMode(2);
-  costs = xt::zeros<float>({1000});
-
-  // provide state pose and path close but outside of tol. with more than PI/2 angular diff.
-  path.x(6) = 1.0;  // angle between path point and pose < max_angle_to_furthest_
-  path.y(6) = 0.0;
-  critic.score(data);
-  EXPECT_NEAR(xt::sum(costs, immediate)(), 0.0, 1e-6);
-
-  // provide state pose and path close but outside of tol. with more than PI/2 angular diff.
-  path.x(6) = -1.0;  // angle between path pt and pose < max_angle_to_furthest_ IF non-directional
-  path.y(6) = 0.0;
-  critic.score(data);
-  EXPECT_NEAR(xt::sum(costs, immediate)(), 0.0, 1e-6);
-
-  // provide state pose and path close but outside of tol. with more than PI/2 angular diff.
-  path.x(6) = -1.0;  // angle between path point and pose < max_angle_to_furthest_
-  path.y(6) = 4.0;
-  critic.score(data);
-  EXPECT_GT(xt::sum(costs, immediate)(), 0.0);
-  // should use reverse orientation as the closer angle in no dir preference mode
-  EXPECT_NEAR(costs(0), 2.6516, 1e-2);
-
-  PathAngleMode mode;
-  mode = PathAngleMode::FORWARD_PREFERENCE;
-  EXPECT_EQ(modeToStr(mode), std::string("Forward Preference"));
-  mode = PathAngleMode::CONSIDER_FEASIBLE_PATH_ORIENTATIONS;
-  EXPECT_EQ(modeToStr(mode), std::string("Consider Feasible Path Orientations"));
-  mode = PathAngleMode::NO_DIRECTIONAL_PREFERENCE;
-  EXPECT_EQ(modeToStr(mode), std::string("No Directional Preference"));
-  mode = static_cast<PathAngleMode>(4);
-  EXPECT_EQ(modeToStr(mode), std::string("Invalid mode!"));
 }
 
 TEST(CriticTests, PreferForwardCritic)
@@ -348,7 +275,7 @@ TEST(CriticTests, PreferForwardCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -401,7 +328,7 @@ TEST(CriticTests, TwirlingCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -461,7 +388,7 @@ TEST(CriticTests, PathFollowCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -509,7 +436,7 @@ TEST(CriticTests, PathAlignCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -613,7 +540,7 @@ TEST(CriticTests, PathAlignLegacyCritic)
   // Standard preamble
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);

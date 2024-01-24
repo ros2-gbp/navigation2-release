@@ -207,12 +207,12 @@ bool AStarAlgorithm<NodeT>::areInputsValid()
   if (getToleranceHeuristic() < 0.001 &&
     !_goal->isNodeValid(_traverse_unknown, _collision_checker))
   {
-    throw nav2_core::GoalOccupied("Goal was in lethal cost");
+    throw std::runtime_error("Failed to compute path, goal is occupied with no tolerance.");
   }
 
   // Check if starting point is valid
   if (!_start->isNodeValid(_traverse_unknown, _collision_checker)) {
-    throw nav2_core::StartOccupied("Start was in lethal cost");
+    throw std::runtime_error("Starting point in lethal space! Cannot create feasible plan.");
   }
 
   return true;
@@ -221,8 +221,7 @@ bool AStarAlgorithm<NodeT>::areInputsValid()
 template<typename NodeT>
 bool AStarAlgorithm<NodeT>::createPath(
   CoordinateVector & path, int & iterations,
-  const float & tolerance,
-  std::vector<std::tuple<float, float>> * expansions_log)
+  const float & tolerance)
 {
   steady_clock::time_point start_time = steady_clock::now();
   _tolerance = tolerance;
@@ -273,17 +272,6 @@ bool AStarAlgorithm<NodeT>::createPath(
 
     // 1) Pick Nbest from O s.t. min(f(Nbest)), remove from queue
     current_node = getNextNode();
-
-    // Save current node coordinates for debug
-    if (expansions_log) {
-      Coordinates coords = current_node->getCoords(
-        current_node->getIndex(), getSizeX(), getSizeDim3());
-      expansions_log->push_back(
-        std::make_tuple<float, float>(
-          _costmap->getOriginX() + (coords.x * _costmap->getResolution()),
-          _costmap->getOriginY() + (coords.y * _costmap->getResolution()))
-      );
-    }
 
     // We allow for nodes to be queued multiple times in case
     // shorter paths result in it, but we can visit only once
