@@ -157,6 +157,9 @@ geometry_msgs::msg::TwistStamped RegulatedPurePursuitController::computeVelocity
 {
   std::lock_guard<std::mutex> lock_reinit(param_handler_->getMutex());
 
+  nav2_costmap_2d::Costmap2D * costmap = costmap_ros_->getCostmap();
+  std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap->getMutex()));
+
   // Update for the current goal checker's state
   geometry_msgs::msg::Pose pose_tolerance;
   geometry_msgs::msg::Twist vel_tolerance;
@@ -416,9 +419,26 @@ double RegulatedPurePursuitController::findVelocitySignChange(
     /* Checking for the existance of cusp, in the path, using the dot product
     and determine it's distance from the robot. If there is no cusp in the path,
     then just determine the distance to the goal location. */
-    if ( (oa_x * ab_x) + (oa_y * ab_y) < 0.0) {
+    const double dot_prod = (oa_x * ab_x) + (oa_y * ab_y);
+    if (dot_prod < 0.0) {
       // returning the distance if there is a cusp
       // The transformed path is in the robots frame, so robot is at the origin
+      return hypot(
+        transformed_plan.poses[pose_id].pose.position.x,
+        transformed_plan.poses[pose_id].pose.position.y);
+    }
+
+    if (
+      (hypot(oa_x, oa_y) == 0.0 &&
+      transformed_plan.poses[pose_id - 1].pose.orientation !=
+      transformed_plan.poses[pose_id].pose.orientation)
+      ||
+      (hypot(ab_x, ab_y) == 0.0 &&
+      transformed_plan.poses[pose_id].pose.orientation !=
+      transformed_plan.poses[pose_id + 1].pose.orientation))
+    {
+      // returning the distance since the points overlap
+      // but are not simply duplicate points (e.g. in place rotation)
       return hypot(
         transformed_plan.poses[pose_id].pose.position.x,
         transformed_plan.poses[pose_id].pose.position.y);
