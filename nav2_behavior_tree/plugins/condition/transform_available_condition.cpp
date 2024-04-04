@@ -39,7 +39,7 @@ TransformAvailableCondition::TransformAvailableCondition(
     RCLCPP_FATAL(
       node_->get_logger(), "Child frame (%s) or parent frame (%s) were empty.",
       child_frame_.c_str(), parent_frame_.c_str());
-    throw std::runtime_error("TransformAvailableCondition: Child or parent frames not provided!");
+    exit(-1);
   }
 
   RCLCPP_DEBUG(node_->get_logger(), "Initialized an TransformAvailableCondition BT node");

@@ -55,7 +55,6 @@ void CostmapLayer::touch(
 
 void CostmapLayer::matchSize()
 {
-  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
   Costmap2D * master = layered_costmap_->getCostmap();
   resizeMap(
     master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(),

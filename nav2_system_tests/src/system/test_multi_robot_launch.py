@@ -24,7 +24,7 @@ from launch.actions import (ExecuteProcess, GroupAction,
                             IncludeLaunchDescription, SetEnvironmentVariable)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import TextSubstitution
-from launch_ros.actions import Node, PushROSNamespace
+from launch_ros.actions import Node, PushRosNamespace
 
 from launch_testing.legacy import LaunchTestService
 
@@ -95,7 +95,7 @@ def generate_launch_description():
 
         group = GroupAction([
             # Instances use the robot's name for namespace
-            PushROSNamespace(robot['name']),
+            PushRosNamespace(robot['name']),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
                     os.path.join(bringup_dir, 'launch', 'bringup_launch.py')),
@@ -106,7 +106,6 @@ def generate_launch_description():
                                   'params_file': params_file,
                                   'bt_xml_file': bt_xml_file,
                                   'autostart': 'True',
-                                  'use_composition': 'False',
                                   'use_remappings': 'True'}.items())
         ])
         nav_instances_cmds.append(group)

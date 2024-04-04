@@ -36,10 +36,9 @@ def getPlannerResults(navigator, initial_pose, goal_pose, planners):
     results = []
     for planner in planners:
         path = navigator._getPathImpl(initial_pose, goal_pose, planner, use_start=True)
-        if path is not None and path.error_code == 0:
+        if path is not None:
             results.append(path)
         else:
-            print(planner, "planner failed to produce the path")
             return results
     return results
 

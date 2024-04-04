@@ -19,7 +19,6 @@
 #include <functional>
 
 #include "nav2_util/node_utils.hpp"
-#include "nav2_util/robot_utils.hpp"
 
 namespace nav2_collision_monitor
 {
@@ -49,7 +48,6 @@ Range::~Range()
 
 void Range::configure()
 {
-  Source::configure();
   auto node = node_.lock();
   if (!node) {
     throw std::runtime_error{"Failed to lock node"};

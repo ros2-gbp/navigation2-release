@@ -33,11 +33,7 @@ from transforms3d.euler import euler2quat
 # Note: Map origin is assumed to be (0,0)
 
 def getPlannerResults(navigator, initial_pose, goal_pose, planner):
-    result = navigator._getPathImpl(initial_pose, goal_pose, planner, use_start=True)
-    if result is None or result.error_code != 0:
-        print(planner, "planner failed to produce the path")
-        return None
-    return result
+    return navigator._getPathImpl(initial_pose, goal_pose, planner, use_start=True)
 
 def getSmootherResults(navigator, path, smoothers):
     smoothed_results = []
@@ -46,7 +42,7 @@ def getSmootherResults(navigator, path, smoothers):
         if smoothed_result is not None:
             smoothed_results.append(smoothed_result)
         else:
-            print(smoother, "failed to smooth the path")
+            print(smoother, " failed to smooth the path")
             return None
     return smoothed_results
 
@@ -115,7 +111,7 @@ def main():
     costmap.resize(costmap_msg.metadata.size_y, costmap_msg.metadata.size_x)
 
     planner = 'SmacHybrid'
-    smoothers = ['simple_smoother', 'constrained_smoother', 'sg_smoother']
+    smoothers = ['simple_smoother', 'constrained_smoother']
     max_cost = 210
     side_buffer = 10
     time_stamp = navigator.get_clock().now().to_msg()
@@ -138,6 +134,8 @@ def main():
               results.append(result)
               results.append(smoothed_results)
               i += 1
+        else:
+            print(planner, " planner failed to produce the path")
 
     print("Write Results...")
     benchmark_dir = os.getcwd()
