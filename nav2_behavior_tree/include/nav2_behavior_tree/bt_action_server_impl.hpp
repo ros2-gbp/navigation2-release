@@ -21,6 +21,7 @@
 #include <set>
 #include <exception>
 #include <vector>
+#include <limits>
 
 #include "nav2_msgs/action/navigate_to_pose.hpp"
 #include "nav2_behavior_tree/bt_action_server.hpp"
@@ -60,6 +61,43 @@ BtActionServer<ActionT>::BtActionServer(
   if (!node->has_parameter("default_server_timeout")) {
     node->declare_parameter("default_server_timeout", 20);
   }
+  if (!node->has_parameter("action_server_result_timeout")) {
+    node->declare_parameter("action_server_result_timeout", 900.0);
+  }
+  if (!node->has_parameter("wait_for_service_timeout")) {
+    node->declare_parameter("wait_for_service_timeout", 1000);
+  }
+
+  std::vector<std::string> error_code_names = {
+    "follow_path_error_code",
+    "compute_path_error_code"
+  };
+
+  if (!node->has_parameter("error_code_names")) {
+    const rclcpp::ParameterValue value = node->declare_parameter(
+      "error_code_names",
+      rclcpp::PARAMETER_STRING_ARRAY);
+    if (value.get_type() == rclcpp::PARAMETER_NOT_SET) {
+      std::string error_codes_str;
+      for (const auto & error_code : error_code_names) {
+        error_codes_str += " " + error_code;
+      }
+      RCLCPP_WARN_STREAM(
+        logger_, "Error_code parameters were not set. Using default values of:"
+          << error_codes_str + "\n"
+          << "Make sure these match your BT and there are not other sources of error codes you"
+          "reported to your application");
+      rclcpp::Parameter error_code_names_param("error_code_names", error_code_names);
+      node->set_parameter(error_code_names_param);
+    } else {
+      error_code_names = value.get<std::vector<std::string>>();
+      std::string error_codes_str;
+      for (const auto & error_code : error_code_names) {
+        error_codes_str += " " + error_code;
+      }
+      RCLCPP_INFO_STREAM(logger_, "Error_code parameters were set to:" << error_codes_str);
+    }
+  }
 }
 
 template<class ActionT>
@@ -83,6 +121,9 @@ bool BtActionServer<ActionT>::on_configure()
       "-r",
       std::string("__node:=") +
       std::string(node->get_name()) + "_" + client_node_name + "_rclcpp_node",
+      "-p",
+      "use_sim_time:=" +
+      std::string(node->get_parameter("use_sim_time").as_bool() ? "true" : "false"),
       "--"});
 
   // Support for handling the topic-based goal pose from rviz
@@ -99,19 +140,30 @@ bool BtActionServer<ActionT>::on_configure()
     node, "transform_tolerance", rclcpp::ParameterValue(0.1));
   nav2_util::copy_all_parameters(node, client_node_);
 
+  // set the timeout in seconds for the action server to discard goal handles if not finished
+  double action_server_result_timeout;
+  node->get_parameter("action_server_result_timeout", action_server_result_timeout);
+  rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
+  server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
+
   action_server_ = std::make_shared<ActionServer>(
     node->get_node_base_interface(),
     node->get_node_clock_interface(),
     node->get_node_logging_interface(),
     node->get_node_waitables_interface(),
-    action_name_, std::bind(&BtActionServer<ActionT>::executeCallback, this));
+    action_name_, std::bind(&BtActionServer<ActionT>::executeCallback, this),
+    nullptr, std::chrono::milliseconds(500), false, server_options);
 
   // Get parameters for BT timeouts
-  int timeout;
-  node->get_parameter("bt_loop_duration", timeout);
-  bt_loop_duration_ = std::chrono::milliseconds(timeout);
-  node->get_parameter("default_server_timeout", timeout);
-  default_server_timeout_ = std::chrono::milliseconds(timeout);
+  int bt_loop_duration;
+  node->get_parameter("bt_loop_duration", bt_loop_duration);
+  bt_loop_duration_ = std::chrono::milliseconds(bt_loop_duration);
+  int default_server_timeout;
+  node->get_parameter("default_server_timeout", default_server_timeout);
+  default_server_timeout_ = std::chrono::milliseconds(default_server_timeout);
+
+  // Get error code id names to grab off of the blackboard
+  error_code_names_ = node->get_parameter("error_code_names").as_string_array();
 
   // Create the class that registers our custom nodes and executes the BT
   bt_ = std::make_unique<nav2_behavior_tree::BehaviorTreeEngine>(plugin_lib_names_);
@@ -179,13 +231,9 @@ bool BtActionServer<ActionT>::loadBehaviorTree(const std::string & bt_xml_filena
     return false;
   }
 
-  auto xml_string = std::string(
-    std::istreambuf_iterator<char>(xml_file),
-    std::istreambuf_iterator<char>());
-
   // Create the Behavior Tree from the XML input
   try {
-    tree_ = bt_->createTreeFromText(xml_string, blackboard_);
+    tree_ = bt_->createTreeFromFile(filename, blackboard_);
     for (auto & blackboard : tree_.blackboard_stack) {
       blackboard->set<rclcpp::Node::SharedPtr>("node", client_node_);
       blackboard->set<std::chrono::milliseconds>("server_timeout", default_server_timeout_);
@@ -207,6 +255,7 @@ void BtActionServer<ActionT>::executeCallback()
 {
   if (!on_goal_received_callback_(action_server_->get_current_goal())) {
     action_server_->terminate_current();
+    cleanErrorCodes();
     return;
   }
 
@@ -240,6 +289,9 @@ void BtActionServer<ActionT>::executeCallback()
   // Give server an opportunity to populate the result message or simple give
   // an indication that the action is complete.
   auto result = std::make_shared<typename ActionT::Result>();
+
+  populateErrorCode(result);
+
   on_completion_callback_(result, rc);
 
   switch (rc) {
@@ -257,6 +309,40 @@ void BtActionServer<ActionT>::executeCallback()
       RCLCPP_INFO(logger_, "Goal canceled");
       action_server_->terminate_all(result);
       break;
+  }
+
+  cleanErrorCodes();
+}
+
+template<class ActionT>
+void BtActionServer<ActionT>::populateErrorCode(
+  typename std::shared_ptr<typename ActionT::Result> result)
+{
+  int highest_priority_error_code = std::numeric_limits<int>::max();
+  for (const auto & error_code : error_code_names_) {
+    try {
+      int current_error_code = blackboard_->get<int>(error_code);
+      if (current_error_code != 0 && current_error_code < highest_priority_error_code) {
+        highest_priority_error_code = current_error_code;
+      }
+    } catch (...) {
+      RCLCPP_DEBUG(
+        logger_,
+        "Failed to get error code: %s from blackboard",
+        error_code.c_str());
+    }
+  }
+
+  if (highest_priority_error_code != std::numeric_limits<int>::max()) {
+    result->error_code = highest_priority_error_code;
+  }
+}
+
+template<class ActionT>
+void BtActionServer<ActionT>::cleanErrorCodes()
+{
+  for (const auto & error_code : error_code_names_) {
+    blackboard_->set<unsigned short>(error_code, 0);  //NOLINT
   }
 }
 

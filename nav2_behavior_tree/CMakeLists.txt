@@ -135,6 +135,18 @@ list(APPEND plugin_libs nav2_is_battery_charging_condition_bt_node)
 add_library(nav2_is_battery_low_condition_bt_node SHARED plugins/condition/is_battery_low_condition.cpp)
 list(APPEND plugin_libs nav2_is_battery_low_condition_bt_node)
 
+add_library(nav2_are_error_codes_active_condition_bt_node SHARED plugins/condition/are_error_codes_present_condition.cpp)
+list(APPEND plugin_libs nav2_are_error_codes_active_condition_bt_node)
+
+add_library(nav2_would_a_controller_recovery_help_condition_bt_node SHARED plugins/condition/would_a_controller_recovery_help_condition.cpp)
+list(APPEND plugin_libs nav2_would_a_controller_recovery_help_condition_bt_node)
+
+add_library(nav2_would_a_planner_recovery_help_condition_bt_node SHARED plugins/condition/would_a_planner_recovery_help_condition.cpp)
+list(APPEND plugin_libs nav2_would_a_planner_recovery_help_condition_bt_node)
+
+add_library(nav2_would_a_smoother_recovery_help_condition_bt_node SHARED plugins/condition/would_a_smoother_recovery_help_condition.cpp)
+list(APPEND plugin_libs nav2_would_a_smoother_recovery_help_condition_bt_node)
+
 add_library(nav2_reinitialize_global_localization_service_bt_node SHARED plugins/action/reinitialize_global_localization_service.cpp)
 list(APPEND plugin_libs nav2_reinitialize_global_localization_service_bt_node)
 
@@ -192,6 +204,9 @@ list(APPEND plugin_libs nav2_smoother_selector_bt_node)
 add_library(nav2_goal_checker_selector_bt_node SHARED plugins/action/goal_checker_selector_node.cpp)
 list(APPEND plugin_libs nav2_goal_checker_selector_bt_node)
 
+add_library(nav2_progress_checker_selector_bt_node SHARED plugins/action/progress_checker_selector_node.cpp)
+list(APPEND plugin_libs nav2_progress_checker_selector_bt_node)
+
 add_library(nav2_goal_updated_controller_bt_node SHARED plugins/decorator/goal_updated_controller.cpp)
 list(APPEND plugin_libs nav2_goal_updated_controller_bt_node)
 
@@ -209,6 +224,10 @@ install(TARGETS ${library_name}
 
 install(DIRECTORY include/
   DESTINATION include/
+)
+
+install(DIRECTORY test/utils/
+        DESTINATION include/${PROJECT_NAME}/utils/
 )
 
 install(FILES nav2_tree_nodes.xml DESTINATION share/${PROJECT_NAME})

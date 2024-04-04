@@ -95,7 +95,7 @@ public:
     RCLCPP_DEBUG(node_->get_logger(), "Waiting for \"%s\" action server", action_name.c_str());
     if (!action_client_->wait_for_action_server(1s)) {
       RCLCPP_ERROR(
-        node_->get_logger(), "\"%s\" action server not available after waiting for 1 s",
+        node_->get_logger(), "\"%s\" action server not available after waiting for 1s",
         action_name.c_str());
       throw std::runtime_error(
               std::string("Action server ") + action_name +
@@ -231,7 +231,8 @@ public:
         feedback_.reset();
 
         auto goal_status = goal_handle_->get_status();
-        if (goal_updated_ && (goal_status == action_msgs::msg::GoalStatus::STATUS_EXECUTING ||
+        if (goal_updated_ &&
+          (goal_status == action_msgs::msg::GoalStatus::STATUS_EXECUTING ||
           goal_status == action_msgs::msg::GoalStatus::STATUS_ACCEPTED))
         {
           goal_updated_ = false;
@@ -463,7 +464,7 @@ protected:
   std::shared_ptr<std::shared_future<typename rclcpp_action::ClientGoalHandle<ActionT>::SharedPtr>>
   future_goal_handle_;
   rclcpp::Time time_goal_sent_;
-  
+
   // Can be set in on_tick or on_wait_for_result to indicate if a goal should be sent.
   bool should_send_goal_;
 };

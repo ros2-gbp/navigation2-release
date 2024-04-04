@@ -314,6 +314,7 @@ inline size_t findPathFurthestReachedPoint(const CriticData & data)
 
   for (size_t i = 0; i < dists.shape(0); i++) {
     min_id_by_path = 0;
+    min_distance_by_path = std::numeric_limits<float>::max();
     for (size_t j = 0; j < dists.shape(1); j++) {
       cur_dist = dists(i, j);
       if (cur_dist < min_distance_by_path) {
@@ -436,6 +437,31 @@ inline float posePointAngle(
     return std::min(
       fabs(angles::shortest_angular_distance(yaw, pose_yaw)),
       fabs(angles::shortest_angular_distance(yaw, angles::normalize_angle(pose_yaw + M_PI))));
+  }
+
+  return fabs(angles::shortest_angular_distance(yaw, pose_yaw));
+}
+
+/**
+ * @brief evaluate angle from pose (have angle) to point (no angle)
+ * @param pose pose
+ * @param point_x Point to find angle relative to X axis
+ * @param point_y Point to find angle relative to Y axis
+ * @param point_yaw Yaw of the point to consider along Z axis
+ * @return Angle between two points
+ */
+inline float posePointAngle(
+  const geometry_msgs::msg::Pose & pose,
+  double point_x, double point_y, double point_yaw)
+{
+  float pose_x = pose.position.x;
+  float pose_y = pose.position.y;
+  float pose_yaw = tf2::getYaw(pose.orientation);
+
+  float yaw = atan2f(point_y - pose_y, point_x - pose_x);
+
+  if (fabs(angles::shortest_angular_distance(yaw, point_yaw)) > M_PI_2) {
+    yaw = angles::normalize_angle(yaw + M_PI);
   }
 
   return fabs(angles::shortest_angular_distance(yaw, pose_yaw));
@@ -673,7 +699,7 @@ inline unsigned int removePosesAfterFirstInversion(nav_msgs::msg::Path & path)
 inline size_t findClosestPathPt(const std::vector<float> & vec, float dist, size_t init = 0)
 {
   auto iter = std::lower_bound(vec.begin() + init, vec.end(), dist);
-  if (iter == vec.begin()) {
+  if (iter == vec.begin() + init) {
     return 0;
   }
   if (dist - *(iter - 1) < *iter - dist) {
