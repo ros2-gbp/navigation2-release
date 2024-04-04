@@ -402,14 +402,16 @@ PlannerServer::computePlanThroughPoses()
     }
 
     // Get consecutive paths through these points
-    std::vector<geometry_msgs::msg::PoseStamped>::iterator goal_iter;
     geometry_msgs::msg::PoseStamped curr_start, curr_goal;
     for (unsigned int i = 0; i != goal->goals.size(); i++) {
       // Get starting point
       if (i == 0) {
         curr_start = start;
       } else {
-        curr_start = goal->goals[i - 1];
+        // pick the end of the last planning task as the start for the next one
+        // to allow for path tolerance deviations
+        curr_start = concat_path.poses.back();
+        curr_start.header = concat_path.header;
       }
       curr_goal = goal->goals[i];
 
