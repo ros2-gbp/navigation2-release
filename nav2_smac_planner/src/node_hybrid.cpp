@@ -250,7 +250,7 @@ MotionPoses HybridMotionTable::getProjections(const NodeHybrid * node)
 
 unsigned int HybridMotionTable::getClosestAngularBin(const double & theta)
 {
-  return static_cast<unsigned int>(floor(theta / bin_size));
+  return static_cast<unsigned int>(floor(static_cast<float>(theta) / bin_size));
 }
 
 float HybridMotionTable::getAngleFromBin(const unsigned int & bin_idx)
@@ -433,7 +433,7 @@ void NodeHybrid::resetObstacleHeuristic(
 float NodeHybrid::getObstacleHeuristic(
   const Coordinates & node_coords,
   const Coordinates & goal_coords,
-  const double & cost_penalty)
+  const float & cost_penalty)
 {
   // If already expanded, return the cost
   const unsigned int size_x = sampled_costmap->getSizeInCellsX();
