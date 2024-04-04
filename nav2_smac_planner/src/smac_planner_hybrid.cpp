@@ -283,11 +283,17 @@ nav_msgs::msg::Path SmacPlannerHybrid::createPlan(
   }
 
   // Set collision checker and costmap information
+  _collision_checker.setFootprint(
+    _costmap_ros->getRobotFootprint(),
+    _costmap_ros->getUseRadius(),
+    findCircumscribedCost(_costmap_ros));
   _a_star->setCollisionChecker(&_collision_checker);
 
   // Set starting point, in A* bin search coordinates
   unsigned int mx, my;
-  costmap->worldToMap(start.pose.position.x, start.pose.position.y, mx, my);
+  if (!costmap->worldToMap(start.pose.position.x, start.pose.position.y, mx, my)) {
+    throw std::runtime_error("Start pose is out of costmap!");
+  }
   double orientation_bin = tf2::getYaw(start.pose.orientation) / _angle_bin_size;
   while (orientation_bin < 0.0) {
     orientation_bin += static_cast<float>(_angle_quantizations);
@@ -300,7 +306,9 @@ nav_msgs::msg::Path SmacPlannerHybrid::createPlan(
   _a_star->setStart(mx, my, orientation_bin_id);
 
   // Set goal point, in A* bin search coordinates
-  costmap->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my);
+  if (!costmap->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my)) {
+    throw std::runtime_error("Goal pose is out of costmap!");
+  }
   orientation_bin = tf2::getYaw(goal.pose.orientation) / _angle_bin_size;
   while (orientation_bin < 0.0) {
     orientation_bin += static_cast<float>(_angle_quantizations);
