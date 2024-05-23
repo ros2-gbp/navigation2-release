@@ -463,6 +463,7 @@ void pf_cluster_stats(pf_t * pf, pf_sample_set_t * set)
 
   // Workspace
   double m[4], c[2][2];
+  size_t count;
   double weight;
 
   // Cluster the samples
@@ -473,6 +474,7 @@ void pf_cluster_stats(pf_t * pf, pf_sample_set_t * set)
 
   for (i = 0; i < set->cluster_max_count; i++) {
     cluster = set->clusters + i;
+    cluster->count = 0;
     cluster->weight = 0;
     cluster->mean = pf_vector_zero();
     cluster->cov = pf_matrix_zero();
@@ -488,6 +490,7 @@ void pf_cluster_stats(pf_t * pf, pf_sample_set_t * set)
   }
 
   // Initialize overall filter stats
+  count = 0;
   weight = 0.0;
   set->mean = pf_vector_zero();
   set->cov = pf_matrix_zero();
@@ -518,8 +521,10 @@ void pf_cluster_stats(pf_t * pf, pf_sample_set_t * set)
 
     cluster = set->clusters + cidx;
 
+    cluster->count += 1;
     cluster->weight += sample->weight;
 
+    count += 1;
     weight += sample->weight;
 
     // Compute mean

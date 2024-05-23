@@ -203,6 +203,17 @@ TEST(UtilsTests, AnglesTests)
   EXPECT_NEAR(posePointAngle(pose, point_x, point_y, forward_preference), 0.0, 1e-6);
   forward_preference = true;
   EXPECT_NEAR(posePointAngle(pose, point_x, point_y, forward_preference), M_PI, 1e-6);
+
+  // Test point-pose angle with goal yaws
+  point_x = 1.0;
+  double point_yaw = 0.0;
+  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), 0.0, 1e-6);
+  point_yaw = M_PI;
+  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), M_PI, 1e-6);
+  point_yaw = 0.1;
+  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), 0.0, 1e-3);
+  point_yaw = 3.04159;
+  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), M_PI, 1e-3);
 }
 
 TEST(UtilsTests, FurthestAndClosestReachedPoint)
@@ -275,7 +286,7 @@ TEST(UtilsTests, findPathCosts)
     std::nullopt, std::nullopt};  /// Caution, keep references
 
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap");
+    "dummy_costmap", "", "dummy_costmap", true);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
   auto * costmap = costmap_ros->getCostmap();
@@ -356,8 +367,8 @@ TEST(UtilsTests, SmootherTest)
   EXPECT_NEAR(history[3].wz, 0.23, 0.02);
 
   // Check that path is smoother
-  float smoothed_val{0}, original_val{0};
-  for (unsigned int i = 0; i != noisey_sequence.vx.shape(0); i++) {
+  float smoothed_val, original_val;
+  for (unsigned int i = 1; i != noisey_sequence.vx.shape(0) - 1; i++) {
     smoothed_val += fabs(noisey_sequence.vx(i) - 0.2);
     smoothed_val += fabs(noisey_sequence.vy(i) - 0.0);
     smoothed_val += fabs(noisey_sequence.wz(i) - 0.3);

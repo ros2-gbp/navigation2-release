@@ -20,7 +20,6 @@
 #include <string>
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
-#include "nav2_util/robot_utils.hpp"
 
 #include "nav2_collision_monitor/source.hpp"
 
