@@ -62,14 +62,12 @@ public:
     server_timeout_ =
       config().blackboard->template get<std::chrono::milliseconds>("server_timeout");
     getInput<std::chrono::milliseconds>("server_timeout", server_timeout_);
-    wait_for_service_timeout_ =
-      config().blackboard->template get<std::chrono::milliseconds>("wait_for_service_timeout");
 
     // Now that we have node_ to use, create the service client for this BT service
     getInput("service_name", service_name_);
     service_client_ = node_->create_client<ServiceT>(
       service_name_,
-      rclcpp::SystemDefaultsQoS(),
+      rclcpp::ServicesQoS().get_rmw_qos_profile(),
       callback_group_);
 
     // Make a request for the service without parameter
@@ -79,7 +77,7 @@ public:
     RCLCPP_DEBUG(
       node_->get_logger(), "Waiting for \"%s\" service",
       service_name_.c_str());
-    if (!service_client_->wait_for_service(wait_for_service_timeout_)) {
+    if (!service_client_->wait_for_service(1s)) {
       RCLCPP_ERROR(
         node_->get_logger(), "\"%s\" service server not available after waiting for 1 s",
         service_node_name.c_str());
@@ -185,7 +183,7 @@ public:
    */
   virtual BT::NodeStatus check_future()
   {
-    auto elapsed = (node_->now() - sent_time_).to_chrono<std::chrono::milliseconds>();
+    auto elapsed = (node_->now() - sent_time_).template to_chrono<std::chrono::milliseconds>();
     auto remaining = server_timeout_ - elapsed;
 
     if (remaining > std::chrono::milliseconds(0)) {
@@ -201,7 +199,7 @@ public:
 
       if (rc == rclcpp::FutureReturnCode::TIMEOUT) {
         on_wait_for_result();
-        elapsed = (node_->now() - sent_time_).to_chrono<std::chrono::milliseconds>();
+        elapsed = (node_->now() - sent_time_).template to_chrono<std::chrono::milliseconds>();
         if (elapsed < server_timeout_) {
           return BT::NodeStatus::RUNNING;
         }
@@ -250,9 +248,6 @@ protected:
 
   // The timeout value for BT loop execution
   std::chrono::milliseconds bt_loop_duration_;
-
-  // The timeout value for waiting for a service to response
-  std::chrono::milliseconds wait_for_service_timeout_;
 
   // To track the server response when a new request is sent
   std::shared_future<typename ServiceT::Response::SharedPtr> future_result_;

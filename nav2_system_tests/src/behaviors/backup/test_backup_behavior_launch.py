@@ -78,7 +78,6 @@ def generate_launch_description():
                               'use_sim_time': 'True',
                               'params_file': configured_params,
                               'bt_xml_file': bt_navigator_xml,
-                              'use_composition': 'False',
                               'autostart': 'True'}.items()),
     ])
 
@@ -89,9 +88,8 @@ def main(argv=sys.argv[1:]):
     testExecutable = os.getenv('TEST_EXECUTABLE')
 
     test1_action = ExecuteProcess(
-        cmd=[testExecutable],
-        name='test_backup_behavior_node',
-        output='screen')
+        cmd=[testExecutable], name='test_backup_behavior_node', output='screen',
+    )
 
     lts = LaunchTestService()
     lts.add_test_action(ld, test1_action)

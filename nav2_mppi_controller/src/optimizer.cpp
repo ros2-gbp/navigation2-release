@@ -24,7 +24,6 @@
 #include <xtensor/xrandom.hpp>
 #include <xtensor/xnoalias.hpp>
 
-#include "nav2_core/controller_exceptions.hpp"
 #include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
 
 namespace mppi
@@ -109,7 +108,7 @@ void Optimizer::setOffset(double controller_frequency)
       "shifting is ON");
     settings_.shift_control_sequence = true;
   } else {
-    throw nav2_core::ControllerException(
+    throw std::runtime_error(
             "Controller period more then model dt, set it equal to model dt");
   }
 }
@@ -175,7 +174,7 @@ bool Optimizer::fallback(bool fail)
 
   if (++counter > settings_.retry_attempt_limit) {
     counter = 0;
-    throw nav2_core::NoValidControl("Optimizer fail to compute path");
+    throw std::runtime_error("Optimizer fail to compute path");
   }
 
   return true;
@@ -413,7 +412,7 @@ void Optimizer::setMotionModel(const std::string & model)
   } else if (model == "Ackermann") {
     motion_model_ = std::make_shared<AckermannMotionModel>(parameters_handler_);
   } else {
-    throw nav2_core::ControllerException(
+    throw std::runtime_error(
             std::string(
               "Model " + model + " is not valid! Valid options are DiffDrive, Omni, "
               "or Ackermann"));

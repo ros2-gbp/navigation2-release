@@ -61,8 +61,6 @@ public:
     server_timeout_ =
       config().blackboard->template get<std::chrono::milliseconds>("server_timeout");
     getInput<std::chrono::milliseconds>("server_timeout", server_timeout_);
-    wait_for_service_timeout_ =
-      config().blackboard->template get<std::chrono::milliseconds>("wait_for_service_timeout");
 
     // Initialize the input and output messages
     goal_ = typename ActionT::Goal();
@@ -95,11 +93,10 @@ public:
 
     // Make sure the server is actually there before continuing
     RCLCPP_DEBUG(node_->get_logger(), "Waiting for \"%s\" action server", action_name.c_str());
-    if (!action_client_->wait_for_action_server(wait_for_service_timeout_)) {
+    if (!action_client_->wait_for_action_server(1s)) {
       RCLCPP_ERROR(
-        node_->get_logger(), "\"%s\" action server not available after waiting for %f s",
-        action_name.c_str(),
-        wait_for_service_timeout_.count() / 1000.0);
+        node_->get_logger(), "\"%s\" action server not available after waiting for 1 s",
+        action_name.c_str());
       throw std::runtime_error(
               std::string("Action server ") + action_name +
               std::string(" not available"));
@@ -209,7 +206,7 @@ public:
       // if new goal was sent and action server has not yet responded
       // check the future goal handle
       if (future_goal_handle_) {
-        auto elapsed = (node_->now() - time_goal_sent_).to_chrono<std::chrono::milliseconds>();
+        auto elapsed = (node_->now() - time_goal_sent_).template to_chrono<std::chrono::milliseconds>();
         if (!is_future_goal_handle_complete(elapsed)) {
           // return RUNNING if there is still some time before timeout happens
           if (elapsed < server_timeout_) {
@@ -234,13 +231,12 @@ public:
         feedback_.reset();
 
         auto goal_status = goal_handle_->get_status();
-        if (goal_updated_ &&
-          (goal_status == action_msgs::msg::GoalStatus::STATUS_EXECUTING ||
+        if (goal_updated_ && (goal_status == action_msgs::msg::GoalStatus::STATUS_EXECUTING ||
           goal_status == action_msgs::msg::GoalStatus::STATUS_ACCEPTED))
         {
           goal_updated_ = false;
           send_new_goal();
-          auto elapsed = (node_->now() - time_goal_sent_).to_chrono<std::chrono::milliseconds>();
+          auto elapsed = (node_->now() - time_goal_sent_).template to_chrono<std::chrono::milliseconds>();
           if (!is_future_goal_handle_complete(elapsed)) {
             if (elapsed < server_timeout_) {
               return BT::NodeStatus::RUNNING;
@@ -463,14 +459,11 @@ protected:
   // The timeout value for BT loop execution
   std::chrono::milliseconds bt_loop_duration_;
 
-  // The timeout value for waiting for a service to response
-  std::chrono::milliseconds wait_for_service_timeout_;
-
   // To track the action server acknowledgement when a new goal is sent
   std::shared_ptr<std::shared_future<typename rclcpp_action::ClientGoalHandle<ActionT>::SharedPtr>>
   future_goal_handle_;
   rclcpp::Time time_goal_sent_;
-
+  
   // Can be set in on_tick or on_wait_for_result to indicate if a goal should be sent.
   bool should_send_goal_;
 };

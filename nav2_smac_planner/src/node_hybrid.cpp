@@ -434,7 +434,7 @@ void NodeHybrid::resetObstacleHeuristic(
 float NodeHybrid::getObstacleHeuristic(
   const Coordinates & node_coords,
   const Coordinates & goal_coords,
-  const float & cost_penalty)
+  const double & cost_penalty)
 {
   // If already expanded, return the cost
   const unsigned int size_x = sampled_costmap->getSizeInCellsX();

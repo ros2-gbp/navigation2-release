@@ -19,7 +19,7 @@
 
 #include "behaviortree_cpp_v3/bt_factory.h"
 
-#include "utils/test_action_server.hpp"
+#include "../../test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/assisted_teleop_cancel_node.hpp"
 #include "lifecycle_msgs/srv/change_state.hpp"
 
@@ -65,9 +65,6 @@ public:
     config_->blackboard->set<std::chrono::milliseconds>(
       "bt_loop_duration",
       std::chrono::milliseconds(10));
-    config_->blackboard->set<std::chrono::milliseconds>(
-      "wait_for_service_timeout",
-      std::chrono::milliseconds(1000));
     client_ = rclcpp_action::create_client<nav2_msgs::action::AssistedTeleop>(
       node_, "assisted_teleop");
 

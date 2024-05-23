@@ -25,8 +25,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import AssistedTeleop, BackUp, Spin
 from nav2_msgs.action import ComputePathThroughPoses, ComputePathToPose
-from nav2_msgs.action import FollowPath, FollowWaypoints, FollowGPSWaypoints, \
-    NavigateThroughPoses, NavigateToPose
+from nav2_msgs.action import FollowPath, FollowWaypoints, NavigateThroughPoses, NavigateToPose
 from nav2_msgs.action import SmoothPath
 from nav2_msgs.srv import ClearEntireCostmap, GetCostmap, LoadMap, ManageLifecycleNodes
 
@@ -68,8 +67,6 @@ class BasicNavigator(Node):
                                                      'navigate_through_poses')
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.follow_waypoints_client = ActionClient(self, FollowWaypoints, 'follow_waypoints')
-        self.follow_gps_waypoints_client = ActionClient(self, FollowGPSWaypoints,
-                                                        'follow_gps_waypoints')
         self.follow_path_client = ActionClient(self, FollowPath, 'follow_path')
         self.compute_path_to_pose_client = ActionClient(self, ComputePathToPose,
                                                         'compute_path_to_pose')
@@ -180,28 +177,6 @@ class BasicNavigator(Node):
 
         if not self.goal_handle.accepted:
             self.error(f'Following {len(poses)} waypoints request was rejected!')
-            return False
-
-        self.result_future = self.goal_handle.get_result_async()
-        return True
-
-    def followGpsWaypoints(self, gps_poses):
-        """Send a `FollowGPSWaypoints` action request."""
-        self.debug("Waiting for 'FollowWaypoints' action server")
-        while not self.follow_gps_waypoints_client.wait_for_server(timeout_sec=1.0):
-            self.info("'FollowWaypoints' action server not available, waiting...")
-
-        goal_msg = FollowGPSWaypoints.Goal()
-        goal_msg.gps_poses = gps_poses
-
-        self.info(f'Following {len(goal_msg.gps_poses)} gps goals....')
-        send_goal_future = self.follow_gps_waypoints_client.send_goal_async(goal_msg,
-                                                                            self._feedbackCallback)
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.goal_handle = send_goal_future.result()
-
-        if not self.goal_handle.accepted:
-            self.error(f'Following {len(gps_poses)} gps waypoints request was rejected!')
             return False
 
         self.result_future = self.goal_handle.get_result_async()
@@ -335,8 +310,7 @@ class BasicNavigator(Node):
 
     def waitUntilNav2Active(self, navigator='bt_navigator', localizer='amcl'):
         """Block until the full navigation system is up and running."""
-        if localizer != "robot_localization":  # non-lifecycle node
-            self._waitForNodeToActivate(localizer)
+        self._waitForNodeToActivate(localizer)
         if localizer == 'amcl':
             self._waitForInitialPose()
         self._waitForNodeToActivate(navigator)
@@ -371,28 +345,22 @@ class BasicNavigator(Node):
         self.result_future = self.goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, self.result_future)
         self.status = self.result_future.result().status
+        if self.status != GoalStatus.STATUS_SUCCEEDED:
+            self.warn(f'Getting path failed with status code: {self.status}')
+            return None
 
         return self.result_future.result().result
 
     def getPath(self, start, goal, planner_id='', use_start=False):
         """Send a `ComputePathToPose` action request."""
         rtn = self._getPathImpl(start, goal, planner_id, use_start)
-
-        if self.status != GoalStatus.STATUS_SUCCEEDED:
-            self.warn(f'Getting path failed with status code: {self.status}')
-            return None
-
         if not rtn:
             return None
         else:
             return rtn.path
 
-    def _getPathThroughPosesImpl(self, start, goals, planner_id='', use_start=False):
-        """
-        Send a `ComputePathThroughPoses` action request.
-
-        Internal implementation to get the full result, not just the path.
-        """
+    def getPathThroughPoses(self, start, goals, planner_id='', use_start=False):
+        """Send a `ComputePathThroughPoses` action request."""
         self.debug("Waiting for 'ComputePathThroughPoses' action server")
         while not self.compute_path_through_poses_client.wait_for_server(timeout_sec=1.0):
             self.info("'ComputePathThroughPoses' action server not available, waiting...")
@@ -415,21 +383,11 @@ class BasicNavigator(Node):
         self.result_future = self.goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, self.result_future)
         self.status = self.result_future.result().status
-
-        return self.result_future.result().result
-
-    def getPathThroughPoses(self, start, goals, planner_id='', use_start=False):
-        """Send a `ComputePathThroughPoses` action request."""
-        rtn = self._getPathThroughPosesImpl(start, goals, planner_id, use_start)
-
         if self.status != GoalStatus.STATUS_SUCCEEDED:
             self.warn(f'Getting path failed with status code: {self.status}')
             return None
 
-        if not rtn:
-            return None
-        else:
-            return rtn.path
+        return self.result_future.result().result.path
 
     def _smoothPathImpl(self, path, smoother_id='', max_duration=2.0, check_for_collision=False):
         """
@@ -459,6 +417,9 @@ class BasicNavigator(Node):
         self.result_future = self.goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, self.result_future)
         self.status = self.result_future.result().status
+        if self.status != GoalStatus.STATUS_SUCCEEDED:
+            self.warn(f'Getting path failed with status code: {self.status}')
+            return None
 
         return self.result_future.result().result
 
@@ -466,11 +427,6 @@ class BasicNavigator(Node):
         """Send a `SmoothPath` action request."""
         rtn = self._smoothPathImpl(
             path, smoother_id, max_duration, check_for_collision)
-
-        if self.status != GoalStatus.STATUS_SUCCEEDED:
-            self.warn(f'Getting path failed with status code: {self.status}')
-            return None
-
         if not rtn:
             return None
         else:
