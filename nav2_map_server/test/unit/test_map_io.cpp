@@ -32,7 +32,7 @@
 /* Author: Brian Gerkey */
 
 #include <gtest/gtest.h>
-#include <filesystem>
+#include <experimental/filesystem>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -50,7 +50,7 @@
 
 using namespace std;  // NOLINT
 using namespace nav2_map_server;  // NOLINT
-using std::filesystem::path;
+using std::experimental::filesystem::path;
 
 class RclCppFixture
 {

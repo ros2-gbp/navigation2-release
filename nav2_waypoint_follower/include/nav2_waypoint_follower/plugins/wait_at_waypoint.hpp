@@ -73,7 +73,6 @@ protected:
   int waypoint_pause_duration_;
   bool is_enabled_;
   rclcpp::Logger logger_{rclcpp::get_logger("nav2_waypoint_follower")};
-  rclcpp::Clock::SharedPtr clock_;
 };
 
 }  // namespace nav2_waypoint_follower

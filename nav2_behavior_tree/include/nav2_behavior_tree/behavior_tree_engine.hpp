@@ -25,7 +25,6 @@
 #include "behaviortree_cpp_v3/xml_parsing.h"
 #include "behaviortree_cpp_v3/loggers/bt_zmq_publisher.h"
 
-#include "rclcpp/rclcpp.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -47,8 +46,7 @@ public:
    * @brief A constructor for nav2_behavior_tree::BehaviorTreeEngine
    * @param plugin_libraries vector of BT plugin library names to load
    */
-  explicit BehaviorTreeEngine(
-    const std::vector<std::string> & plugin_libraries);
+  explicit BehaviorTreeEngine(const std::vector<std::string> & plugin_libraries);
   virtual ~BehaviorTreeEngine() {}
 
   /**
