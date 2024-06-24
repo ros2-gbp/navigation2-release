@@ -24,7 +24,7 @@ class WouldASmootherRecoveryHelpFixture : public nav2_behavior_tree::BehaviorTre
 {
 public:
   using Action = nav2_msgs::action::SmoothPath;
-  using ActionGoal = Action::Goal;
+  using ActionGoal = Action::Result;
   void SetUp()
   {
     uint16_t error_code = ActionGoal::NONE;
@@ -32,7 +32,7 @@ public:
 
     std::string xml_txt =
       R"(
-      <root main_tree_to_execute = "MainTree" >
+      <root BTCPP_format="4">
         <BehaviorTree ID="MainTree">
             <WouldASmootherRecoveryHelp error_code="{error_code}"/>
         </BehaviorTree>
@@ -66,7 +66,7 @@ TEST_F(WouldASmootherRecoveryHelpFixture, test_condition)
 
   for (const auto & error_to_status : error_to_status_map) {
     config_->blackboard->set("error_code", error_to_status.first);
-    EXPECT_EQ(tree_->tickRoot(), error_to_status.second);
+    EXPECT_EQ(tree_->tickOnce(), error_to_status.second);
   }
 }
 

@@ -207,6 +207,10 @@ bool CollisionDetector::configurePolygons(
         polygons_.push_back(
           std::make_shared<Circle>(
             node, polygon_name, tf_buffer_, base_frame_id, transform_tolerance));
+      } else if (polygon_type == "velocity_polygon") {
+        polygons_.push_back(
+          std::make_shared<VelocityPolygon>(
+            node, polygon_name, tf_buffer_, base_frame_id, transform_tolerance));
       } else {  // Error if something else
         RCLCPP_ERROR(
           get_logger(),
@@ -283,6 +287,13 @@ bool CollisionDetector::configureSources(
         r->configure();
 
         sources_.push_back(r);
+      } else if (source_type == "polygon") {
+        std::shared_ptr<PolygonSource> ps = std::make_shared<PolygonSource>(
+          node, source_name, tf_buffer_, base_frame_id, odom_frame_id,
+          transform_tolerance, source_timeout, base_shift_correction);
+        ps->configure();
+
+        sources_.push_back(ps);
       } else {  // Error if something else
         RCLCPP_ERROR(
           get_logger(),
@@ -307,10 +318,22 @@ void CollisionDetector::process()
   // Points array collected from different data sources in a robot base frame
   std::vector<Point> collision_points;
 
+  std::unique_ptr<nav2_msgs::msg::CollisionDetectorState> state_msg =
+    std::make_unique<nav2_msgs::msg::CollisionDetectorState>();
+
   // Fill collision_points array from different data sources
   for (std::shared_ptr<Source> source : sources_) {
     if (source->getEnabled()) {
-      source->getData(curr_time, collision_points);
+      if (!source->getData(curr_time, collision_points) &&
+        source->getSourceTimeout().seconds() != 0.0)
+      {
+        RCLCPP_WARN(
+          get_logger(),
+          "Invalid source %s detected."
+          " Either due to data not published yet, or to lack of new data received within the"
+          " sensor timeout, or if impossible to transform data to base frame",
+          source->getSourceName().c_str());
+      }
     }
   }
 
@@ -329,6 +352,7 @@ void CollisionDetector::process()
     marker.color.r = 1.0;
     marker.color.a = 1.0;
     marker.lifetime = rclcpp::Duration(0, 0);
+    marker.frame_locked = true;
 
     for (const auto & point : collision_points) {
       geometry_msgs::msg::Point p;
@@ -340,9 +364,6 @@ void CollisionDetector::process()
     marker_array->markers.push_back(marker);
     collision_points_marker_pub_->publish(std::move(marker_array));
   }
-
-  std::unique_ptr<nav2_msgs::msg::CollisionDetectorState> state_msg =
-    std::make_unique<nav2_msgs::msg::CollisionDetectorState>();
 
   for (std::shared_ptr<Polygon> polygon : polygons_) {
     if (!polygon->getEnabled()) {

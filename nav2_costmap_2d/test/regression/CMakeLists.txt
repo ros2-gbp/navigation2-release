@@ -10,7 +10,6 @@ add_library(order_layer SHARED
 ament_target_dependencies(order_layer
   ${dependencies}
 )
-
 target_link_libraries(order_layer
   ${PROJECT_NAME}::nav2_costmap_2d_core
 )

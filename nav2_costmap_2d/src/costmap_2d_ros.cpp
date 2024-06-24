@@ -61,8 +61,8 @@ namespace nav2_costmap_2d
 Costmap2DROS::Costmap2DROS(const std::string & name, const bool & use_sim_time)
 : Costmap2DROS(name, "/", name, use_sim_time) {}
 
-Costmap2DROS::Costmap2DROS()
-: nav2_util::LifecycleNode("costmap", ""),
+Costmap2DROS::Costmap2DROS(const rclcpp::NodeOptions & options)
+: nav2_util::LifecycleNode("costmap", "", options),
   name_("costmap"),
   default_plugins_{"static_layer", "obstacle_layer", "inflation_layer"},
   default_types_{
@@ -71,6 +71,7 @@ Costmap2DROS::Costmap2DROS()
     "nav2_costmap_2d::InflationLayer"}
 {
   declare_parameter("map_topic", rclcpp::ParameterValue(std::string("map")));
+  is_lifecycle_follower_ = false;
   init();
 }
 
@@ -285,7 +286,9 @@ Costmap2DROS::on_activate(const rclcpp_lifecycle::State & /*state*/)
     // Check timeout
     if (now() > initial_transform_timeout_point) {
       RCLCPP_ERROR(
-        get_logger(), "Failed to activate %s because transform from %s to %s did not become available before timeout",
+        get_logger(),
+        "Failed to activate %s because "
+        "transform from %s to %s did not become available before timeout",
         get_name(), robot_base_frame_.c_str(), global_frame_.c_str());
 
       return nav2_util::CallbackReturn::FAILURE;
@@ -351,6 +354,7 @@ nav2_util::CallbackReturn
 Costmap2DROS::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Cleaning up");
+  executor_thread_.reset();
 
   costmap_publisher_.reset();
   clear_costmap_service_.reset();
@@ -365,8 +369,6 @@ Costmap2DROS::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
   footprint_sub_.reset();
   footprint_pub_.reset();
 
-
-  executor_thread_.reset();
   return nav2_util::CallbackReturn::SUCCESS;
 }
 
@@ -522,7 +524,7 @@ Costmap2DROS::mapUpdateLoop(double frequency)
         layered_costmap_->getBounds(&x0, &xn, &y0, &yn);
         costmap_publisher_->updateBounds(x0, xn, y0, yn);
 
-        for (auto & layer_pub: layer_publishers_) {
+        for (auto & layer_pub : layer_publishers_) {
           layer_pub->updateBounds(x0, xn, y0, yn);
         }
 
@@ -534,7 +536,7 @@ Costmap2DROS::mapUpdateLoop(double frequency)
           RCLCPP_DEBUG(get_logger(), "Publish costmap at %s", name_.c_str());
           costmap_publisher_->publishCostmap();
 
-          for (auto & layer_pub: layer_publishers_) {
+          for (auto & layer_pub : layer_publishers_) {
             layer_pub->publishCostmap();
           }
 

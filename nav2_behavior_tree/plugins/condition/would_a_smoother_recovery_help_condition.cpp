@@ -24,16 +24,16 @@ WouldASmootherRecoveryHelp::WouldASmootherRecoveryHelp(
 : AreErrorCodesPresent(condition_name, conf)
 {
   error_codes_to_check_ = {
-    ActionGoal::UNKNOWN,
-    ActionGoal::TIMEOUT,
-    ActionGoal::FAILED_TO_SMOOTH_PATH,
-    ActionGoal::SMOOTHED_PATH_IN_COLLISION
+    ActionResult::UNKNOWN,
+    ActionResult::TIMEOUT,
+    ActionResult::FAILED_TO_SMOOTH_PATH,
+    ActionResult::SMOOTHED_PATH_IN_COLLISION
   };
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::WouldASmootherRecoveryHelp>(

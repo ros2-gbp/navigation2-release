@@ -38,8 +38,7 @@ using namespace std::chrono_literals;
 class DummySmoother : public nav2_core::Smoother
 {
 public:
-  DummySmoother()
-  : initialized_(false) {}
+  DummySmoother() {}
 
   ~DummySmoother() {}
 
@@ -81,7 +80,6 @@ public:
   }
 
 private:
-  bool initialized_;
   std::string command_;
   std::chrono::system_clock::time_point start_time_;
 };
@@ -148,7 +146,12 @@ public:
   void setCostmap(nav2_msgs::msg::Costmap::SharedPtr msg)
   {
     costmap_msg_ = msg;
-    costmap_received_ = true;
+    costmap_ = std::make_shared<nav2_costmap_2d::Costmap2D>(
+      msg->metadata.size_x, msg->metadata.size_y,
+      msg->metadata.resolution, msg->metadata.origin.position.x,
+      msg->metadata.origin.position.y);
+
+    processCurrentCostmapMsg();
   }
 };
 

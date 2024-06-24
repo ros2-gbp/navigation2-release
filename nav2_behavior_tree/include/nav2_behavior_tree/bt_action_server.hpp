@@ -177,10 +177,11 @@ public:
   /**
    * @brief Function to halt the current tree. It will interrupt the execution of RUNNING nodes
    * by calling their halt() implementation (only for Async nodes that may return RUNNING)
+   * This should already done for all the exit states of the action but preemption
    */
   void haltTree()
   {
-    tree_.rootNode()->halt();
+    tree_.haltTree();
   }
 
 protected:
@@ -249,6 +250,9 @@ protected:
 
   // The timeout value for waiting for a service to response
   std::chrono::milliseconds wait_for_service_timeout_;
+
+  // should the BT be reloaded even if the same xml filename is requested?
+  bool always_reload_bt_xml_ = false;
 
   // User-provided callbacks
   OnGoalReceivedCallback on_goal_received_callback_;

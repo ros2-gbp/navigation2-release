@@ -68,12 +68,15 @@ public:
    * @brief Method to get plan from the desired plugin
    * @param start starting pose
    * @param goal goal request
+   * @param planner_id The planner to plan with
+   * @param cancel_checker A function to check if the action has been canceled
    * @return Path
    */
   nav_msgs::msg::Path getPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
-    const std::string & planner_id);
+    const std::string & planner_id,
+    std::function<bool()> cancel_checker);
 
 protected:
   /**
@@ -108,9 +111,9 @@ protected:
   nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   using ActionToPose = nav2_msgs::action::ComputePathToPose;
-  using ActionToPoseGoal = ActionToPose::Goal;
+  using ActionToPoseResult = ActionToPose::Result;
   using ActionThroughPoses = nav2_msgs::action::ComputePathThroughPoses;
-  using ActionThroughPosesGoal = ActionThroughPoses::Goal;
+  using ActionThroughPosesResult = ActionThroughPoses::Result;
   using ActionServerToPose = nav2_util::SimpleActionServer<ActionToPose>;
   using ActionServerThroughPoses = nav2_util::SimpleActionServer<ActionThroughPoses>;
 
@@ -241,9 +244,6 @@ protected:
   std::vector<std::string> planner_types_;
   double max_planner_duration_;
   std::string planner_ids_concat_;
-
-  // Clock
-  rclcpp::Clock steady_clock_{RCL_STEADY_TIME};
 
   // TF buffer
   std::shared_ptr<tf2_ros::Buffer> tf_;

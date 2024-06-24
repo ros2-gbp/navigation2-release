@@ -18,6 +18,7 @@
 #include <string>
 
 #include "nav2_msgs/action/compute_path_to_pose.hpp"
+#include "nav2_msgs/action/compute_path_through_poses.hpp"
 #include "nav2_behavior_tree/plugins/condition/are_error_codes_present_condition.hpp"
 
 namespace nav2_behavior_tree
@@ -26,7 +27,9 @@ namespace nav2_behavior_tree
 class WouldAPlannerRecoveryHelp : public AreErrorCodesPresent
 {
   using Action = nav2_msgs::action::ComputePathToPose;
-  using ActionGoal = Action::Goal;
+  using ActionResult = Action::Result;
+  using ThroughAction = nav2_msgs::action::ComputePathThroughPoses;
+  using ThroughActionResult = Action::Result;
 
 public:
   WouldAPlannerRecoveryHelp(
