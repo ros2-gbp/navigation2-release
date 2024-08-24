@@ -18,6 +18,8 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <mutex>
+#include <functional>
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_util/lifecycle_node.hpp"
@@ -217,7 +219,9 @@ protected:
 
   // Dynamic parameters handler
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
-  std::mutex dynamic_params_lock_;
+
+  // Mutex for dynamic parameters and dock database
+  std::shared_ptr<std::mutex> mutex_;
 
   // Frequency to run control loops
   double controller_frequency_;
