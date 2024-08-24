@@ -21,6 +21,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/CollisionDetectorState.msg"
   "msg/Costmap.msg"
   "msg/CostmapMetaData.msg"
+  "msg/CostmapUpdate.msg"
   "msg/CostmapFilterInfo.msg"
   "msg/SpeedLimit.msg"
   "msg/VoxelGrid.msg"
@@ -29,6 +30,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Particle.msg"
   "msg/ParticleCloud.msg"
   "msg/MissedWaypoint.msg"
+  "srv/GetCost.srv"
   "srv/GetCostmap.srv"
   "srv/IsPathValid.srv"
   "srv/ClearCostmapExceptRegion.srv"
@@ -38,6 +40,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/LoadMap.srv"
   "srv/SaveMap.srv"
   "srv/SetInitialPose.srv"
+  "srv/ReloadDockDatabase.srv"
   "action/AssistedTeleop.action"
   "action/BackUp.action"
   "action/ComputePathToPose.action"
@@ -52,6 +55,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/DummyBehavior.action"
   "action/FollowWaypoints.action"
   "action/FollowGPSWaypoints.action"
+  "action/DockRobot.action"
+  "action/UndockRobot.action"
   DEPENDENCIES builtin_interfaces geometry_msgs std_msgs action_msgs nav_msgs geographic_msgs
 )
 

@@ -24,7 +24,12 @@ BackUpAction::BackUpAction(
   const std::string & xml_tag_name,
   const std::string & action_name,
   const BT::NodeConfiguration & conf)
-: BtActionNode<nav2_msgs::action::BackUp>(xml_tag_name, action_name, conf)
+: BtActionNode<nav2_msgs::action::BackUp>(xml_tag_name, action_name, conf),
+  initialized_(false)
+{
+}
+
+void nav2_behavior_tree::BackUpAction::initialize()
 {
   double dist;
   getInput("backup_dist", dist);
@@ -39,16 +44,21 @@ BackUpAction::BackUpAction(
   goal_.target.z = 0.0;
   goal_.speed = speed;
   goal_.time_allowance = rclcpp::Duration::from_seconds(time_allowance);
+  initialized_ = true;
 }
 
 void BackUpAction::on_tick()
 {
+  if (!initialized_) {
+    initialize();
+  }
+
   increment_recovery_count();
 }
 
 BT::NodeStatus BackUpAction::on_success()
 {
-  setOutput("error_code_id", ActionGoal::NONE);
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -60,13 +70,13 @@ BT::NodeStatus BackUpAction::on_aborted()
 
 BT::NodeStatus BackUpAction::on_cancelled()
 {
-  setOutput("error_code_id", ActionGoal::NONE);
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

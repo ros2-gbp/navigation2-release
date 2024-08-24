@@ -45,7 +45,7 @@ BT::NodeStatus SmoothPathAction::on_success()
   setOutput("smoothing_duration", rclcpp::Duration(result_.result->smoothing_duration).seconds());
   setOutput("was_completed", result_.result->was_completed);
   // Set empty error code, action was successful
-  setOutput("error_code_id", ActionGoal::NONE);
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -58,13 +58,13 @@ BT::NodeStatus SmoothPathAction::on_aborted()
 BT::NodeStatus SmoothPathAction::on_cancelled()
 {
   // Set empty error code, action was cancelled
-  setOutput("error_code_id", ActionGoal::NONE);
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

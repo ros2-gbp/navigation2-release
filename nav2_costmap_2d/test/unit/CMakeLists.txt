@@ -1,8 +1,3 @@
-ament_add_gtest(array_parser_test array_parser_test.cpp)
-target_link_libraries(array_parser_test
-  nav2_costmap_2d_core
-)
-
 ament_add_gtest(collision_footprint_test footprint_collision_checker_test.cpp)
 target_link_libraries(collision_footprint_test
   ${PROJECT_NAME}::nav2_costmap_2d_core
@@ -10,6 +5,11 @@ target_link_libraries(collision_footprint_test
 
 ament_add_gtest(costmap_convesion_test costmap_conversion_test.cpp)
 target_link_libraries(costmap_convesion_test
+  ${PROJECT_NAME}::nav2_costmap_2d_core
+)
+
+ament_add_gtest(costmap_cost_service_test costmap_cost_service_test.cpp)
+target_link_libraries(costmap_cost_service_test
   ${PROJECT_NAME}::nav2_costmap_2d_core
 )
 

@@ -24,15 +24,18 @@ WouldAPlannerRecoveryHelp::WouldAPlannerRecoveryHelp(
 : AreErrorCodesPresent(condition_name, conf)
 {
   error_codes_to_check_ = {
-    ActionGoal::UNKNOWN,
-    ActionGoal::NO_VALID_PATH,
-    ActionGoal::TIMEOUT
+    ActionResult::UNKNOWN,
+    ActionResult::NO_VALID_PATH,
+    ActionResult::TIMEOUT,
+    ThroughActionResult::UNKNOWN,
+    ThroughActionResult::TIMEOUT,
+    ThroughActionResult::NO_VALID_PATH
   };
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::WouldAPlannerRecoveryHelp>(

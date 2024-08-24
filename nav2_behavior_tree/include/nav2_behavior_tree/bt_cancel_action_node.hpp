@@ -19,10 +19,10 @@
 #include <string>
 #include <chrono>
 
-#include "behaviortree_cpp_v3/action_node.h"
+#include "behaviortree_cpp/action_node.h"
 #include "nav2_util/node_utils.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
-#include "nav2_behavior_tree/bt_conversions.hpp"
+#include "nav2_behavior_tree/bt_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -118,7 +118,7 @@ public:
     return basic;
   }
 
-  void halt()
+  void halt() override
   {
   }
 

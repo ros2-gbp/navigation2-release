@@ -15,7 +15,11 @@
 #include <chrono>
 #include <thread>
 
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 #include <xtensor/xrandom.hpp>
+#pragma GCC diagnostic pop
+
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_mppi_controller/tools/utils.hpp"
@@ -257,7 +261,6 @@ TEST(UtilsTests, FurthestAndClosestReachedPoint)
   {state, generated_trajectories, path, costs, model_dt, false, nullptr, nullptr,
     std::nullopt, std::nullopt};  /// Caution, keep references
   EXPECT_EQ(findPathFurthestReachedPoint(data3), 5u);
-  EXPECT_EQ(findPathTrajectoryInitialPoint(data3), 5u);
 }
 
 TEST(UtilsTests, findPathCosts)
@@ -367,7 +370,7 @@ TEST(UtilsTests, SmootherTest)
   EXPECT_NEAR(history[3].wz, 0.23, 0.02);
 
   // Check that path is smoother
-  float smoothed_val, original_val;
+  float smoothed_val{0}, original_val{0};
   for (unsigned int i = 1; i != noisey_sequence.vx.shape(0) - 1; i++) {
     smoothed_val += fabs(noisey_sequence.vx(i) - 0.2);
     smoothed_val += fabs(noisey_sequence.vy(i) - 0.0);

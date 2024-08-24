@@ -40,7 +40,7 @@ void NavigateToPoseAction::on_tick()
 
 BT::NodeStatus NavigateToPoseAction::on_success()
 {
-  setOutput("error_code_id", ActionGoal::NONE);
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -53,13 +53,13 @@ BT::NodeStatus NavigateToPoseAction::on_aborted()
 BT::NodeStatus NavigateToPoseAction::on_cancelled()
 {
   // Set empty error code, action was cancelled
-  setOutput("error_code_id", ActionGoal::NONE);
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

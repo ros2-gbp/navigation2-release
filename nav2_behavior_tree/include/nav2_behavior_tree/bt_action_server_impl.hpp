@@ -141,11 +141,11 @@ bool BtActionServer<ActionT>::on_configure()
     node, "robot_base_frame", rclcpp::ParameterValue(std::string("base_link")));
   nav2_util::declare_parameter_if_not_declared(
     node, "transform_tolerance", rclcpp::ParameterValue(0.1));
-  nav2_util::copy_all_parameters(node, client_node_);
+  rclcpp::copy_all_parameter_values(node, client_node_);
 
   // set the timeout in seconds for the action server to discard goal handles if not finished
-  double action_server_result_timeout;
-  node->get_parameter("action_server_result_timeout", action_server_result_timeout);
+  double action_server_result_timeout =
+    node->get_parameter("action_server_result_timeout").as_double();
   rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
   server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
 
@@ -173,7 +173,7 @@ bool BtActionServer<ActionT>::on_configure()
   error_code_names_ = node->get_parameter("error_code_names").as_string_array();
 
   // Create the class that registers our custom nodes and executes the BT
-  bt_ = std::make_unique<nav2_behavior_tree::BehaviorTreeEngine>(plugin_lib_names_);
+  bt_ = std::make_unique<nav2_behavior_tree::BehaviorTreeEngine>(plugin_lib_names_, client_node_);
 
   // Create the blackboard that will be shared by all of the nodes in the tree
   blackboard_ = BT::Blackboard::create();
@@ -216,7 +216,7 @@ bool BtActionServer<ActionT>::on_cleanup()
   plugin_lib_names_.clear();
   current_bt_xml_filename_.clear();
   blackboard_.reset();
-  bt_->haltAllActions(tree_.rootNode());
+  bt_->haltAllActions(tree_);
   bt_.reset();
   return true;
 }
@@ -244,8 +244,9 @@ bool BtActionServer<ActionT>::loadBehaviorTree(const std::string & bt_xml_filena
   // Create the Behavior Tree from the XML input
   try {
     tree_ = bt_->createTreeFromFile(filename, blackboard_);
-    for (auto & blackboard : tree_.blackboard_stack) {
-      blackboard->set<rclcpp::Node::SharedPtr>("node", client_node_);
+    for (auto & subtree : tree_.subtrees) {
+      auto & blackboard = subtree->blackboard;
+      blackboard->set("node", client_node_);
       blackboard->set<std::chrono::milliseconds>("server_timeout", default_server_timeout_);
       blackboard->set<std::chrono::milliseconds>("bt_loop_duration", bt_loop_duration_);
       blackboard->set<std::chrono::milliseconds>(
@@ -297,7 +298,7 @@ void BtActionServer<ActionT>::executeCallback()
 
   // Make sure that the Bt is not in a running state from a previous execution
   // note: if all the ControlNodes are implemented correctly, this is not needed.
-  bt_->haltAllActions(tree_.rootNode());
+  bt_->haltAllActions(tree_);
 
   // Give server an opportunity to populate the result message or simple give
   // an indication that the action is complete.

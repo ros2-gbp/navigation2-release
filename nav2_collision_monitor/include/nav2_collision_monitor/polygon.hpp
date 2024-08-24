@@ -128,14 +128,14 @@ public:
 
   /**
    * @brief Returns true if polygon points were set.
-   * Othewise, prints a warning and returns false.
+   * Otherwise, prints a warning and returns false.
    */
   virtual bool isShapeSet();
 
   /**
    * @brief Updates polygon from footprint subscriber (if any)
    */
-  void updatePolygon();
+  virtual void updatePolygon(const Velocity & /*cmd_vel_in*/);
 
   /**
    * @brief Gets number of points inside given polygon
@@ -165,14 +165,24 @@ public:
 protected:
   /**
    * @brief Supporting routine obtaining ROS-parameters common for all shapes
-   * @param polygon_pub_topic Output name of polygon publishing topic
+   * @param polygon_pub_topic Output name of polygon or radius subscription topic.
+   * Empty, if no polygon subscription.
+   * @param polygon_sub_topic Output name of polygon publishing topic
+   * @param footprint_topic Output name of footprint topic.
+   * Empty, if no footprint subscription.
+   * @param use_dynamic_sub If false, the parameter polygon_sub_topic or footprint_topic
+   * will not be declared
    * @return True if all parameters were obtained or false in failure case
    */
-  bool getCommonParameters(std::string & polygon_pub_topic);
+  bool getCommonParameters(
+    std::string & polygon_sub_topic,
+    std::string & polygon_pub_topic,
+    std::string & footprint_topic,
+    bool use_dynamic_sub = false);
 
   /**
    * @brief Supporting routine obtaining polygon-specific ROS-parameters
-   * @brief polygon_sub_topic Output name of polygon subscription topic.
+   * @param polygon_sub_topic Output name of polygon or radius subscription topic.
    * Empty, if no polygon subscription.
    * @param polygon_pub_topic Output name of polygon publishing topic
    * @param footprint_topic Output name of footprint topic.
@@ -183,6 +193,13 @@ protected:
     std::string & polygon_sub_topic,
     std::string & polygon_pub_topic,
     std::string & footprint_topic);
+
+  /**
+   * @brief Creates polygon or radius topic subscription
+   * @param polygon_sub_topic Output name of polygon or radius subscription topic.
+   * Empty, if no polygon subscription.
+   */
+  virtual void createSubscription(std::string & polygon_sub_topic);
 
   /**
    * @brief Updates polygon from geometry_msgs::msg::PolygonStamped message
@@ -209,6 +226,14 @@ protected:
    * @return True if given point is inside polygon, otherwise false
    */
   bool isPointInside(const Point & point) const;
+
+  /**
+   * @brief Extracts Polygon points from a string with of the form [[x1,y1],[x2,y2],[x3,y3]...]
+   * @param poly_string Input String containing the verteceis of the polygon
+   * @param polygon Output Point vector with all the vertecies of the polygon
+   * @return True if all parameters were obtained or false in failure case
+   */
+  bool getPolygonFromString(std::string & poly_string, std::vector<Point> & polygon);
 
   // ----- Variables -----
 

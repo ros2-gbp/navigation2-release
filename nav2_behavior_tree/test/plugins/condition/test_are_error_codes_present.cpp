@@ -24,17 +24,17 @@ class AreErrorCodesPresentFixture : public nav2_behavior_tree::BehaviorTreeTestF
 {
 public:
   using Action = nav2_msgs::action::FollowPath;
-  using ActionGoal = Action::Goal;
+  using ActionResult = Action::Result;
   void SetUp()
   {
-    uint16_t error_code = ActionGoal::NONE;
-    std::set<uint16_t> error_codes_to_check = {ActionGoal::UNKNOWN}; //NOLINT
+    uint16_t error_code = ActionResult::NONE;
+    std::set<uint16_t> error_codes_to_check = {ActionResult::UNKNOWN}; //NOLINT
     config_->blackboard->set("error_code", error_code);
     config_->blackboard->set("error_codes_to_check", error_codes_to_check);
 
     std::string xml_txt =
       R"(
-      <root main_tree_to_execute = "MainTree" >
+      <root BTCPP_format="4">
         <BehaviorTree ID="MainTree">
             <AreErrorCodesPresent error_code="{error_code}" error_codes_to_check="{error_codes_to_check}"/>
         </BehaviorTree>
@@ -59,13 +59,13 @@ std::shared_ptr<BT::Tree> AreErrorCodesPresentFixture::tree_ = nullptr;
 TEST_F(AreErrorCodesPresentFixture, test_condition)
 {
   std::map<uint16_t, BT::NodeStatus> error_to_status_map = {
-    {ActionGoal::NONE, BT::NodeStatus::FAILURE},
-    {ActionGoal::UNKNOWN, BT::NodeStatus::SUCCESS},
+    {ActionResult::NONE, BT::NodeStatus::FAILURE},
+    {ActionResult::UNKNOWN, BT::NodeStatus::SUCCESS},
   };
 
   for (const auto & error_to_status : error_to_status_map) {
     config_->blackboard->set("error_code", error_to_status.first);
-    EXPECT_EQ(tree_->tickRoot(), error_to_status.second);
+    EXPECT_EQ(tree_->tickOnce(), error_to_status.second);
   }
 }
 

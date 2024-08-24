@@ -44,7 +44,7 @@ PlannerServer::PlannerServer(const rclcpp::NodeOptions & options)
 : nav2_util::LifecycleNode("planner_server", "", options),
   gp_loader_("nav2_core", "nav2_core::GlobalPlanner"),
   default_ids_{"GridBased"},
-  default_types_{"nav2_navfn_planner/NavfnPlanner"},
+  default_types_{"nav2_navfn_planner::NavfnPlanner"},
   costmap_(nullptr)
 {
   RCLCPP_INFO(get_logger(), "Creating");
@@ -366,7 +366,7 @@ void PlannerServer::computePlanThroughPoses()
 {
   std::lock_guard<std::mutex> lock(dynamic_params_lock_);
 
-  auto start_time = steady_clock_.now();
+  auto start_time = this->now();
 
   // Initialize the ComputePathThroughPoses goal and result
   auto goal = action_server_poses_->get_current_goal();
@@ -394,6 +394,10 @@ void PlannerServer::computePlanThroughPoses()
       throw nav2_core::PlannerTFError("Unable to get start pose");
     }
 
+    auto cancel_checker = [this]() {
+        return action_server_poses_->is_cancel_requested();
+      };
+
     // Get consecutive paths through these points
     for (unsigned int i = 0; i != goal->goals.size(); i++) {
       // Get starting point
@@ -413,7 +417,9 @@ void PlannerServer::computePlanThroughPoses()
       }
 
       // Get plan from start -> goal
-      nav_msgs::msg::Path curr_path = getPlan(curr_start, curr_goal, goal->planner_id);
+      nav_msgs::msg::Path curr_path = getPlan(
+        curr_start, curr_goal, goal->planner_id,
+        cancel_checker);
 
       if (!validatePath<ActionThroughPoses>(curr_goal, curr_path, goal->planner_id)) {
         throw nav2_core::NoValidPathCouldBeFound(goal->planner_id + " generated a empty path");
@@ -429,7 +435,7 @@ void PlannerServer::computePlanThroughPoses()
     result->path = concat_path;
     publishPlan(result->path);
 
-    auto cycle_duration = steady_clock_.now() - start_time;
+    auto cycle_duration = this->now() - start_time;
     result->planning_time = cycle_duration;
 
     if (max_planner_duration_ && cycle_duration.seconds() > max_planner_duration_) {
@@ -442,43 +448,46 @@ void PlannerServer::computePlanThroughPoses()
     action_server_poses_->succeeded_current(result);
   } catch (nav2_core::InvalidPlanner & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::INVALID_PLANNER;
+    result->error_code = ActionThroughPosesResult::INVALID_PLANNER;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::StartOccupied & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::START_OCCUPIED;
+    result->error_code = ActionThroughPosesResult::START_OCCUPIED;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::GoalOccupied & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::GOAL_OCCUPIED;
+    result->error_code = ActionThroughPosesResult::GOAL_OCCUPIED;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::NoValidPathCouldBeFound & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::NO_VALID_PATH;
+    result->error_code = ActionThroughPosesResult::NO_VALID_PATH;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::PlannerTimedOut & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::TIMEOUT;
+    result->error_code = ActionThroughPosesResult::TIMEOUT;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::StartOutsideMapBounds & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::START_OUTSIDE_MAP;
+    result->error_code = ActionThroughPosesResult::START_OUTSIDE_MAP;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::GoalOutsideMapBounds & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::GOAL_OUTSIDE_MAP;
+    result->error_code = ActionThroughPosesResult::GOAL_OUTSIDE_MAP;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::PlannerTFError & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::TF_ERROR;
+    result->error_code = ActionThroughPosesResult::TF_ERROR;
     action_server_poses_->terminate_current(result);
   } catch (nav2_core::NoViapointsGiven & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::NO_VIAPOINTS_GIVEN;
+    result->error_code = ActionThroughPosesResult::NO_VIAPOINTS_GIVEN;
     action_server_poses_->terminate_current(result);
+  } catch (nav2_core::PlannerCancelled &) {
+    RCLCPP_INFO(get_logger(), "Goal was canceled. Canceling planning action.");
+    action_server_poses_->terminate_all();
   } catch (std::exception & ex) {
     exceptionWarning(curr_start, curr_goal, goal->planner_id, ex);
-    result->error_code = ActionThroughPosesGoal::UNKNOWN;
+    result->error_code = ActionThroughPosesResult::UNKNOWN;
     action_server_poses_->terminate_current(result);
   }
 }
@@ -488,7 +497,7 @@ PlannerServer::computePlan()
 {
   std::lock_guard<std::mutex> lock(dynamic_params_lock_);
 
-  auto start_time = steady_clock_.now();
+  auto start_time = this->now();
 
   // Initialize the ComputePathToPose goal and result
   auto goal = action_server_pose_->get_current_goal();
@@ -516,7 +525,11 @@ PlannerServer::computePlan()
       throw nav2_core::PlannerTFError("Unable to transform poses to global frame");
     }
 
-    result->path = getPlan(start, goal_pose, goal->planner_id);
+    auto cancel_checker = [this]() {
+        return action_server_pose_->is_cancel_requested();
+      };
+
+    result->path = getPlan(start, goal_pose, goal->planner_id, cancel_checker);
 
     if (!validatePath<ActionThroughPoses>(goal_pose, result->path, goal->planner_id)) {
       throw nav2_core::NoValidPathCouldBeFound(goal->planner_id + " generated a empty path");
@@ -525,7 +538,7 @@ PlannerServer::computePlan()
     // Publish the plan for visualization purposes
     publishPlan(result->path);
 
-    auto cycle_duration = steady_clock_.now() - start_time;
+    auto cycle_duration = this->now() - start_time;
     result->planning_time = cycle_duration;
 
     if (max_planner_duration_ && cycle_duration.seconds() > max_planner_duration_) {
@@ -537,39 +550,42 @@ PlannerServer::computePlan()
     action_server_pose_->succeeded_current(result);
   } catch (nav2_core::InvalidPlanner & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::INVALID_PLANNER;
+    result->error_code = ActionToPoseResult::INVALID_PLANNER;
     action_server_pose_->terminate_current(result);
   } catch (nav2_core::StartOccupied & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::START_OCCUPIED;
+    result->error_code = ActionToPoseResult::START_OCCUPIED;
     action_server_pose_->terminate_current(result);
   } catch (nav2_core::GoalOccupied & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::GOAL_OCCUPIED;
+    result->error_code = ActionToPoseResult::GOAL_OCCUPIED;
     action_server_pose_->terminate_current(result);
   } catch (nav2_core::NoValidPathCouldBeFound & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::NO_VALID_PATH;
+    result->error_code = ActionToPoseResult::NO_VALID_PATH;
     action_server_pose_->terminate_current(result);
   } catch (nav2_core::PlannerTimedOut & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::TIMEOUT;
+    result->error_code = ActionToPoseResult::TIMEOUT;
     action_server_pose_->terminate_current(result);
   } catch (nav2_core::StartOutsideMapBounds & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::START_OUTSIDE_MAP;
+    result->error_code = ActionToPoseResult::START_OUTSIDE_MAP;
     action_server_pose_->terminate_current(result);
   } catch (nav2_core::GoalOutsideMapBounds & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::GOAL_OUTSIDE_MAP;
+    result->error_code = ActionToPoseResult::GOAL_OUTSIDE_MAP;
     action_server_pose_->terminate_current(result);
   } catch (nav2_core::PlannerTFError & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::TF_ERROR;
+    result->error_code = ActionToPoseResult::TF_ERROR;
     action_server_pose_->terminate_current(result);
+  } catch (nav2_core::PlannerCancelled &) {
+    RCLCPP_INFO(get_logger(), "Goal was canceled. Canceling planning action.");
+    action_server_pose_->terminate_all();
   } catch (std::exception & ex) {
     exceptionWarning(start, goal->goal, goal->planner_id, ex);
-    result->error_code = ActionToPoseGoal::UNKNOWN;
+    result->error_code = ActionToPoseResult::UNKNOWN;
     action_server_pose_->terminate_current(result);
   }
 }
@@ -578,7 +594,8 @@ nav_msgs::msg::Path
 PlannerServer::getPlan(
   const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
-  const std::string & planner_id)
+  const std::string & planner_id,
+  std::function<bool()> cancel_checker)
 {
   RCLCPP_DEBUG(
     get_logger(), "Attempting to a find path from (%.2f, %.2f) to "
@@ -586,14 +603,14 @@ PlannerServer::getPlan(
     goal.pose.position.x, goal.pose.position.y);
 
   if (planners_.find(planner_id) != planners_.end()) {
-    return planners_[planner_id]->createPlan(start, goal);
+    return planners_[planner_id]->createPlan(start, goal, cancel_checker);
   } else {
     if (planners_.size() == 1 && planner_id.empty()) {
       RCLCPP_WARN_ONCE(
         get_logger(), "No planners specified in action call. "
         "Server will use only plugin %s in server."
         " This warning will appear once.", planner_ids_concat_.c_str());
-      return planners_[planners_.begin()->first]->createPlan(start, goal);
+      return planners_[planners_.begin()->first]->createPlan(start, goal, cancel_checker);
     } else {
       RCLCPP_ERROR(
         get_logger(), "planner %s is not a valid planner. "
@@ -647,8 +664,8 @@ void PlannerServer::isPathValid(
 
     /**
      * The lethal check starts at the closest point to avoid points that have already been passed
-     * and may have become occupied. The method for collision detection is based on the shape of 
-     * the footprint. 
+     * and may have become occupied. The method for collision detection is based on the shape of
+     * the footprint.
      */
     std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
     unsigned int mx = 0;

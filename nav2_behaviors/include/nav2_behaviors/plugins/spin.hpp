@@ -22,6 +22,7 @@
 #include "nav2_behaviors/timed_behavior.hpp"
 #include "nav2_msgs/action/spin.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
 
 namespace nav2_behaviors
 {
@@ -37,6 +38,7 @@ class Spin : public TimedBehavior<SpinAction>
 
 public:
   using SpinActionGoal = SpinAction::Goal;
+  using SpinActionResult = SpinAction::Result;
 
   /**
    * @brief A constructor for nav2_behaviors::Spin
@@ -78,7 +80,7 @@ protected:
    */
   bool isCollisionFree(
     const double & distance,
-    geometry_msgs::msg::Twist * cmd_vel,
+    const geometry_msgs::msg::Twist & cmd_vel,
     geometry_msgs::msg::Pose2D & pose2d);
 
   SpinAction::Feedback::SharedPtr feedback_;

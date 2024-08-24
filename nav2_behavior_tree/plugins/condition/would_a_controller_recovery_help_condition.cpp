@@ -24,16 +24,16 @@ WouldAControllerRecoveryHelp::WouldAControllerRecoveryHelp(
 : AreErrorCodesPresent(condition_name, conf)
 {
   error_codes_to_check_ = {
-    ActionGoal::UNKNOWN,
-    ActionGoal::PATIENCE_EXCEEDED,
-    ActionGoal::FAILED_TO_MAKE_PROGRESS,
-    ActionGoal::NO_VALID_CONTROL
+    ActionResult::UNKNOWN,
+    ActionResult::PATIENCE_EXCEEDED,
+    ActionResult::FAILED_TO_MAKE_PROGRESS,
+    ActionResult::NO_VALID_CONTROL
   };
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::WouldAControllerRecoveryHelp>(
