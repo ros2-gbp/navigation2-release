@@ -1,0 +1,12 @@
+Source: ros-iron-nav-2d-utils
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-iron-ament-cmake, ros-iron-ament-cmake-gtest <!nocheck>, ros-iron-ament-lint-auto <!nocheck>, ros-iron-ament-lint-common <!nocheck>, ros-iron-geometry-msgs, ros-iron-nav-2d-msgs, ros-iron-nav-msgs, ros-iron-nav2-common, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-std-msgs, ros-iron-tf2, ros-iron-tf2-geometry-msgs, ros-iron-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-iron-nav-2d-utils
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-iron-geometry-msgs, ros-iron-nav-2d-msgs, ros-iron-nav-msgs, ros-iron-nav2-msgs, ros-iron-nav2-util, ros-iron-std-msgs, ros-iron-tf2, ros-iron-tf2-geometry-msgs, ros-iron-ros-workspace
+Description: A handful of useful utility functions for nav_2d packages.
