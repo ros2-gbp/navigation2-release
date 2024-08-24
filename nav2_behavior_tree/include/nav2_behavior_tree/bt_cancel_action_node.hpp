@@ -118,7 +118,7 @@ public:
     return basic;
   }
 
-  void halt() override
+  void halt()
   {
   }
 

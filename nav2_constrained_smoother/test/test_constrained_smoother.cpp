@@ -100,7 +100,7 @@ protected:
   SmootherTest() {SetUp();}
   ~SmootherTest() {}
 
-  void SetUp() override
+  void SetUp()
   {
     node_lifecycle_ =
       std::make_shared<rclcpp_lifecycle::LifecycleNode>(

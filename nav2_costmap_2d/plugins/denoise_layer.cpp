@@ -122,7 +122,7 @@ DenoiseLayer::updateCosts(
   try {
     denoise(roi_image);
   } catch (std::exception & ex) {
-    RCLCPP_ERROR(logger_, "%s", (std::string("Inner error: ") + ex.what()).c_str());
+    RCLCPP_ERROR(logger_, (std::string("Inner error: ") + ex.what()).c_str());
   }
 
   current_ = true;
@@ -171,12 +171,12 @@ DenoiseLayer::removeSinglePixels(Image<uint8_t> & image) const
         return v == NO_INFORMATION ? FREE_SPACE : v;
       };
     auto max = [&](const std::initializer_list<uint8_t> lst) {
-        std::array<uint8_t, 3> buf = {
+        std::array<uint8_t, 3> rbuf = {
           replace_to_free(*lst.begin()),
           replace_to_free(*(lst.begin() + 1)),
           replace_to_free(*(lst.begin() + 2))
         };
-        return *std::max_element(buf.begin(), buf.end());
+        return *std::max_element(rbuf.begin(), rbuf.end());
       };
     dilate(image, max_neighbors_image, group_connectivity_type_, max);
   } else {

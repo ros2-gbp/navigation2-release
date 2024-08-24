@@ -18,7 +18,7 @@
 
 #include <string>
 #include <memory>
-#include <filesystem>
+#include <experimental/filesystem>  // NOLINT
 
 #include "rclcpp/rclcpp.hpp"
 
@@ -29,7 +29,7 @@
 
 #define TEST_DIR TEST_DIRECTORY
 
-using std::filesystem::path;
+using std::experimental::filesystem::path;
 using lifecycle_msgs::msg::Transition;
 using namespace nav2_map_server;  // NOLINT
 

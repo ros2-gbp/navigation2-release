@@ -407,8 +407,7 @@ TEST_F(DenoiseLayerTester, denoiseNothing) {
 
 TEST_F(DenoiseLayerTester, constructorAndDestructor) {
   ASSERT_NO_THROW(
-    // []()
-    {
+    []() {
       nav2_costmap_2d::DenoiseLayer layer;
     });
 }

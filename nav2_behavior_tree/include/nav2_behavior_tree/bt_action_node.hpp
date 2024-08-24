@@ -212,7 +212,7 @@ public:
       // if new goal was sent and action server has not yet responded
       // check the future goal handle
       if (future_goal_handle_) {
-        auto elapsed = (node_->now() - time_goal_sent_).template to_chrono<std::chrono::milliseconds>();
+        auto elapsed = (node_->now() - time_goal_sent_).to_chrono<std::chrono::milliseconds>();
         if (!is_future_goal_handle_complete(elapsed)) {
           // return RUNNING if there is still some time before timeout happens
           if (elapsed < server_timeout_) {
@@ -237,12 +237,13 @@ public:
         feedback_.reset();
 
         auto goal_status = goal_handle_->get_status();
-        if (goal_updated_ && (goal_status == action_msgs::msg::GoalStatus::STATUS_EXECUTING ||
+        if (goal_updated_ &&
+          (goal_status == action_msgs::msg::GoalStatus::STATUS_EXECUTING ||
           goal_status == action_msgs::msg::GoalStatus::STATUS_ACCEPTED))
         {
           goal_updated_ = false;
           send_new_goal();
-          auto elapsed = (node_->now() - time_goal_sent_).template to_chrono<std::chrono::milliseconds>();
+          auto elapsed = (node_->now() - time_goal_sent_).to_chrono<std::chrono::milliseconds>();
           if (!is_future_goal_handle_complete(elapsed)) {
             if (elapsed < server_timeout_) {
               return BT::NodeStatus::RUNNING;
@@ -472,7 +473,7 @@ protected:
   std::shared_ptr<std::shared_future<typename rclcpp_action::ClientGoalHandle<ActionT>::SharedPtr>>
   future_goal_handle_;
   rclcpp::Time time_goal_sent_;
-  
+
   // Can be set in on_tick or on_wait_for_result to indicate if a goal should be sent.
   bool should_send_goal_;
 };

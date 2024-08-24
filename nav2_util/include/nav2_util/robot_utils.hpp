@@ -18,6 +18,7 @@
 #define NAV2_UTIL__ROBOT_UTILS_HPP_
 
 #include <string>
+#include <memory>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/twist.hpp"
@@ -57,18 +58,6 @@ bool transformPoseInTargetFrame(
   geometry_msgs::msg::PoseStamped & transformed_pose,
   tf2_ros::Buffer & tf_buffer, const std::string target_frame,
   const double transform_timeout = 0.1);
-
-/**
- * @brief Obtains a transform from source_frame_id at source_time ->
- * to target_frame_id at target_time time
- * @param source_frame_id Source frame ID to convert from
- * @param source_time Source timestamp to convert from
- * @param target_frame_id Target frame ID to convert to
- * @param target_time Target time to interpolate to
- * @param transform_tolerance Transform tolerance
- * @param tf_transform Output source->target transform
- * @return True if got correct transform, otherwise false
- */
 
 /**
  * @brief Obtains a transform from source_frame_id -> to target_frame_id

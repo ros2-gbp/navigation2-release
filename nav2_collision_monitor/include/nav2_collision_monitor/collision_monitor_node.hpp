@@ -21,13 +21,14 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 
 #include "tf2/time.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 
 #include "nav2_util/lifecycle_node.hpp"
-#include "nav2_util/robot_utils.hpp"
+#include "nav2_msgs/msg/collision_monitor_state.hpp"
 
 #include "nav2_collision_monitor/types.hpp"
 #include "nav2_collision_monitor/polygon.hpp"
@@ -47,12 +48,12 @@ class CollisionMonitor : public nav2_util::LifecycleNode
 {
 public:
   /**
-   * @brief Constructor for the nav2_collision_safery::CollisionMonitor
+   * @brief Constructor for the nav2_collision_monitor::CollisionMonitor
    * @param options Additional options to control creation of the node.
    */
   explicit CollisionMonitor(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
   /**
-   * @brief Destructor for the nav2_collision_safery::CollisionMonitor
+   * @brief Destructor for the nav2_collision_monitor::CollisionMonitor
    */
   ~CollisionMonitor();
 
@@ -107,11 +108,13 @@ protected:
    * @param cmd_vel_in_topic Output name of cmd_vel_in topic
    * @param cmd_vel_out_topic Output name of cmd_vel_out topic
    * is required.
+   * @param state_topic topic name for publishing collision monitor state
    * @return True if all parameters were obtained or false in failure case
    */
   bool getParameters(
     std::string & cmd_vel_in_topic,
-    std::string & cmd_vel_out_topic);
+    std::string & cmd_vel_out_topic,
+    std::string & state_topic);
   /**
    * @brief Supporting routine creating and configuring all polygons
    * @param base_frame_id Robot base frame ID
@@ -125,7 +128,7 @@ protected:
    * @brief Supporting routine creating and configuring all data sources
    * @param base_frame_id Robot base frame ID
    * @param odom_frame_id Odometry frame ID. Used as global frame to get
-   * source->base time inerpolated transform.
+   * source->base time interpolated transform.
    * @param transform_tolerance Transform tolerance
    * @param source_timeout Maximum time interval in which data is considered valid
    * @param base_shift_correction Whether to correct source data towards to base frame movement,
@@ -146,14 +149,14 @@ protected:
   void process(const Velocity & cmd_vel_in);
 
   /**
-   * @brief Processes the polygon of STOP and SLOWDOWN action type
+   * @brief Processes the polygon of STOP, SLOWDOWN and LIMIT action type
    * @param polygon Polygon to process
    * @param collision_points Array of 2D obstacle points
    * @param velocity Desired robot velocity
    * @param robot_action Output processed robot action
    * @return True if returned action is caused by current polygon, otherwise false
    */
-  bool processStopSlowdown(
+  bool processStopSlowdownLimit(
     const std::shared_ptr<Polygon> polygon,
     const std::vector<Point> & collision_points,
     const Velocity & velocity,
@@ -174,11 +177,11 @@ protected:
     Action & robot_action) const;
 
   /**
-   * @brief Prints robot action and polygon caused it (if it was)
-   * @param robot_action Robot action to print
+   * @brief Log and publish current robot action and polygon
+   * @param robot_action Robot action to notify
    * @param action_polygon Pointer to a polygon causing a selected action
    */
-  void printAction(
+  void notifyActionState(
     const Action & robot_action, const std::shared_ptr<Polygon> action_polygon) const;
 
   /**
@@ -204,6 +207,14 @@ protected:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_in_sub_;
   /// @brief Output cmd_vel publisher
   rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_out_pub_;
+
+  /// @brief CollisionMonitor state publisher
+  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::CollisionMonitorState>::SharedPtr
+    state_pub_;
+
+  /// @brief Collision points marker publisher
+  rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+    collision_points_marker_pub_;
 
   /// @brief Whether main routine is active
   bool process_active_;
