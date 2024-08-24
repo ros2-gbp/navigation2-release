@@ -41,13 +41,10 @@
 #include <map>
 #include <vector>
 #include <mutex>
-#include <memory>
-#include <string>
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/layer.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
-#include "nav2_costmap_2d/costmap_2d_ros.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -60,16 +57,18 @@ class CellData
 public:
   /**
    * @brief  Constructor for a CellData objects
+   * @param  i The index of the cell in the cost map
    * @param  x The x coordinate of the cell in the cost map
    * @param  y The y coordinate of the cell in the cost map
    * @param  sx The x coordinate of the closest obstacle cell in the costmap
    * @param  sy The y coordinate of the closest obstacle cell in the costmap
    * @return
    */
-  CellData(unsigned int x, unsigned int y, unsigned int sx, unsigned int sy)
-  : x_(x), y_(y), src_x_(sx), src_y_(sy)
+  CellData(double i, unsigned int x, unsigned int y, unsigned int sx, unsigned int sy)
+  : index_(static_cast<unsigned int>(i)), x_(x), y_(y), src_x_(sx), src_y_(sy)
   {
   }
+  unsigned int index_;
   unsigned int x_, y_;
   unsigned int src_x_, src_y_;
 };
@@ -132,7 +131,7 @@ public:
   /**
    * @brief If clearing operations should be processed on this layer or not
    */
-  bool isClearable() override {return false;}
+  virtual bool isClearable() override {return false;}
 
   /**
    * @brief Reset this costmap
@@ -162,25 +161,6 @@ public:
     return cost;
   }
 
-  static std::shared_ptr<nav2_costmap_2d::InflationLayer> getInflationLayer(
-    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> & costmap_ros,
-    const std::string layer_name = "")
-  {
-    const auto layered_costmap = costmap_ros->getLayeredCostmap();
-    for (auto layer = layered_costmap->getPlugins()->begin();
-      layer != layered_costmap->getPlugins()->end();
-      ++layer)
-    {
-      auto inflation_layer = std::dynamic_pointer_cast<nav2_costmap_2d::InflationLayer>(*layer);
-      if (inflation_layer) {
-        if (layer_name.empty() || inflation_layer->getName() == layer_name) {
-          return inflation_layer;
-        }
-      }
-    }
-    return nullptr;
-  }
-
   // Provide a typedef to ease future code maintenance
   typedef std::recursive_mutex mutex_t;
 
@@ -190,16 +170,6 @@ public:
   mutex_t * getMutex()
   {
     return access_;
-  }
-
-  double getCostScalingFactor()
-  {
-    return cost_scaling_factor_;
-  }
-
-  double getInflationRadius()
-  {
-    return inflation_radius_;
   }
 
 protected:

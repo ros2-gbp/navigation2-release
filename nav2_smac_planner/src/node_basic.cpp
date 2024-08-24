@@ -30,7 +30,7 @@ void NodeBasic<NodeHybrid>::processSearchNode()
   // a new branch is overriding one of lower cost already visited.
   if (!this->graph_node_ptr->wasVisited()) {
     this->graph_node_ptr->pose = this->pose;
-    this->graph_node_ptr->setMotionPrimitiveIndex(this->motion_index, this->turn_dir);
+    this->graph_node_ptr->setMotionPrimitiveIndex(this->motion_index);
   }
 }
 
@@ -59,7 +59,6 @@ void NodeBasic<NodeHybrid>::populateSearchNode(NodeHybrid * & node)
   this->pose = node->pose;
   this->graph_node_ptr = node;
   this->motion_index = node->getMotionPrimitiveIndex();
-  this->turn_dir = node->getTurnDirection();
 }
 
 template<>

@@ -17,7 +17,7 @@
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_controller/plugins/simple_goal_checker.hpp"
-#include "nav2_core/controller_exceptions.hpp"
+#include "nav2_core/exceptions.hpp"
 #include "nav2_graceful_controller/ego_polar_coords.hpp"
 #include "nav2_graceful_controller/smooth_control_law.hpp"
 #include "nav2_graceful_controller/graceful_controller.hpp"
@@ -616,7 +616,7 @@ TEST(GracefulControllerTest, emptyPlan) {
   global_plan.header.frame_id = "test_global_frame";
   controller->setPlan(global_plan);
 
-  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::InvalidPath);
+  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::PlannerException);
 }
 
 TEST(GracefulControllerTest, poseOutsideCostmap) {
@@ -671,7 +671,7 @@ TEST(GracefulControllerTest, poseOutsideCostmap) {
   global_plan.poses[0].pose.position.y = 0.0;
   controller->setPlan(global_plan);
 
-  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::ControllerException);
+  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::PlannerException);
 }
 
 TEST(GracefulControllerTest, noPruningPlan) {

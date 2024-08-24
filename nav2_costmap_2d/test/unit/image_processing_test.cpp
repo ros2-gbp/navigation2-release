@@ -18,8 +18,8 @@
 #include "nav2_costmap_2d/denoise/image_processing.hpp"
 #include "image_tests_helper.hpp"
 
-using namespace nav2_costmap_2d;  // NOLINT
-using namespace imgproc_impl;  // NOLINT
+using namespace nav2_costmap_2d;
+using namespace imgproc_impl;
 
 struct ImageProcTester : public ::testing::Test
 {
@@ -230,9 +230,8 @@ TEST_F(ConnectedComponentsTester, way4LabelsOverflowTest) {
   uint8_t total_labels;
 
   ASSERT_THROW(
-    (connectedComponents<ConnectivityType::Way4>(
-      input, buffer_, label_trees_,
-      isBackground, total_labels)),
+    (connectedComponents<ConnectivityType::Way4>(input, buffer_, label_trees_,
+        isBackground, total_labels)),
     LabelOverflow);
 }
 
@@ -365,9 +364,8 @@ bool ConnectedComponentsTester::fingerTest()
     "a.b.c", image_buffer_bytes2_, makeLabelsMap('c'));
   uint8_t total_labels;
 
-  const auto result = connectedComponents<connectivity>(
-    input, buffer_,
-    label_trees_, isBackground, total_labels);
+  const auto result = connectedComponents<connectivity>(input, buffer_,
+      label_trees_, isBackground, total_labels);
 
   return total_labels == 4 && isEqualLabels(result, expected_labels);
 }
@@ -401,9 +399,8 @@ bool ConnectedComponentsTester::spiralTest()
     ".xxxxxx", image_buffer_bytes2_);
   uint8_t total_labels;
 
-  const auto result = connectedComponents<connectivity>(
-    input, buffer_,
-    label_trees_, isBackground, total_labels);
+  const auto result = connectedComponents<connectivity>(input, buffer_,
+      label_trees_, isBackground, total_labels);
   return total_labels == 2 && isEqualLabels(result, expected_labels);
 }
 

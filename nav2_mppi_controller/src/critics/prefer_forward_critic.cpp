@@ -21,10 +21,10 @@ void PreferForwardCritic::initialize()
 {
   auto getParam = parameters_handler_->getParamGetter(name_);
   getParam(power_, "cost_power", 1);
-  getParam(weight_, "cost_weight", 5.0f);
+  getParam(weight_, "cost_weight", 5.0);
   getParam(
     threshold_to_consider_,
-    "threshold_to_consider", 0.5f);
+    "threshold_to_consider", 0.5);
 
   RCLCPP_INFO(
     logger_, "PreferForwardCritic instantiated with %d power and %f weight.", power_, weight_);
@@ -39,15 +39,11 @@ void PreferForwardCritic::score(CriticData & data)
     return;
   }
 
-  if (power_ > 1u) {
-    data.costs += xt::pow(
-      xt::sum(
-        std::move(
-          xt::maximum(-data.state.vx, 0)) * data.model_dt, {1}, immediate) * weight_, power_);
-  } else {
-    data.costs += xt::sum(
-      std::move(xt::maximum(-data.state.vx, 0)) * data.model_dt, {1}, immediate) * weight_;
-  }
+  auto backward_motion = xt::maximum(-data.state.vx, 0);
+  data.costs += xt::pow(
+    xt::sum(
+      std::move(
+        backward_motion) * data.model_dt, {1}, immediate) * weight_, power_);
 }
 
 }  // namespace mppi::critics

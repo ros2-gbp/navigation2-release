@@ -24,7 +24,6 @@
 #include "nav2_msgs/action/drive_on_heading.hpp"
 #include "nav2_msgs/action/back_up.hpp"
 #include "nav2_util/node_utils.hpp"
-#include "geometry_msgs/msg/twist_stamped.hpp"
 
 namespace nav2_behaviors
 {
@@ -36,8 +35,6 @@ namespace nav2_behaviors
 template<typename ActionT = nav2_msgs::action::DriveOnHeading>
 class DriveOnHeading : public TimedBehavior<ActionT>
 {
-  using CostmapInfoType = nav2_core::CostmapInfoType;
-
 public:
   /**
    * @brief A constructor for nav2_behaviors::DriveOnHeading
@@ -58,19 +55,19 @@ public:
    * @param command Goal to execute
    * @return Status of behavior
    */
-  ResultStatus onRun(const std::shared_ptr<const typename ActionT::Goal> command) override
+  Status onRun(const std::shared_ptr<const typename ActionT::Goal> command) override
   {
     if (command->target.y != 0.0 || command->target.z != 0.0) {
       RCLCPP_INFO(
         this->logger_,
         "DrivingOnHeading in Y and Z not supported, will only move in X.");
-      return ResultStatus{Status::FAILED, ActionT::Result::INVALID_INPUT};
+      return Status::FAILED;
     }
 
     // Ensure that both the speed and direction have the same sign
     if (!((command->target.x > 0.0) == (command->speed > 0.0)) ) {
       RCLCPP_ERROR(this->logger_, "Speed and command sign did not match");
-      return ResultStatus{Status::FAILED, ActionT::Result::INVALID_INPUT};
+      return Status::FAILED;
     }
 
     command_x_ = command->target.x;
@@ -80,21 +77,21 @@ public:
     end_time_ = this->clock_->now() + command_time_allowance_;
 
     if (!nav2_util::getCurrentPose(
-        initial_pose_, *this->tf_, this->local_frame_, this->robot_base_frame_,
+        initial_pose_, *this->tf_, this->global_frame_, this->robot_base_frame_,
         this->transform_tolerance_))
     {
       RCLCPP_ERROR(this->logger_, "Initial robot pose is not available.");
-      return ResultStatus{Status::FAILED, ActionT::Result::TF_ERROR};
+      return Status::FAILED;
     }
 
-    return ResultStatus{Status::SUCCEEDED, ActionT::Result::NONE};
+    return Status::SUCCEEDED;
   }
 
   /**
    * @brief Loop function to run behavior
    * @return Status of behavior
    */
-  ResultStatus onCycleUpdate() override
+  Status onCycleUpdate() override
   {
     rclcpp::Duration time_remaining = end_time_ - this->clock_->now();
     if (time_remaining.seconds() < 0.0 && command_time_allowance_.seconds() > 0.0) {
@@ -102,16 +99,16 @@ public:
       RCLCPP_WARN(
         this->logger_,
         "Exceeded time allowance before reaching the DriveOnHeading goal - Exiting DriveOnHeading");
-      return ResultStatus{Status::FAILED, ActionT::Result::NONE};
+      return Status::FAILED;
     }
 
     geometry_msgs::msg::PoseStamped current_pose;
     if (!nav2_util::getCurrentPose(
-        current_pose, *this->tf_, this->local_frame_, this->robot_base_frame_,
+        current_pose, *this->tf_, this->global_frame_, this->robot_base_frame_,
         this->transform_tolerance_))
     {
       RCLCPP_ERROR(this->logger_, "Current robot pose is not available.");
-      return ResultStatus{Status::FAILED, ActionT::Result::TF_ERROR};
+      return Status::FAILED;
     }
 
     double diff_x = initial_pose_.pose.position.x - current_pose.pose.position.x;
@@ -123,37 +120,29 @@ public:
 
     if (distance >= std::fabs(command_x_)) {
       this->stopRobot();
-      return ResultStatus{Status::SUCCEEDED, ActionT::Result::NONE};
+      return Status::SUCCEEDED;
     }
 
-    auto cmd_vel = std::make_unique<geometry_msgs::msg::TwistStamped>();
-    cmd_vel->header.stamp = this->clock_->now();
-    cmd_vel->header.frame_id = this->robot_base_frame_;
-    cmd_vel->twist.linear.y = 0.0;
-    cmd_vel->twist.angular.z = 0.0;
-    cmd_vel->twist.linear.x = command_speed_;
+    auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
+    cmd_vel->linear.y = 0.0;
+    cmd_vel->angular.z = 0.0;
+    cmd_vel->linear.x = command_speed_;
 
     geometry_msgs::msg::Pose2D pose2d;
     pose2d.x = current_pose.pose.position.x;
     pose2d.y = current_pose.pose.position.y;
     pose2d.theta = tf2::getYaw(current_pose.pose.orientation);
 
-    if (!isCollisionFree(distance, cmd_vel->twist, pose2d)) {
+    if (!isCollisionFree(distance, cmd_vel.get(), pose2d)) {
       this->stopRobot();
       RCLCPP_WARN(this->logger_, "Collision Ahead - Exiting DriveOnHeading");
-      return ResultStatus{Status::FAILED, ActionT::Result::COLLISION_AHEAD};
+      return Status::FAILED;
     }
 
     this->vel_pub_->publish(std::move(cmd_vel));
 
-    return ResultStatus{Status::RUNNING, ActionT::Result::NONE};
+    return Status::RUNNING;
   }
-
-  /**
-   * @brief Method to determine the required costmap info
-   * @return costmap resources needed
-   */
-  CostmapInfoType getResourceInfo() override {return CostmapInfoType::LOCAL;}
 
 protected:
   /**
@@ -165,7 +154,7 @@ protected:
    */
   bool isCollisionFree(
     const double & distance,
-    const geometry_msgs::msg::Twist & cmd_vel,
+    geometry_msgs::msg::Twist * cmd_vel,
     geometry_msgs::msg::Pose2D & pose2d)
   {
     // Simulate ahead by simulate_ahead_time_ in this->cycle_frequency_ increments
@@ -177,7 +166,7 @@ protected:
     bool fetch_data = true;
 
     while (cycle_count < max_cycle_count) {
-      sim_position_change = cmd_vel.linear.x * (cycle_count / this->cycle_frequency_);
+      sim_position_change = cmd_vel->linear.x * (cycle_count / this->cycle_frequency_);
       pose2d.x = init_pose.x + sim_position_change * cos(init_pose.theta);
       pose2d.y = init_pose.y + sim_position_change * sin(init_pose.theta);
       cycle_count++;
@@ -186,7 +175,7 @@ protected:
         break;
       }
 
-      if (!this->local_collision_checker_->isCollisionFree(pose2d, fetch_data)) {
+      if (!this->collision_checker_->isCollisionFree(pose2d, fetch_data)) {
         return false;
       }
       fetch_data = false;

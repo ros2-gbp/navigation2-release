@@ -4,7 +4,7 @@
   please refer to the groot_instructions.md and REAMDE.md respectively located in the
   nav2_behavior_tree package.
 -->
-<root BTCPP_format="4">
+<root>
   <TreeNodesModel>
     <!-- ############################### ACTION NODES ################################# -->
     <Action ID="BackUp">
@@ -13,7 +13,6 @@
       <input_port name="time_allowance">Allowed time for reversing</input_port>
       <input_port name="server_name">Server name</input_port>
       <input_port name="server_timeout">Server timeout</input_port>
-      <output_port name="error_code_id">"Back up error code"</output_port>
     </Action>
 
     <Action ID="DriveOnHeading">
@@ -22,7 +21,6 @@
       <input_port name="time_allowance">Allowed time for reversing</input_port>
       <input_port name="server_name">Server name</input_port>
       <input_port name="server_timeout">Server timeout</input_port>
-      <output_port name="error_code_id">"Drive on heading error code"</output_port>
     </Action>
 
     <Action ID="CancelControl">
@@ -79,7 +77,6 @@
       <input_port name="server_name">Server name</input_port>
       <input_port name="server_timeout">Server timeout</input_port>
       <output_port name="path">Path created by ComputePathToPose node</output_port>
-      <output_port name="error_code_id">"Compute path to pose error code"</output_port>
     </Action>
 
     <Action ID="ComputePathThroughPoses">
@@ -89,7 +86,6 @@
       <input_port name="server_timeout">Server timeout</input_port>
       <input_port name="planner_id">Mapped name to the planner plugin type to use</input_port>
       <output_port name="path">Path created by ComputePathToPose node</output_port>
-      <output_port name="error_code_id">"Compute path through poses error code"</output_port>
     </Action>
 
     <Action ID="RemovePassedGoals">
@@ -114,10 +110,8 @@
       <input_port name="controller_id" default="FollowPath"/>
       <input_port name="path">Path to follow</input_port>
       <input_port name="goal_checker_id">Goal checker</input_port>
-      <input_port name="progress_checker_id">Progress checker</input_port>
-      <input_port name="service_name">Service name</input_port>
+      <input_port name="server_name">Server name</input_port>
       <input_port name="server_timeout">Server timeout</input_port>
-      <output_port name="error_code_id">Follow Path error code</output_port>
     </Action>
 
     <Action ID="NavigateToPose">
@@ -125,7 +119,6 @@
         <input_port name="server_name">Server name</input_port>
         <input_port name="server_timeout">Server timeout</input_port>
         <input_port name="behavior_tree">Behavior tree to run</input_port>
-        <output_port name="error_code_id">Navigate to pose error code</output_port>
     </Action>
 
     <Action ID="NavigateThroughPoses">
@@ -133,7 +126,6 @@
         <input_port name="server_name">Server name</input_port>
         <input_port name="server_timeout">Server timeout</input_port>
         <input_port name="behavior_tree">Behavior tree to run</input_port>
-        <output_port name="error_code_id">Navigate through poses error code</output_port>
     </Action>
 
     <Action ID="ReinitializeGlobalLocalization">
@@ -193,7 +185,6 @@
       <input_port name="time_allowance">Allowed time for spinning</input_port>
       <input_port name="server_name">Server name</input_port>
       <input_port name="server_timeout">Server timeout</input_port>
-      <output_port name="error_code_id">Spin error code</output_port>
     </Action>
 
     <Action ID="Wait">
@@ -207,7 +198,6 @@
       <input_port name="is_recovery">If true recovery count will be incremented</input_port>
       <input_port name="server_name">Service name</input_port>
       <input_port name="server_timeout">Server timeout</input_port>
-      <output_port name="error_code_id">Assisted teleop error code</output_port>
     </Action>
 
     <!-- ############################### CONDITION NODES ############################## -->
@@ -224,15 +214,9 @@
       <input_port name="parent">Parent frame for transform</input_port>
     </Condition>
 
-    <Condition ID="GoalUpdated">
-      <input_port name="goal">Vector of navigation goals</input_port>
-      <input_port name="goals">Navigation goal</input_port>
-    </Condition>
+    <Condition ID="GoalUpdated"/>
 
-    <Condition ID="GlobalUpdatedGoal">
-      <input_port name="goal">Vector of navigation goals</input_port>
-      <input_port name="goals">Navigation goal</input_port>
-    </Condition>
+    <Condition ID="GlobalUpdatedGoal"/>
 
     <Condition ID="IsBatteryLow">
       <input_port name="min_battery">Min battery % or voltage before triggering</input_port>
@@ -261,31 +245,12 @@
     </Condition>
 
     <Condition ID="InitialPoseReceived">
-      <input_port name="initial_pose_received">SUCCESS if initial_pose_received true</input_port>
     </Condition>
 
     <Condition ID="IsPathValid">
       <input_port name="path"> Path to validate </input_port>
       <input_port name="server_timeout"> Server timeout </input_port>
     </Condition>
-
-    <Condition ID="WouldAControllerRecoveryHelp">
-      <input_port name="error_code">Error code</input_port>
-    </Condition>
-
-    <Condition ID="WouldAPlannerRecoveryHelp">
-      <input_port name="error_code">Error code</input_port>
-    </Condition>
-
-    <Condition ID="WouldASmootherRecoveryHelp">
-      <input_port name="error_code">Error code</input_port>
-    </Condition>
-
-    <Condition ID="AreErrorCodesPresent">
-      <input_port name="error_code">Error code</input_port>
-      <input_port name="error_codes_to_check">Error codes to check, user defined</input_port>
-    </Condition>
-
 
     <!-- ############################### CONTROL NODES ################################ -->
     <Control ID="PipelineSequence"/>
@@ -320,8 +285,6 @@
       <input_port name="max_rate">Maximum rate</input_port>
       <input_port name="min_speed">Minimum speed</input_port>
       <input_port name="max_speed">Maximum speed</input_port>
-      <input_port name="goal">Vector of navigation goals</input_port>
-      <input_port name="goals">Navigation goal</input_port>
     </Decorator>
 
     <Decorator ID="PathLongerOnApproach">
@@ -331,8 +294,6 @@
     </Decorator>
 
     <Decorator ID="GoalUpdatedController">
-      <input_port name="goal">Vector of navigation goals</input_port>
-      <input_port name="goals">Navigation goal</input_port>
     </Decorator>
 
   </TreeNodesModel>

@@ -123,9 +123,7 @@ void SpinBehaviorTester::deactivate()
 
 bool SpinBehaviorTester::defaultSpinBehaviorTest(
   const float target_yaw,
-  const double tolerance,
-  const bool nonblocking_action,
-  const bool cancel_action)
+  const double tolerance)
 {
   if (!is_active_) {
     RCLCPP_ERROR(node_->get_logger(), "Not activated");
@@ -136,7 +134,6 @@ bool SpinBehaviorTester::defaultSpinBehaviorTest(
   std::this_thread::sleep_for(5s);
 
   if (make_fake_costmap_) {
-    sendFakeCostmap(target_yaw);
     sendFakeOdom(0.0);
   }
 
@@ -184,16 +181,6 @@ bool SpinBehaviorTester::defaultSpinBehaviorTest(
     return false;
   }
 
-  if (!nonblocking_action) {
-    return true;
-  }
-  if (cancel_action) {
-    sleep(2);
-    // cancel the goal
-    auto cancel_response = client_ptr_->async_cancel_goal(goal_handle_future.get());
-    rclcpp::spin_until_future_complete(node_, cancel_response);
-  }
-
   // Wait for the server to be done with the goal
   auto result_future = client_ptr_->async_get_result(goal_handle);
 
@@ -212,7 +199,7 @@ bool SpinBehaviorTester::defaultSpinBehaviorTest(
     {
       sendFakeOdom(command_yaw);
       sendFakeCostmap(target_yaw);
-      rclcpp::sleep_for(std::chrono::milliseconds(3));
+      rclcpp::sleep_for(std::chrono::milliseconds(1));
     }
     sendFakeOdom(target_yaw);
     sendFakeCostmap(target_yaw);
@@ -278,7 +265,7 @@ void SpinBehaviorTester::sendFakeCostmap(float angle)
   nav2_msgs::msg::Costmap fake_costmap;
 
   fake_costmap.header.frame_id = "odom";
-  fake_costmap.header.stamp = node_->now();
+  fake_costmap.header.stamp = stamp_;
   fake_costmap.metadata.layer = "master";
   fake_costmap.metadata.resolution = .1;
   fake_costmap.metadata.size_x = 100;
@@ -289,9 +276,9 @@ void SpinBehaviorTester::sendFakeCostmap(float angle)
   float costmap_val = 0;
   for (int ix = 0; ix < 100; ix++) {
     for (int iy = 0; iy < 100; iy++) {
-      if (fabs(angle) > M_PI_2f32) {
+      if (abs(angle) > M_PI_2f32) {
         // fake obstacles in the way so we get failure due to potential collision
-        costmap_val = 253;
+        costmap_val = 100;
       }
       fake_costmap.data.push_back(costmap_val);
     }
@@ -303,7 +290,7 @@ void SpinBehaviorTester::sendInitialPose()
 {
   geometry_msgs::msg::PoseWithCovarianceStamped pose;
   pose.header.frame_id = "map";
-  pose.header.stamp = node_->now();
+  pose.header.stamp = stamp_;
   pose.pose.pose.position.x = -2.0;
   pose.pose.pose.position.y = -0.5;
   pose.pose.pose.position.z = 0.0;
@@ -326,7 +313,7 @@ void SpinBehaviorTester::sendFakeOdom(float angle)
 {
   geometry_msgs::msg::TransformStamped transformStamped;
 
-  transformStamped.header.stamp = node_->now();
+  transformStamped.header.stamp = stamp_;
   transformStamped.header.frame_id = "odom";
   transformStamped.child_frame_id = "base_link";
   transformStamped.transform.translation.x = 0.0;
@@ -343,7 +330,7 @@ void SpinBehaviorTester::sendFakeOdom(float angle)
 
   geometry_msgs::msg::PolygonStamped footprint;
   footprint.header.frame_id = "odom";
-  footprint.header.stamp = node_->now();
+  footprint.header.stamp = stamp_;
   footprint.polygon.points.resize(4);
   footprint.polygon.points[0].x = 0.22;
   footprint.polygon.points[0].y = 0.22;
@@ -360,4 +347,5 @@ void SpinBehaviorTester::amclPoseCallback(
 {
   initial_pose_received_ = true;
 }
+
 }  // namespace nav2_system_tests
