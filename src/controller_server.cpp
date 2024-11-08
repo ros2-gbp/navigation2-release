@@ -44,7 +44,8 @@ ControllerServer::ControllerServer(const rclcpp::NodeOptions & options)
   default_goal_checker_types_{"nav2_controller::SimpleGoalChecker"},
   lp_loader_("nav2_core", "nav2_core::Controller"),
   default_ids_{"FollowPath"},
-  default_types_{"dwb_core::DWBLocalPlanner"}
+  default_types_{"dwb_core::DWBLocalPlanner"},
+  costmap_update_timeout_(300ms)
 {
   RCLCPP_INFO(get_logger(), "Creating controller server");
 
@@ -63,6 +64,8 @@ ControllerServer::ControllerServer(const rclcpp::NodeOptions & options)
 
   declare_parameter("failure_tolerance", rclcpp::ParameterValue(0.0));
   declare_parameter("use_realtime_priority", rclcpp::ParameterValue(false));
+  declare_parameter("publish_zero_velocity", rclcpp::ParameterValue(true));
+  declare_parameter("costmap_update_timeout", 0.30);  // 300ms
 
   // The costmap node is used in the implementation of the controller
   costmap_ros_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
@@ -79,7 +82,7 @@ ControllerServer::~ControllerServer()
 }
 
 nav2_util::CallbackReturn
-ControllerServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
+ControllerServer::on_configure(const rclcpp_lifecycle::State & state)
 {
   auto node = shared_from_this();
 
@@ -148,6 +151,7 @@ ControllerServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
       RCLCPP_FATAL(
         get_logger(),
         "Failed to create progress_checker. Exception: %s", ex.what());
+      on_cleanup(state);
       return nav2_util::CallbackReturn::FAILURE;
     }
   }
@@ -174,6 +178,7 @@ ControllerServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
       RCLCPP_FATAL(
         get_logger(),
         "Failed to create goal checker. Exception: %s", ex.what());
+      on_cleanup(state);
       return nav2_util::CallbackReturn::FAILURE;
     }
   }
@@ -202,6 +207,7 @@ ControllerServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
       RCLCPP_FATAL(
         get_logger(),
         "Failed to create controller. Exception: %s", ex.what());
+      on_cleanup(state);
       return nav2_util::CallbackReturn::FAILURE;
     }
   }
@@ -222,6 +228,10 @@ ControllerServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
   rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
   server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
 
+  double costmap_update_timeout_dbl;
+  get_parameter("costmap_update_timeout", costmap_update_timeout_dbl);
+  costmap_update_timeout_ = rclcpp::Duration::from_seconds(costmap_update_timeout_dbl);
+
   // Create the action server that we implement with our followPath method
   // This may throw due to real-time prioritzation if user doesn't have real-time permissions
   try {
@@ -234,6 +244,7 @@ ControllerServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
       true /*spin thread*/, server_options, use_realtime_priority_ /*soft realtime*/);
   } catch (const std::runtime_error & e) {
     RCLCPP_ERROR(get_logger(), "Error creating action server! %s", e.what());
+    on_cleanup(state);
     return nav2_util::CallbackReturn::FAILURE;
   }
 
@@ -292,8 +303,21 @@ ControllerServer::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
    */
   costmap_ros_->deactivate();
 
-  publishZeroVelocity();
+  // Always publish a zero velocity when deactivating the controller server
+  geometry_msgs::msg::TwistStamped velocity;
+  velocity.twist.angular.x = 0;
+  velocity.twist.angular.y = 0;
+  velocity.twist.angular.z = 0;
+  velocity.twist.linear.x = 0;
+  velocity.twist.linear.y = 0;
+  velocity.twist.linear.z = 0;
+  velocity.header.frame_id = costmap_ros_->getBaseFrameID();
+  velocity.header.stamp = now();
+  publishVelocity(velocity);
+
   vel_publisher_->on_deactivate();
+
+  remove_on_set_parameters_callback(dyn_params_handler_.get());
   dyn_params_handler_.reset();
 
   // destroy bond connection
@@ -422,7 +446,12 @@ void ControllerServer::computeControl()
   RCLCPP_INFO(get_logger(), "Received a goal, begin computing control effort.");
 
   try {
-    std::string c_name = action_server_->get_current_goal()->controller_id;
+    auto goal = action_server_->get_current_goal();
+    if (!goal) {
+      return;  //  goal would be nullptr if action_server_ is inactivate.
+    }
+
+    std::string c_name = goal->controller_id;
     std::string current_controller;
     if (findControllerId(c_name, current_controller)) {
       current_controller_ = current_controller;
@@ -430,7 +459,7 @@ void ControllerServer::computeControl()
       throw nav2_core::InvalidController("Failed to find controller name: " + c_name);
     }
 
-    std::string gc_name = action_server_->get_current_goal()->goal_checker_id;
+    std::string gc_name = goal->goal_checker_id;
     std::string current_goal_checker;
     if (findGoalCheckerId(gc_name, current_goal_checker)) {
       current_goal_checker_ = current_goal_checker;
@@ -438,7 +467,7 @@ void ControllerServer::computeControl()
       throw nav2_core::ControllerException("Failed to find goal checker name: " + gc_name);
     }
 
-    std::string pc_name = action_server_->get_current_goal()->progress_checker_id;
+    std::string pc_name = goal->progress_checker_id;
     std::string current_progress_checker;
     if (findProgressCheckerId(pc_name, current_progress_checker)) {
       current_progress_checker_ = current_progress_checker;
@@ -446,7 +475,7 @@ void ControllerServer::computeControl()
       throw nav2_core::ControllerException("Failed to find progress checker name: " + pc_name);
     }
 
-    setPlannerPath(action_server_->get_current_goal()->path);
+    setPlannerPath(goal->path);
     progress_checkers_[current_progress_checker_]->reset();
 
     last_valid_cmd_time_ = now();
@@ -473,7 +502,11 @@ void ControllerServer::computeControl()
 
       // Don't compute a trajectory until costmap is valid (after clear costmap)
       rclcpp::Rate r(100);
+      auto waiting_start = now();
       while (!costmap_ros_->isCurrent()) {
+        if (now() - waiting_start > costmap_update_timeout_) {
+          throw nav2_core::ControllerTimedOut("Costmap timed out waiting for update");
+        }
         r.sleep();
       }
 
@@ -534,6 +567,13 @@ void ControllerServer::computeControl()
     publishZeroVelocity();
     std::shared_ptr<Action::Result> result = std::make_shared<Action::Result>();
     result->error_code = Action::Result::INVALID_PATH;
+    action_server_->terminate_current(result);
+    return;
+  } catch (nav2_core::ControllerTimedOut & e) {
+    RCLCPP_ERROR(this->get_logger(), "%s", e.what());
+    publishZeroVelocity();
+    std::shared_ptr<Action::Result> result = std::make_shared<Action::Result>();
+    result->error_code = Action::Result::CONTROLLER_TIMED_OUT;
     action_server_->terminate_current(result);
     return;
   } catch (nav2_core::ControllerException & e) {
@@ -712,16 +752,18 @@ void ControllerServer::publishVelocity(const geometry_msgs::msg::TwistStamped & 
 
 void ControllerServer::publishZeroVelocity()
 {
-  geometry_msgs::msg::TwistStamped velocity;
-  velocity.twist.angular.x = 0;
-  velocity.twist.angular.y = 0;
-  velocity.twist.angular.z = 0;
-  velocity.twist.linear.x = 0;
-  velocity.twist.linear.y = 0;
-  velocity.twist.linear.z = 0;
-  velocity.header.frame_id = costmap_ros_->getBaseFrameID();
-  velocity.header.stamp = now();
-  publishVelocity(velocity);
+  if (get_parameter("publish_zero_velocity").as_bool()) {
+    geometry_msgs::msg::TwistStamped velocity;
+    velocity.twist.angular.x = 0;
+    velocity.twist.angular.y = 0;
+    velocity.twist.angular.z = 0;
+    velocity.twist.linear.x = 0;
+    velocity.twist.linear.y = 0;
+    velocity.twist.linear.z = 0;
+    velocity.header.frame_id = costmap_ros_->getBaseFrameID();
+    velocity.header.stamp = now();
+    publishVelocity(velocity);
+  }
 
   // Reset the state of the controllers after the task has ended
   ControllerMap::iterator it;
