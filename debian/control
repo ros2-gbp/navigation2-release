@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-waypoint-follower
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-cmake-pytest <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-cv-bridge, ros-jazzy-geographic-msgs, ros-jazzy-image-transport, ros-jazzy-nav-msgs, ros-jazzy-nav2-common, ros-jazzy-nav2-core, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-rclcpp-action, ros-jazzy-rclcpp-lifecycle, ros-jazzy-robot-localization, ros-jazzy-tf2-ros, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-waypoint-follower
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-cv-bridge, ros-jazzy-geographic-msgs, ros-jazzy-image-transport, ros-jazzy-nav-msgs, ros-jazzy-nav2-common, ros-jazzy-nav2-core, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-rclcpp-action, ros-jazzy-rclcpp-lifecycle, ros-jazzy-robot-localization, ros-jazzy-tf2-ros, ros-jazzy-ros-workspace
+Description: A waypoint follower navigation server
