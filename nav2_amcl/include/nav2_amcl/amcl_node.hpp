@@ -152,8 +152,7 @@ protected:
   std::recursive_mutex mutex_;
   rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::ConstSharedPtr map_sub_;
 #if NEW_UNIFORM_SAMPLING
-  struct Point2D { int32_t x; int32_t y; };
-  static std::vector<Point2D> free_space_indices;
+  static std::vector<std::pair<int, int>> free_space_indices;
 #endif
 
   // Transforms
@@ -392,7 +391,6 @@ protected:
   double z_rand_;
   std::string scan_topic_{"scan"};
   std::string map_topic_{"map"};
-  bool freespace_downsampling_ = false;
 };
 
 }  // namespace nav2_amcl

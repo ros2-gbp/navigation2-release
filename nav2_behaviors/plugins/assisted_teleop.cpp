@@ -50,14 +50,11 @@ void AssistedTeleop::onConfigure()
   std::string cmd_vel_teleop;
   node->get_parameter("cmd_vel_teleop", cmd_vel_teleop);
 
-  vel_sub_ = std::make_unique<nav2_util::TwistSubscriber>(
-    node,
+  vel_sub_ = node->create_subscription<geometry_msgs::msg::Twist>(
     cmd_vel_teleop, rclcpp::SystemDefaultsQoS(),
-    [&](geometry_msgs::msg::Twist::SharedPtr msg) {
-      teleop_twist_.twist = *msg;
-    }, [&](geometry_msgs::msg::TwistStamped::SharedPtr msg) {
-      teleop_twist_ = *msg;
-    });
+    std::bind(
+      &AssistedTeleop::teleopVelocityCallback,
+      this, std::placeholders::_1));
 
   preempt_teleop_sub_ = node->create_subscription<std_msgs::msg::Empty>(
     "preempt_teleop", rclcpp::SystemDefaultsQoS(),
@@ -66,21 +63,21 @@ void AssistedTeleop::onConfigure()
       this, std::placeholders::_1));
 }
 
-ResultStatus AssistedTeleop::onRun(const std::shared_ptr<const AssistedTeleopAction::Goal> command)
+Status AssistedTeleop::onRun(const std::shared_ptr<const AssistedTeleopAction::Goal> command)
 {
   preempt_teleop_ = false;
   command_time_allowance_ = command->time_allowance;
   end_time_ = this->clock_->now() + command_time_allowance_;
-  return ResultStatus{Status::SUCCEEDED, AssistedTeleopActionResult::NONE};
+  return Status::SUCCEEDED;
 }
 
-void AssistedTeleop::onActionCompletion(std::shared_ptr<AssistedTeleopActionResult>/*result*/)
+void AssistedTeleop::onActionCompletion()
 {
-  teleop_twist_ = geometry_msgs::msg::TwistStamped();
+  teleop_twist_ = geometry_msgs::msg::Twist();
   preempt_teleop_ = false;
 }
 
-ResultStatus AssistedTeleop::onCycleUpdate()
+Status AssistedTeleop::onCycleUpdate()
 {
   feedback_->current_teleop_duration = elasped_time_;
   action_server_->publish_feedback(feedback_);
@@ -92,48 +89,47 @@ ResultStatus AssistedTeleop::onCycleUpdate()
       logger_,
       "Exceeded time allowance before reaching the " << behavior_name_.c_str() <<
         "goal - Exiting " << behavior_name_.c_str());
-    return ResultStatus{Status::FAILED, AssistedTeleopActionResult::TIMEOUT};
+    return Status::FAILED;
   }
 
   // user states that teleop was successful
   if (preempt_teleop_) {
     stopRobot();
-    return ResultStatus{Status::SUCCEEDED, AssistedTeleopActionResult::NONE};
+    return Status::SUCCEEDED;
   }
 
   geometry_msgs::msg::PoseStamped current_pose;
   if (!nav2_util::getCurrentPose(
-      current_pose, *tf_, local_frame_, robot_base_frame_,
+      current_pose, *tf_, global_frame_, robot_base_frame_,
       transform_tolerance_))
   {
     RCLCPP_ERROR_STREAM(
       logger_,
       "Current robot pose is not available for " <<
         behavior_name_.c_str());
-    return ResultStatus{Status::FAILED, AssistedTeleopActionResult::TF_ERROR};
+    return Status::FAILED;
   }
-
   geometry_msgs::msg::Pose2D projected_pose;
   projected_pose.x = current_pose.pose.position.x;
   projected_pose.y = current_pose.pose.position.y;
   projected_pose.theta = tf2::getYaw(current_pose.pose.orientation);
 
-  auto scaled_twist = std::make_unique<geometry_msgs::msg::TwistStamped>(teleop_twist_);
+  geometry_msgs::msg::Twist scaled_twist = teleop_twist_;
   for (double time = simulation_time_step_; time < projection_time_;
     time += simulation_time_step_)
   {
-    projected_pose = projectPose(projected_pose, teleop_twist_.twist, simulation_time_step_);
+    projected_pose = projectPose(projected_pose, teleop_twist_, simulation_time_step_);
 
-    if (!local_collision_checker_->isCollisionFree(projected_pose)) {
+    if (!collision_checker_->isCollisionFree(projected_pose)) {
       if (time == simulation_time_step_) {
         RCLCPP_DEBUG_STREAM_THROTTLE(
           logger_,
           *clock_,
           1000,
           behavior_name_.c_str() << " collided on first time step, setting velocity to zero");
-        scaled_twist->twist.linear.x = 0.0f;
-        scaled_twist->twist.linear.y = 0.0f;
-        scaled_twist->twist.angular.z = 0.0f;
+        scaled_twist.linear.x = 0.0f;
+        scaled_twist.linear.y = 0.0f;
+        scaled_twist.angular.z = 0.0f;
         break;
       } else {
         RCLCPP_DEBUG_STREAM_THROTTLE(
@@ -142,16 +138,16 @@ ResultStatus AssistedTeleop::onCycleUpdate()
           1000,
           behavior_name_.c_str() << " collision approaching in " << time << " seconds");
         double scale_factor = time / projection_time_;
-        scaled_twist->twist.linear.x *= scale_factor;
-        scaled_twist->twist.linear.y *= scale_factor;
-        scaled_twist->twist.angular.z *= scale_factor;
+        scaled_twist.linear.x *= scale_factor;
+        scaled_twist.linear.y *= scale_factor;
+        scaled_twist.angular.z *= scale_factor;
         break;
       }
     }
   }
   vel_pub_->publish(std::move(scaled_twist));
 
-  return ResultStatus{Status::RUNNING, AssistedTeleopActionResult::NONE};
+  return Status::RUNNING;
 }
 
 geometry_msgs::msg::Pose2D AssistedTeleop::projectPose(
@@ -172,6 +168,11 @@ geometry_msgs::msg::Pose2D AssistedTeleop::projectPose(
   projected_pose.theta += projection_time * twist.angular.z;
 
   return projected_pose;
+}
+
+void AssistedTeleop::teleopVelocityCallback(const geometry_msgs::msg::Twist::SharedPtr msg)
+{
+  teleop_twist_ = *msg;
 }
 
 void AssistedTeleop::preemptTeleopCallback(const std_msgs::msg::Empty::SharedPtr)

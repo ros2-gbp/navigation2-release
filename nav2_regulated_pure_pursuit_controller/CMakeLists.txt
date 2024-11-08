@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.5)
 project(nav2_regulated_pure_pursuit_controller)
 
 find_package(ament_cmake REQUIRED)
-find_package(angles REQUIRED)
 find_package(nav2_common REQUIRED)
 find_package(nav2_core REQUIRED)
 find_package(nav2_costmap_2d REQUIRED)
@@ -27,7 +26,6 @@ set(dependencies
   nav2_costmap_2d
   pluginlib
   nav_msgs
-  angles
   nav2_util
   nav2_core
   tf2
@@ -37,10 +35,7 @@ set(dependencies
 set(library_name nav2_regulated_pure_pursuit_controller)
 
 add_library(${library_name} SHARED
-        src/regulated_pure_pursuit_controller.cpp
-        src/collision_checker.cpp
-        src/parameter_handler.cpp
-        src/path_handler.cpp)
+        src/regulated_pure_pursuit_controller.cpp)
 
 ament_target_dependencies(${library_name}
   ${dependencies}

@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "nav2_core/controller_exceptions.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_graceful_controller/graceful_controller.hpp"
 #include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
+#include "nav2_core/exceptions.hpp"
 
 namespace nav2_graceful_controller
 {
@@ -27,7 +27,7 @@ void GracefulController::configure(
 {
   auto node = parent.lock();
   if (!node) {
-    throw nav2_core::ControllerException("Unable to lock node!");
+    throw std::runtime_error("Unable to lock node!");
   }
 
   costmap_ros_ = costmap_ros;
@@ -202,7 +202,7 @@ geometry_msgs::msg::TwistStamped GracefulController::computeVelocityCommands(
   // Generate and publish local plan for debugging / visualization
   nav_msgs::msg::Path local_plan;
   if (!simulateTrajectory(pose, motion_target, costmap_transform, local_plan, reversing)) {
-    throw nav2_core::NoValidControl("Collision detected in the trajectory");
+    throw nav2_core::PlannerException("Collision detected in the trajectory");
   }
   local_plan.header = transformed_plan.header;
   local_plan_pub_->publish(local_plan);

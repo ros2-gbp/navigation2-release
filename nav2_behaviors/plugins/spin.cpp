@@ -71,15 +71,15 @@ void Spin::onConfigure()
   node->get_parameter("rotational_acc_lim", rotational_acc_lim_);
 }
 
-ResultStatus Spin::onRun(const std::shared_ptr<const SpinActionGoal> command)
+Status Spin::onRun(const std::shared_ptr<const SpinAction::Goal> command)
 {
   geometry_msgs::msg::PoseStamped current_pose;
   if (!nav2_util::getCurrentPose(
-      current_pose, *tf_, local_frame_, robot_base_frame_,
+      current_pose, *tf_, global_frame_, robot_base_frame_,
       transform_tolerance_))
   {
     RCLCPP_ERROR(logger_, "Current robot pose is not available.");
-    return ResultStatus{Status::FAILED, SpinActionResult::TF_ERROR};
+    return Status::FAILED;
   }
 
   prev_yaw_ = tf2::getYaw(current_pose.pose.orientation);
@@ -93,10 +93,10 @@ ResultStatus Spin::onRun(const std::shared_ptr<const SpinActionGoal> command)
   command_time_allowance_ = command->time_allowance;
   end_time_ = this->clock_->now() + command_time_allowance_;
 
-  return ResultStatus{Status::SUCCEEDED, SpinActionResult::NONE};
+  return Status::SUCCEEDED;
 }
 
-ResultStatus Spin::onCycleUpdate()
+Status Spin::onCycleUpdate()
 {
   rclcpp::Duration time_remaining = end_time_ - this->clock_->now();
   if (time_remaining.seconds() < 0.0 && command_time_allowance_.seconds() > 0.0) {
@@ -104,16 +104,16 @@ ResultStatus Spin::onCycleUpdate()
     RCLCPP_WARN(
       logger_,
       "Exceeded time allowance before reaching the Spin goal - Exiting Spin");
-    return ResultStatus{Status::FAILED, SpinActionResult::TIMEOUT};
+    return Status::FAILED;
   }
 
   geometry_msgs::msg::PoseStamped current_pose;
   if (!nav2_util::getCurrentPose(
-      current_pose, *tf_, local_frame_, robot_base_frame_,
+      current_pose, *tf_, global_frame_, robot_base_frame_,
       transform_tolerance_))
   {
     RCLCPP_ERROR(logger_, "Current robot pose is not available.");
-    return ResultStatus{Status::FAILED, SpinActionResult::TF_ERROR};
+    return Status::FAILED;
   }
 
   const double current_yaw = tf2::getYaw(current_pose.pose.orientation);
@@ -132,36 +132,34 @@ ResultStatus Spin::onCycleUpdate()
   double remaining_yaw = abs(cmd_yaw_) - abs(relative_yaw_);
   if (remaining_yaw < 1e-6) {
     stopRobot();
-    return ResultStatus{Status::SUCCEEDED, SpinActionResult::NONE};
+    return Status::SUCCEEDED;
   }
 
   double vel = sqrt(2 * rotational_acc_lim_ * remaining_yaw);
   vel = std::min(std::max(vel, min_rotational_vel_), max_rotational_vel_);
 
-  auto cmd_vel = std::make_unique<geometry_msgs::msg::TwistStamped>();
-  cmd_vel->header.frame_id = robot_base_frame_;
-  cmd_vel->header.stamp = clock_->now();
-  cmd_vel->twist.angular.z = copysign(vel, cmd_yaw_);
+  auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
+  cmd_vel->angular.z = copysign(vel, cmd_yaw_);
 
   geometry_msgs::msg::Pose2D pose2d;
   pose2d.x = current_pose.pose.position.x;
   pose2d.y = current_pose.pose.position.y;
   pose2d.theta = tf2::getYaw(current_pose.pose.orientation);
 
-  if (!isCollisionFree(relative_yaw_, cmd_vel->twist, pose2d)) {
+  if (!isCollisionFree(relative_yaw_, cmd_vel.get(), pose2d)) {
     stopRobot();
     RCLCPP_WARN(logger_, "Collision Ahead - Exiting Spin");
-    return ResultStatus{Status::FAILED, SpinActionResult::COLLISION_AHEAD};
+    return Status::FAILED;
   }
 
   vel_pub_->publish(std::move(cmd_vel));
 
-  return ResultStatus{Status::RUNNING, SpinActionResult::NONE};
+  return Status::RUNNING;
 }
 
 bool Spin::isCollisionFree(
   const double & relative_yaw,
-  const geometry_msgs::msg::Twist & cmd_vel,
+  geometry_msgs::msg::Twist * cmd_vel,
   geometry_msgs::msg::Pose2D & pose2d)
 {
   // Simulate ahead by simulate_ahead_time_ in cycle_frequency_ increments
@@ -172,7 +170,7 @@ bool Spin::isCollisionFree(
   bool fetch_data = true;
 
   while (cycle_count < max_cycle_count) {
-    sim_position_change = cmd_vel.angular.z * (cycle_count / cycle_frequency_);
+    sim_position_change = cmd_vel->angular.z * (cycle_count / cycle_frequency_);
     pose2d.theta = init_pose.theta + sim_position_change;
     cycle_count++;
 
@@ -180,7 +178,7 @@ bool Spin::isCollisionFree(
       break;
     }
 
-    if (!local_collision_checker_->isCollisionFree(pose2d, fetch_data)) {
+    if (!collision_checker_->isCollisionFree(pose2d, fetch_data)) {
       return false;
     }
     fetch_data = false;

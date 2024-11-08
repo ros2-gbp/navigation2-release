@@ -15,8 +15,6 @@
 #ifndef NAV2_BEHAVIORS__TIMED_BEHAVIOR_HPP_
 #define NAV2_BEHAVIORS__TIMED_BEHAVIOR_HPP_
 
-
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <cmath>
@@ -29,15 +27,13 @@
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/create_timer_ros.h"
 #include "geometry_msgs/msg/twist.hpp"
-#include "nav2_util/robot_utils.hpp"
-#include "nav2_util/twist_publisher.hpp"
 #include "nav2_util/simple_action_server.hpp"
+#include "nav2_util/robot_utils.hpp"
 #include "nav2_core/behavior.hpp"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
 #include "tf2/utils.h"
 #pragma GCC diagnostic pop
-
 
 namespace nav2_behaviors
 {
@@ -47,12 +43,6 @@ enum class Status : int8_t
   SUCCEEDED = 1,
   FAILED = 2,
   RUNNING = 3,
-};
-
-struct ResultStatus
-{
-  Status status;
-  uint16_t error_code{0};
 };
 
 using namespace std::chrono_literals;  //NOLINT
@@ -83,7 +73,7 @@ public:
   // Derived classes can override this method to catch the command and perform some checks
   // before getting into the main loop. The method will only be called
   // once and should return SUCCEEDED otherwise behavior will return FAILED.
-  virtual ResultStatus onRun(const std::shared_ptr<const typename ActionT::Goal> command) = 0;
+  virtual Status onRun(const std::shared_ptr<const typename ActionT::Goal> command) = 0;
 
 
   // This is the method derived classes should mainly implement
@@ -91,7 +81,7 @@ public:
   // Implement the behavior such that it runs some unit of work on each call
   // and provides a status. The Behavior will finish once SUCCEEDED is returned
   // It's up to the derived class to define the final commanded velocity.
-  virtual ResultStatus onCycleUpdate() = 0;
+  virtual Status onCycleUpdate() = 0;
 
   // an opportunity for derived classes to do something on configuration
   // if they chose
@@ -106,7 +96,7 @@ public:
   }
 
   // an opportunity for a derived class to do something on action completion
-  virtual void onActionCompletion(std::shared_ptr<typename ActionT::Result>/*result*/)
+  virtual void onActionCompletion()
   {
   }
 
@@ -114,9 +104,7 @@ public:
   void configure(
     const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     const std::string & name, std::shared_ptr<tf2_ros::Buffer> tf,
-    std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> local_collision_checker,
-    std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> global_collision_checker)
-  override
+    std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> collision_checker) override
   {
     node_ = parent;
     auto node = node_.lock();
@@ -129,29 +117,17 @@ public:
     tf_ = tf;
 
     node->get_parameter("cycle_frequency", cycle_frequency_);
-    node->get_parameter("local_frame", local_frame_);
     node->get_parameter("global_frame", global_frame_);
     node->get_parameter("robot_base_frame", robot_base_frame_);
     node->get_parameter("transform_tolerance", transform_tolerance_);
 
-    if (!node->has_parameter("action_server_result_timeout")) {
-      node->declare_parameter("action_server_result_timeout", 10.0);
-    }
-
-    double action_server_result_timeout;
-    node->get_parameter("action_server_result_timeout", action_server_result_timeout);
-    rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
-    server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
-
     action_server_ = std::make_shared<ActionServer>(
       node, behavior_name_,
-      std::bind(&TimedBehavior::execute, this), nullptr, std::chrono::milliseconds(
-        500), false, server_options);
+      std::bind(&TimedBehavior::execute, this));
 
-    local_collision_checker_ = local_collision_checker;
-    global_collision_checker_ = global_collision_checker;
+    collision_checker_ = collision_checker;
 
-    vel_pub_ = std::make_unique<nav2_util::TwistPublisher>(node, "cmd_vel", 1);
+    vel_pub_ = node->template create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 1);
 
     onConfigure();
   }
@@ -186,15 +162,13 @@ protected:
   rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
 
   std::string behavior_name_;
-  std::unique_ptr<nav2_util::TwistPublisher> vel_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Twist>::SharedPtr vel_pub_;
   std::shared_ptr<ActionServer> action_server_;
-  std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> local_collision_checker_;
-  std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> global_collision_checker_;
+  std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> collision_checker_;
   std::shared_ptr<tf2_ros::Buffer> tf_;
 
   double cycle_frequency_;
   double enabled_;
-  std::string local_frame_;
   std::string global_frame_;
   std::string robot_base_frame_;
   double transform_tolerance_;
@@ -219,24 +193,32 @@ protected:
       return;
     }
 
-    // Initialize the ActionT result
-    auto result = std::make_shared<typename ActionT::Result>();
-
-    ResultStatus on_run_result = onRun(action_server_->get_current_goal());
-    if (on_run_result.status != Status::SUCCEEDED) {
+    if (onRun(action_server_->get_current_goal()) != Status::SUCCEEDED) {
       RCLCPP_INFO(
         logger_,
         "Initial checks failed for %s", behavior_name_.c_str());
-      result->error_code = on_run_result.error_code;
-      action_server_->terminate_current(result);
+      action_server_->terminate_current();
       return;
     }
 
     auto start_time = clock_->now();
+
+    // Initialize the ActionT result
+    auto result = std::make_shared<typename ActionT::Result>();
+
     rclcpp::WallRate loop_rate(cycle_frequency_);
 
     while (rclcpp::ok()) {
       elasped_time_ = clock_->now() - start_time;
+      if (action_server_->is_cancel_requested()) {
+        RCLCPP_INFO(logger_, "Canceling %s", behavior_name_.c_str());
+        stopRobot();
+        result->total_elapsed_time = elasped_time_;
+        action_server_->terminate_all(result);
+        onActionCompletion();
+        return;
+      }
+
       // TODO(orduno) #868 Enable preempting a Behavior on-the-fly without stopping
       if (action_server_->is_preempt_requested()) {
         RCLCPP_ERROR(
@@ -245,37 +227,26 @@ protected:
           behavior_name_.c_str());
         stopRobot();
         result->total_elapsed_time = clock_->now() - start_time;
-        onActionCompletion(result);
         action_server_->terminate_current(result);
+        onActionCompletion();
         return;
       }
 
-      if (action_server_->is_cancel_requested()) {
-        RCLCPP_INFO(logger_, "Canceling %s", behavior_name_.c_str());
-        stopRobot();
-        result->total_elapsed_time = elasped_time_;
-        onActionCompletion(result);
-        action_server_->terminate_all(result);
-        return;
-      }
-
-      ResultStatus on_cycle_update_result = onCycleUpdate();
-      switch (on_cycle_update_result.status) {
+      switch (onCycleUpdate()) {
         case Status::SUCCEEDED:
           RCLCPP_INFO(
             logger_,
             "%s completed successfully", behavior_name_.c_str());
           result->total_elapsed_time = clock_->now() - start_time;
-          onActionCompletion(result);
           action_server_->succeeded_current(result);
+          onActionCompletion();
           return;
 
         case Status::FAILED:
           RCLCPP_WARN(logger_, "%s failed", behavior_name_.c_str());
           result->total_elapsed_time = clock_->now() - start_time;
-          result->error_code = on_cycle_update_result.error_code;
-          onActionCompletion(result);
           action_server_->terminate_current(result);
+          onActionCompletion();
           return;
 
         case Status::RUNNING:
@@ -290,12 +261,10 @@ protected:
   // Stop the robot with a commanded velocity
   void stopRobot()
   {
-    auto cmd_vel = std::make_unique<geometry_msgs::msg::TwistStamped>();
-    cmd_vel->header.frame_id = robot_base_frame_;
-    cmd_vel->header.stamp = clock_->now();
-    cmd_vel->twist.linear.x = 0.0;
-    cmd_vel->twist.linear.y = 0.0;
-    cmd_vel->twist.angular.z = 0.0;
+    auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
+    cmd_vel->linear.x = 0.0;
+    cmd_vel->linear.y = 0.0;
+    cmd_vel->angular.z = 0.0;
 
     vel_pub_->publish(std::move(cmd_vel));
   }

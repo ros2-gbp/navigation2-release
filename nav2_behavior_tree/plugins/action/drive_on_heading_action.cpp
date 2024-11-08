@@ -24,12 +24,7 @@ DriveOnHeadingAction::DriveOnHeadingAction(
   const std::string & xml_tag_name,
   const std::string & action_name,
   const BT::NodeConfiguration & conf)
-: BtActionNode<nav2_msgs::action::DriveOnHeading>(xml_tag_name, action_name, conf),
-  initalized_(false)
-{
-}
-
-void DriveOnHeadingAction::initialize()
+: BtActionNode<nav2_msgs::action::DriveOnHeading>(xml_tag_name, action_name, conf)
 {
   double dist;
   getInput("dist_to_travel", dist);
@@ -44,37 +39,11 @@ void DriveOnHeadingAction::initialize()
   goal_.target.z = 0.0;
   goal_.speed = speed;
   goal_.time_allowance = rclcpp::Duration::from_seconds(time_allowance);
-  initalized_ = true;
-}
-
-void DriveOnHeadingAction::on_tick()
-{
-  if (!initalized_) {
-    initialize();
-  }
-}
-
-BT::NodeStatus DriveOnHeadingAction::on_success()
-{
-  setOutput("error_code_id", ActionResult::NONE);
-  return BT::NodeStatus::SUCCESS;
-}
-
-BT::NodeStatus DriveOnHeadingAction::on_aborted()
-{
-  setOutput("error_code_id", result_.result->error_code);
-  return BT::NodeStatus::FAILURE;
-}
-
-BT::NodeStatus DriveOnHeadingAction::on_cancelled()
-{
-  setOutput("error_code_id", ActionResult::NONE);
-  return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

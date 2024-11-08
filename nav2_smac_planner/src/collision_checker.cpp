@@ -18,18 +18,14 @@ namespace nav2_smac_planner
 {
 
 GridCollisionChecker::GridCollisionChecker(
-  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
+  nav2_costmap_2d::Costmap2D * costmap,
   unsigned int num_quantizations,
   rclcpp_lifecycle::LifecycleNode::SharedPtr node)
-: FootprintCollisionChecker(costmap_ros ? costmap_ros->getCostmap() : nullptr)
+: FootprintCollisionChecker(costmap)
 {
   if (node) {
     clock_ = node->get_clock();
     logger_ = node->get_logger();
-  }
-
-  if (costmap_ros) {
-    costmap_ros_ = costmap_ros;
   }
 
   // Convert number of regular bins into angles
@@ -51,9 +47,9 @@ GridCollisionChecker::GridCollisionChecker(
 void GridCollisionChecker::setFootprint(
   const nav2_costmap_2d::Footprint & footprint,
   const bool & radius,
-  const double & possible_collision_cost)
+  const double & possible_inscribed_cost)
 {
-  possible_collision_cost_ = static_cast<float>(possible_collision_cost);
+  possible_inscribed_cost_ = possible_inscribed_cost;
   footprint_is_radius_ = radius;
 
   // Use radius, no caching required
@@ -111,11 +107,11 @@ bool GridCollisionChecker::inCollision(
   if (!footprint_is_radius_) {
     // if footprint, then we check for the footprint's points, but first see
     // if the robot is even potentially in an inscribed collision
-    footprint_cost_ = static_cast<float>(costmap_->getCost(
-        static_cast<unsigned int>(x + 0.5f), static_cast<unsigned int>(y + 0.5f)));
+    footprint_cost_ = costmap_->getCost(
+      static_cast<unsigned int>(x), static_cast<unsigned int>(y));
 
-    if (footprint_cost_ < possible_collision_cost_) {
-      if (possible_collision_cost_ > 0.0f) {
+    if (footprint_cost_ < possible_inscribed_cost_) {
+      if (possible_inscribed_cost_ > 0) {
         return false;
       } else {
         RCLCPP_ERROR_THROTTLE(
@@ -151,7 +147,7 @@ bool GridCollisionChecker::inCollision(
       current_footprint.push_back(new_pt);
     }
 
-    footprint_cost_ = static_cast<float>(footprintCost(current_footprint));
+    footprint_cost_ = footprintCost(current_footprint);
 
     if (footprint_cost_ == UNKNOWN && traverse_unknown) {
       return false;
@@ -161,15 +157,15 @@ bool GridCollisionChecker::inCollision(
     return footprint_cost_ >= OCCUPIED;
   } else {
     // if radius, then we can check the center of the cost assuming inflation is used
-    footprint_cost_ = static_cast<float>(costmap_->getCost(
-        static_cast<unsigned int>(x + 0.5f), static_cast<unsigned int>(y + 0.5f)));
+    footprint_cost_ = costmap_->getCost(
+      static_cast<unsigned int>(x), static_cast<unsigned int>(y));
 
     if (footprint_cost_ == UNKNOWN && traverse_unknown) {
       return false;
     }
 
     // if occupied or unknown and not to traverse unknown space
-    return footprint_cost_ >= INSCRIBED;
+    return static_cast<double>(footprint_cost_) >= INSCRIBED;
   }
 }
 

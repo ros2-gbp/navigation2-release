@@ -12,18 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-from typing import Dict, Text
-
 import yaml
+import sys
+from typing import Text, Dict
 
 
-class ParseMultiRobotPose:
-    """Parsing argument using sys module."""
+class ParseMultiRobotPose():
+    """
+    Parsing argument using sys module
+    """
 
     def __init__(self, target_argument: Text):
         """
-        Parse arguments for multi-robot's pose.
+        Parse arguments for multi-robot's pose
 
         for example,
         `ros2 launch nav2_bringup bringup_multirobot_launch.py
@@ -41,19 +42,23 @@ class ParseMultiRobotPose:
         self.__args: Text = self.__parse_argument(target_argument)
 
     def __parse_argument(self, target_argument: Text) -> Text:
-        """Get value of target argument."""
+        """
+        get value of target argument
+        """
         if len(sys.argv) > 4:
             argv = sys.argv[4:]
             for arg in argv:
-                if arg.startswith(target_argument + ':='):
-                    return arg.replace(target_argument + ':=', '')
-        return ''
+                if arg.startswith(target_argument + ":="):
+                    return arg.replace(target_argument + ":=", "")
+        return ""
 
     def value(self) -> Dict:
-        """Get value of target argument."""
+        """
+        get value of target argument
+        """
         args = self.__args
-        parsed_args = [] if len(args) == 0 else args.split(';')
-        multirobots = {}
+        parsed_args = list() if len(args) == 0 else args.split(';')
+        multirobots = dict()
         for arg in parsed_args:
             key_val = arg.strip().split('=')
             if len(key_val) != 2:

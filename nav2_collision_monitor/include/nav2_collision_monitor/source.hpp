@@ -24,9 +24,9 @@
 #include "tf2/time.h"
 #include "tf2_ros/buffer.h"
 
-#include "nav2_collision_monitor/types.hpp"
 #include "nav2_util/lifecycle_node.hpp"
-#include "std_msgs/msg/header.hpp"
+
+#include "nav2_collision_monitor/types.hpp"
 
 namespace nav2_collision_monitor
 {
@@ -69,29 +69,16 @@ public:
    * @param curr_time Current node time for data interpolation
    * @param data Array where the data from source to be added.
    * Added data is transformed to base_frame_id_ coordinate system at curr_time.
-   * @return false if an invalid source should block the robot
    */
-  virtual bool getData(
+  virtual void getData(
     const rclcpp::Time & curr_time,
-    std::vector<Point> & data) = 0;
+    std::vector<Point> & data) const = 0;
 
   /**
    * @brief Obtains source enabled state
    * @return Whether source is enabled
    */
   bool getEnabled() const;
-
-  /**
-   * @brief Obtains the name of the data source
-   * @return Name of the data source
-   */
-  std::string getSourceName() const;
-
-  /**
-   * @brief Obtains the source_timeout parameter of the data source
-   * @return source_timeout parameter value of the data source
-   */
-  rclcpp::Duration getSourceTimeout() const;
 
 protected:
   /**
@@ -122,21 +109,6 @@ protected:
    */
   rcl_interfaces::msg::SetParametersResult dynamicParametersCallback(
     std::vector<rclcpp::Parameter> parameters);
-
-  /**
-   * @brief Obtain the transform to get data from source frame and time where it was received to the
-   * base frame and current time (if base_shift_correction_ is true) or the transform  without time
-   * shift considered which is less accurate but much more faster option not dependent on state
-   * estimation frames.
-   * @param curr_time Current node time
-   * @param data_header Current header  which contains the frame_id and the stamp
-   * @param tf_transform Output source->base_frame_id_ transform
-   * @return True if got correct transform, otherwise false
-   */
-  bool getTransform(
-    const rclcpp::Time & curr_time,
-    const std_msgs::msg::Header & data_header,
-    tf2::Transform & tf_transform) const;
 
   // ----- Variables -----
 

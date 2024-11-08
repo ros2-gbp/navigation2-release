@@ -1,5 +1,4 @@
 // Copyright (c) 2018 Intel Corporation
-// Copyright (c) 2023 Samsung Research America
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,8 +25,8 @@
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/create_timer_ros.h"
-#include "nav2_core/behavior_tree_navigator.hpp"
-#include "pluginlib/class_loader.hpp"
+#include "nav2_bt_navigator/navigators/navigate_to_pose.hpp"
+#include "nav2_bt_navigator/navigators/navigate_through_poses.hpp"
 
 namespace nav2_bt_navigator
 {
@@ -54,7 +53,7 @@ protected:
   /**
    * @brief Configures member variables
    *
-   * Initializes action servers for navigator plugins; subscription to
+   * Initializes action server for "NavigationToPose"; subscription to
    * "goal_sub"; and builds behavior tree from xml file.
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
@@ -86,9 +85,10 @@ protected:
   nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   // To handle all the BT related execution
-  pluginlib::ClassLoader<nav2_core::NavigatorBase> class_loader_;
-  std::vector<pluginlib::UniquePtr<nav2_core::NavigatorBase>> navigators_;
-  nav2_core::NavigatorMuxer plugin_muxer_;
+  std::unique_ptr<nav2_bt_navigator::Navigator<nav2_msgs::action::NavigateToPose>> pose_navigator_;
+  std::unique_ptr<nav2_bt_navigator::Navigator<nav2_msgs::action::NavigateThroughPoses>>
+  poses_navigator_;
+  nav2_bt_navigator::NavigatorMuxer plugin_muxer_;
 
   // Odometry smoother object
   std::shared_ptr<nav2_util::OdomSmoother> odom_smoother_;
@@ -99,7 +99,7 @@ protected:
   double transform_tolerance_;
   std::string odom_topic_;
 
-  // Spinning transform that can be used by the node
+  // Spinning transform that can be used by the BT nodes
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };
