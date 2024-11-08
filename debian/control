@@ -1,0 +1,12 @@
+Source: ros-jazzy-dwb-plugins
+Section: misc
+Priority: optional
+Maintainer: David V. Lu!! <davidvlu@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-angles, ros-jazzy-dwb-core, ros-jazzy-nav-2d-msgs, ros-jazzy-nav-2d-utils, ros-jazzy-nav2-common, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-dwb-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-angles, ros-jazzy-dwb-core, ros-jazzy-nav-2d-msgs, ros-jazzy-nav-2d-utils, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-ros-workspace
+Description: Standard implementations of the GoalChecker and TrajectoryGenerators for dwb_core
