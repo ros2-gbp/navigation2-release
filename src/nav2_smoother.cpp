@@ -63,7 +63,7 @@ SmootherServer::~SmootherServer()
 }
 
 nav2_util::CallbackReturn
-SmootherServer::on_configure(const rclcpp_lifecycle::State &)
+SmootherServer::on_configure(const rclcpp_lifecycle::State & state)
 {
   RCLCPP_INFO(get_logger(), "Configuring smoother server");
 
@@ -100,6 +100,7 @@ SmootherServer::on_configure(const rclcpp_lifecycle::State &)
     *costmap_sub_, *footprint_sub_, this->get_name());
 
   if (!loadSmootherPlugins()) {
+    on_cleanup(state);
     return nav2_util::CallbackReturn::FAILURE;
   }
 
@@ -162,7 +163,7 @@ bool SmootherServer::loadSmootherPlugins()
 }
 
 nav2_util::CallbackReturn
-SmootherServer::on_activate(const rclcpp_lifecycle::State &)
+SmootherServer::on_activate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Activating");
 
@@ -265,7 +266,12 @@ void SmootherServer::smoothPlan()
 
   auto result = std::make_shared<Action::Result>();
   try {
-    std::string c_name = action_server_->get_current_goal()->smoother_id;
+    auto goal = action_server_->get_current_goal();
+    if (!goal) {
+      return;  //  if action_server_ is inactivate, goal would be a nullptr
+    }
+
+    std::string c_name = goal->smoother_id;
     std::string current_smoother;
     if (findSmootherId(c_name, current_smoother)) {
       current_smoother_ = current_smoother;
@@ -274,7 +280,6 @@ void SmootherServer::smoothPlan()
     }
 
     // Perform smoothing
-    auto goal = action_server_->get_current_goal();
     result->path = goal->path;
 
     if (!validate(result->path)) {
