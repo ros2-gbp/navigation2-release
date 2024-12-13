@@ -1,3 +1,69 @@
+## navigation2 (jazzy) - 1.3.4-1
+
+The packages in the `navigation2` repository were released into the `jazzy` distro by running `/usr/bin/bloom-release navigation2 --rosdistro jazzy --track jazzy` on `Fri, 13 Dec 2024 22:30:53 -0000`
+
+These packages were released:
+- `costmap_queue`
+- `dwb_core`
+- `dwb_critics`
+- `dwb_msgs`
+- `dwb_plugins`
+- `nav2_amcl`
+- `nav2_behavior_tree`
+- `nav2_behaviors`
+- `nav2_bringup`
+- `nav2_bt_navigator`
+- `nav2_collision_monitor`
+- `nav2_common`
+- `nav2_constrained_smoother`
+- `nav2_controller`
+- `nav2_core`
+- `nav2_costmap_2d`
+- `nav2_dwb_controller`
+- `nav2_graceful_controller`
+- `nav2_lifecycle_manager`
+- `nav2_loopback_sim`
+- `nav2_map_server`
+- `nav2_mppi_controller`
+- `nav2_msgs`
+- `nav2_navfn_planner`
+- `nav2_planner`
+- `nav2_regulated_pure_pursuit_controller`
+- `nav2_rotation_shim_controller`
+- `nav2_rviz_plugins`
+- `nav2_simple_commander`
+- `nav2_smac_planner`
+- `nav2_smoother`
+- `nav2_system_tests`
+- `nav2_theta_star_planner`
+- `nav2_util`
+- `nav2_velocity_smoother`
+- `nav2_voxel_grid`
+- `nav2_waypoint_follower`
+- `nav_2d_msgs`
+- `nav_2d_utils`
+- `navigation2`
+- `opennav_docking`
+- `opennav_docking_bt`
+- `opennav_docking_core`
+
+Version of package(s) in repository `navigation2`:
+
+- upstream repository: https://github.com/ros-planning/navigation2.git
+- release repository: https://github.com/SteveMacenski/navigation2-release.git
+- rosdistro version: `1.3.3-1`
+- old version: `1.3.3-1`
+- new version: `1.3.4-1`
+
+Versions of tools used:
+
+- bloom version: `0.12.0`
+- catkin_pkg version: `1.0.0`
+- rosdep version: `0.25.1`
+- rosdistro version: `1.0.1`
+- vcstools version: `0.1.42`
+
+
 ## navigation2 (jazzy) - 1.3.3-1
 
 The packages in the `navigation2` repository were released into the `jazzy` distro by running `/usr/bin/bloom-release navigation2 --rosdistro jazzy --track jazzy` on `Fri, 08 Nov 2024 22:55:20 -0000`
