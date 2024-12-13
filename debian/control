@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-map-server
+Section: misc
+Priority: optional
+Maintainer: Brian Wilcox <brian.wilcox@intel.com>
+Build-Depends: debhelper (>= 9.0.0), graphicsmagick-libmagick-dev-compat, libgraphicsmagick++1-dev, ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-cmake-pytest <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-launch <!nocheck>, ros-jazzy-launch-ros, ros-jazzy-launch-testing, ros-jazzy-launch-testing <!nocheck>, ros-jazzy-nav-msgs, ros-jazzy-nav2-common, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-std-msgs, ros-jazzy-tf2, ros-jazzy-yaml-cpp-vendor, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-map-server
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, graphicsmagick-libmagick-dev-compat, libgraphicsmagick++1-dev, ros-jazzy-launch-ros, ros-jazzy-launch-testing, ros-jazzy-nav-msgs, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-std-msgs, ros-jazzy-tf2, ros-jazzy-yaml-cpp-vendor, ros-jazzy-ros-workspace
+Description: Refactored map server for ROS2 Navigation
