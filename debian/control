@@ -1,0 +1,12 @@
+Source: ros-humble-nav2-behaviors
+Section: misc
+Priority: optional
+Maintainer: Carlos Orduno <carlos.a.orduno@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-humble-ament-cmake, ros-humble-ament-cmake-gtest <!nocheck>, ros-humble-ament-lint-auto <!nocheck>, ros-humble-ament-lint-common <!nocheck>, ros-humble-geometry-msgs, ros-humble-nav-msgs, ros-humble-nav2-behavior-tree, ros-humble-nav2-common, ros-humble-nav2-core, ros-humble-nav2-costmap-2d, ros-humble-nav2-msgs, ros-humble-nav2-util, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-rclcpp-action, ros-humble-rclcpp-lifecycle, ros-humble-tf2, ros-humble-tf2-geometry-msgs, ros-humble-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-nav2-behaviors
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-geometry-msgs, ros-humble-nav-msgs, ros-humble-nav2-behavior-tree, ros-humble-nav2-core, ros-humble-nav2-costmap-2d, ros-humble-nav2-msgs, ros-humble-nav2-util, ros-humble-pluginlib, ros-humble-rclcpp, ros-humble-rclcpp-action, ros-humble-rclcpp-lifecycle, ros-humble-ros-workspace
+Description: TODO
