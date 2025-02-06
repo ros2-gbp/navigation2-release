@@ -15,11 +15,7 @@
 #include <chrono>
 #include <thread>
 
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
 #include <xtensor/xrandom.hpp>
-#pragma GCC diagnostic pop
-
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_mppi_controller/tools/utils.hpp"
@@ -216,17 +212,6 @@ TEST(UtilsTests, AnglesTests)
   EXPECT_NEAR(posePointAngle(pose, point_x, point_y, forward_preference), 0.0, 1e-6);
   forward_preference = true;
   EXPECT_NEAR(posePointAngle(pose, point_x, point_y, forward_preference), M_PI, 1e-6);
-
-  // Test point-pose angle with goal yaws
-  point_x = 1.0;
-  double point_yaw = 0.0;
-  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), 0.0, 1e-6);
-  point_yaw = M_PI;
-  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), M_PI, 1e-6);
-  point_yaw = 0.1;
-  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), 0.0, 1e-3);
-  point_yaw = 3.04159;
-  EXPECT_NEAR(posePointAngle(pose, point_x, point_y, point_yaw), M_PI, 1e-3);
 }
 
 TEST(UtilsTests, FurthestAndClosestReachedPoint)
@@ -271,6 +256,7 @@ TEST(UtilsTests, FurthestAndClosestReachedPoint)
   {state, generated_trajectories, path, goal, costs, model_dt, false, nullptr, nullptr,
     std::nullopt, std::nullopt};  /// Caution, keep references
   EXPECT_EQ(findPathFurthestReachedPoint(data3), 5u);
+  EXPECT_EQ(findPathTrajectoryInitialPoint(data3), 5u);
 }
 
 TEST(UtilsTests, findPathCosts)
@@ -300,7 +286,7 @@ TEST(UtilsTests, findPathCosts)
     std::nullopt, std::nullopt};  /// Caution, keep references
 
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap", true);
+    "dummy_costmap", "", "dummy_costmap");
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
   auto * costmap = costmap_ros->getCostmap();
@@ -382,7 +368,7 @@ TEST(UtilsTests, SmootherTest)
 
   // Check that path is smoother
   float smoothed_val{0}, original_val{0};
-  for (unsigned int i = 1; i != noisey_sequence.vx.shape(0) - 1; i++) {
+  for (unsigned int i = 0; i != noisey_sequence.vx.shape(0); i++) {
     smoothed_val += fabs(noisey_sequence.vx(i) - 0.2);
     smoothed_val += fabs(noisey_sequence.vy(i) - 0.0);
     smoothed_val += fabs(noisey_sequence.wz(i) - 0.3);

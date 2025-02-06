@@ -49,7 +49,7 @@ public:
    * @brief A constructor for nav2_smac_planner::NodeBasic
    * @param index The index of this node for self-reference
    */
-  explicit NodeBasic(const uint64_t index)
+  explicit NodeBasic(const unsigned int index)
   : index(index),
     graph_node_ptr(nullptr)
   {
@@ -73,10 +73,8 @@ public:
   typename NodeT::Coordinates pose;  // Used by NodeHybrid and NodeLattice
   NodeT * graph_node_ptr;
   MotionPrimitive * prim_ptr;  // Used by NodeLattice
-  uint64_t index;
-  unsigned int motion_index;
+  unsigned int index, motion_index;
   bool backward;
-  TurnDirection turn_dir;
 };
 
 }  // namespace nav2_smac_planner

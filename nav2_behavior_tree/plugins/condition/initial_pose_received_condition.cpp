@@ -16,24 +16,19 @@
 
 namespace nav2_behavior_tree
 {
-InitialPoseReceived::InitialPoseReceived(
-  const std::string & name,
-  const BT::NodeConfiguration & config)
-: BT::ConditionNode(name, config)
-{
-}
 
-BT::NodeStatus InitialPoseReceived::tick()
+BT::NodeStatus initialPoseReceived(BT::TreeNode & tree_node)
 {
-  bool initPoseReceived = false;
-  BT::getInputOrBlackboard("initial_pose_received", initPoseReceived);
+  auto initPoseReceived = tree_node.config().blackboard->get<bool>("initial_pose_received");
   return initPoseReceived ? BT::NodeStatus::SUCCESS : BT::NodeStatus::FAILURE;
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
-  factory.registerNodeType<nav2_behavior_tree::InitialPoseReceived>("InitialPoseReceived");
+  factory.registerSimpleCondition(
+    "InitialPoseReceived",
+    std::bind(&nav2_behavior_tree::initialPoseReceived, std::placeholders::_1));
 }

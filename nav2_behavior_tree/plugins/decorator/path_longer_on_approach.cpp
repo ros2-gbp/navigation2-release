@@ -70,6 +70,7 @@ inline BT::NodeStatus PathLongerOnApproach::tick()
       first_time_ = true;
     }
   }
+
   setStatus(BT::NodeStatus::RUNNING);
 
   // Check if the path is updated and valid, compare the old and the new path length,
@@ -79,7 +80,6 @@ inline BT::NodeStatus PathLongerOnApproach::tick()
   {
     const BT::NodeStatus child_state = child_node_->executeTick();
     switch (child_state) {
-      case BT::NodeStatus::SKIPPED:
       case BT::NodeStatus::RUNNING:
         return child_state;
       case BT::NodeStatus::SUCCESS:
@@ -99,7 +99,7 @@ inline BT::NodeStatus PathLongerOnApproach::tick()
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::PathLongerOnApproach>("PathLongerOnApproach");

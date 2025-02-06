@@ -33,8 +33,7 @@ namespace nav2_graceful_controller
 struct Parameters
 {
   double transform_tolerance;
-  double min_lookahead;
-  double max_lookahead;
+  double motion_target_dist;
   double max_robot_pose_search_dist;
   double k_phi;
   double k_delta;
@@ -45,14 +44,12 @@ struct Parameters
   double v_linear_max_initial;
   double v_angular_max;
   double v_angular_max_initial;
-  double v_angular_min_in_place;
   double slowdown_radius;
   bool initial_rotation;
-  double initial_rotation_tolerance;
-  bool prefer_final_rotation;
+  double initial_rotation_min_angle;
+  bool final_rotation;
   double rotation_scaling_factor;
   bool allow_backward;
-  double in_place_collision_resolution;
 };
 
 /**
@@ -73,15 +70,13 @@ public:
   /**
    * @brief Destructor for nav2_graceful_controller::ParameterHandler
    */
-  ~ParameterHandler();
+  ~ParameterHandler() = default;
 
   std::mutex & getMutex() {return mutex_;}
 
   Parameters * getParams() {return &params_;}
 
 protected:
-  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
-
   /**
    * @brief Callback executed when a parameter change is detected
    * @param event ParameterEvent message

@@ -19,11 +19,11 @@
 #include <vector>
 #include <utility>
 
-#include "nav2_core/controller_exceptions.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav_2d_utils/tf_help.hpp"
 #include "nav2_graceful_controller/path_handler.hpp"
+#include "nav2_core/exceptions.hpp"
 
 namespace nav2_graceful_controller
 {
@@ -44,7 +44,7 @@ nav_msgs::msg::Path PathHandler::transformGlobalPlan(
 {
   // Check first if the plan is empty
   if (global_plan_.poses.empty()) {
-    throw nav2_core::InvalidPath("Received plan with zero length");
+    throw nav2_core::PlannerException("Received plan with zero length");
   }
 
   // Let's get the pose of the robot in the frame of the plan
@@ -53,7 +53,7 @@ nav_msgs::msg::Path PathHandler::transformGlobalPlan(
       tf_buffer_, global_plan_.header.frame_id, pose, robot_pose,
       transform_tolerance_))
   {
-    throw nav2_core::ControllerTFError("Unable to transform robot pose into global plan's frame");
+    throw nav2_core::PlannerException("Unable to transform robot pose into global plan's frame");
   }
 
   // Find the first pose in the global plan that's further than max_robot_pose_search_dist
@@ -92,7 +92,7 @@ nav_msgs::msg::Path PathHandler::transformGlobalPlan(
           tf_buffer_, costmap_ros_->getBaseFrameID(), stamped_pose,
           transformed_pose, transform_tolerance_))
       {
-        throw nav2_core::ControllerTFError("Unable to transform plan pose into local frame");
+        throw nav2_core::PlannerException("Unable to transform plan pose into local frame");
       }
       transformed_pose.pose.position.z = 0.0;
       return transformed_pose;
@@ -112,7 +112,7 @@ nav_msgs::msg::Path PathHandler::transformGlobalPlan(
   global_plan_.poses.erase(begin(global_plan_.poses), transformation_begin);
 
   if (transformed_plan.poses.empty()) {
-    throw nav2_core::InvalidPath("Resulting plan has 0 poses in it.");
+    throw nav2_core::PlannerException("Resulting plan has 0 poses in it.");
   }
 
   return transformed_plan;

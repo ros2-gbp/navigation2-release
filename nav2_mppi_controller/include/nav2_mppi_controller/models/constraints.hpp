@@ -28,10 +28,6 @@ struct ControlConstraints
   float vx_min;
   float vy;
   float wz;
-  float ax_max;
-  float ax_min;
-  float ay_max;
-  float az_max;
 };
 
 /**

@@ -28,9 +28,6 @@ namespace nav2_behavior_tree
  */
 class BackUpAction : public BtActionNode<nav2_msgs::action::BackUp>
 {
-  using Action = nav2_msgs::action::BackUp;
-  using ActionResult = Action::Result;
-
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::BackUpAction
@@ -48,27 +45,6 @@ public:
    */
   void on_tick() override;
 
-
-  /**
- * @brief Function to perform some user-defined operation upon successful completion of the action
- */
-  BT::NodeStatus on_success() override;
-
-  /**
-   * @brief Function to perform some user-defined operation upon abortion of the action
-   */
-  BT::NodeStatus on_aborted() override;
-
-  /**
-   * @brief Function to perform some user-defined operation upon cancellation of the action
-   */
-  BT::NodeStatus on_cancelled() override;
-
-  /**
-   * @brief Function to read parameters and initialize class variables
-   */
-  void initialize();
-
   /**
    * @brief Creates list of BT ports
    * @return BT::PortsList Containing basic ports along with node-specific ports
@@ -79,9 +55,7 @@ public:
       {
         BT::InputPort<double>("backup_dist", 0.15, "Distance to backup"),
         BT::InputPort<double>("backup_speed", 0.025, "Speed at which to backup"),
-        BT::InputPort<double>("time_allowance", 10.0, "Allowed time for reversing"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The back up behavior server error code")
+        BT::InputPort<double>("time_allowance", 10.0, "Allowed time for reversing")
       });
   }
 };

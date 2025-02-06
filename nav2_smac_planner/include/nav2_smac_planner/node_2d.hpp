@@ -62,7 +62,7 @@ public:
    * @brief A constructor for nav2_smac_planner::Node2D
    * @param index The index of this node for self-reference
    */
-  explicit Node2D(const uint64_t index);
+  explicit Node2D(const unsigned int index);
 
   /**
    * @brief A destructor for nav2_smac_planner::Node2D
@@ -87,7 +87,7 @@ public:
    * @brief Gets the accumulated cost at this node
    * @return accumulated cost
    */
-  inline float getAccumulatedCost()
+  inline float & getAccumulatedCost()
   {
     return _accumulated_cost;
   }
@@ -105,7 +105,7 @@ public:
    * @brief Gets the costmap cost at this node
    * @return costmap cost
    */
-  inline float getCost()
+  inline float & getCost()
   {
     return _cell_cost;
   }
@@ -123,7 +123,7 @@ public:
    * @brief Gets if cell has been visited in search
    * @param If cell was visited
    */
-  inline bool wasVisited()
+  inline bool & wasVisited()
   {
     return _was_visited;
   }
@@ -158,7 +158,7 @@ public:
    * @brief Gets cell index
    * @return Reference to cell index
    */
-  inline uint64_t getIndex()
+  inline unsigned int & getIndex()
   {
     return _index;
   }
@@ -185,11 +185,10 @@ public:
    * @param width width of costmap
    * @return index
    */
-  static inline uint64_t getIndex(
+  static inline unsigned int getIndex(
     const unsigned int & x, const unsigned int & y, const unsigned int & width)
   {
-    return static_cast<uint64_t>(x) + static_cast<uint64_t>(y) *
-           static_cast<uint64_t>(width);
+    return x + y * width;
   }
 
   /**
@@ -200,7 +199,7 @@ public:
    * @return coordinates of point
    */
   static inline Coordinates getCoords(
-    const uint64_t & index, const unsigned int & width, const unsigned int & angles)
+    const unsigned int & index, const unsigned int & width, const unsigned int & angles)
   {
     if (angles != 1) {
       throw std::runtime_error("Node type Node2D does not have a valid angle quantization.");
@@ -214,7 +213,7 @@ public:
    * @param Index Index of point
    * @return coordinates of point
    */
-  static inline Coordinates getCoords(const uint64_t & index)
+  static inline Coordinates getCoords(const unsigned int & index)
   {
     const unsigned int & size_x = _neighbors_grid_offsets[3];
     return Coordinates(index % size_x, index / size_x);
@@ -224,11 +223,13 @@ public:
    * @brief Get cost of heuristic of node
    * @param node Node index current
    * @param node Node index of new
+   * @param costmap Costmap ptr to use
    * @return Heuristic cost between the nodes
    */
   static float getHeuristicCost(
     const Coordinates & node_coords,
-    const Coordinates & goal_coordinates);
+    const Coordinates & goal_coordinates,
+    const nav2_costmap_2d::Costmap2D * costmap);
 
   /**
    * @brief Initialize the neighborhood to be used in A*
@@ -254,8 +255,7 @@ public:
    * @param neighbors Vector of neighbors to be filled
    */
   void getNeighbors(
-    std::function<bool(const uint64_t &,
-    nav2_smac_planner::Node2D * &)> & validity_checker,
+    std::function<bool(const unsigned int &, nav2_smac_planner::Node2D * &)> & validity_checker,
     GridCollisionChecker * collision_checker,
     const bool & traverse_unknown,
     NodeVector & neighbors);
@@ -274,10 +274,9 @@ public:
 private:
   float _cell_cost;
   float _accumulated_cost;
-  uint64_t _index;
+  unsigned int _index;
   bool _was_visited;
   bool _is_queued;
-  bool _in_collision{false};
 };
 
 }  // namespace nav2_smac_planner

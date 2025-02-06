@@ -17,7 +17,7 @@
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_controller/plugins/simple_goal_checker.hpp"
-#include "nav2_core/controller_exceptions.hpp"
+#include "nav2_core/exceptions.hpp"
 #include "nav2_graceful_controller/ego_polar_coords.hpp"
 #include "nav2_graceful_controller/smooth_control_law.hpp"
 #include "nav2_graceful_controller/graceful_controller.hpp"
@@ -59,6 +59,19 @@ public:
 
   nav_msgs::msg::Path getPlan() {return path_handler_->getPlan();}
 
+  geometry_msgs::msg::PoseStamped getMotionTarget(
+    const double & motion_target_distance, const nav_msgs::msg::Path & plan)
+  {
+    return nav2_graceful_controller::GracefulController::getMotionTarget(
+      motion_target_distance, plan);
+  }
+
+  geometry_msgs::msg::PointStamped createMotionTargetMsg(
+    const geometry_msgs::msg::PoseStamped & motion_target)
+  {
+    return nav2_graceful_controller::createMotionTargetMsg(motion_target);
+  }
+
   visualization_msgs::msg::Marker createSlowdownMarker(
     const geometry_msgs::msg::PoseStamped & motion_target)
   {
@@ -71,6 +84,16 @@ public:
   {
     return nav2_graceful_controller::GracefulController::rotateToTarget(
       angle_to_target);
+  }
+
+  bool simulateTrajectory(
+    const geometry_msgs::msg::PoseStamped & robot_pose,
+    const geometry_msgs::msg::PoseStamped & motion_target,
+    const geometry_msgs::msg::TransformStamped & costmap_transform,
+    nav_msgs::msg::Path & trajectory, const bool & backward)
+  {
+    return nav2_graceful_controller::GracefulController::simulateTrajectory(
+      robot_pose, motion_target, costmap_transform, trajectory, backward);
   }
 
   double getSpeedLinearMax() {return params_->v_linear_max;}
@@ -266,8 +289,7 @@ TEST(GracefulControllerTest, dynamicParameters) {
   // Set parameters
   auto results = params->set_parameters_atomically(
     {rclcpp::Parameter("test.transform_tolerance", 1.0),
-      rclcpp::Parameter("test.min_lookahead", 1.0),
-      rclcpp::Parameter("test.max_lookahead", 2.0),
+      rclcpp::Parameter("test.motion_target_dist", 2.0),
       rclcpp::Parameter("test.k_phi", 4.0),
       rclcpp::Parameter("test.k_delta", 5.0),
       rclcpp::Parameter("test.beta", 6.0),
@@ -275,22 +297,19 @@ TEST(GracefulControllerTest, dynamicParameters) {
       rclcpp::Parameter("test.v_linear_min", 8.0),
       rclcpp::Parameter("test.v_linear_max", 9.0),
       rclcpp::Parameter("test.v_angular_max", 10.0),
-      rclcpp::Parameter("test.v_angular_min_in_place", 14.0),
       rclcpp::Parameter("test.slowdown_radius", 11.0),
       rclcpp::Parameter("test.initial_rotation", false),
-      rclcpp::Parameter("test.initial_rotation_tolerance", 12.0),
-      rclcpp::Parameter("test.prefer_final_rotation", false),
+      rclcpp::Parameter("test.initial_rotation_min_angle", 12.0),
+      rclcpp::Parameter("test.final_rotation", false),
       rclcpp::Parameter("test.rotation_scaling_factor", 13.0),
-      rclcpp::Parameter("test.allow_backward", true),
-      rclcpp::Parameter("test.in_place_collision_resolution", 15.0)});
+      rclcpp::Parameter("test.allow_backward", true)});
 
   // Spin
   rclcpp::spin_until_future_complete(node->get_node_base_interface(), results);
 
   // Check parameters
   EXPECT_EQ(node->get_parameter("test.transform_tolerance").as_double(), 1.0);
-  EXPECT_EQ(node->get_parameter("test.min_lookahead").as_double(), 1.0);
-  EXPECT_EQ(node->get_parameter("test.max_lookahead").as_double(), 2.0);
+  EXPECT_EQ(node->get_parameter("test.motion_target_dist").as_double(), 2.0);
   EXPECT_EQ(node->get_parameter("test.k_phi").as_double(), 4.0);
   EXPECT_EQ(node->get_parameter("test.k_delta").as_double(), 5.0);
   EXPECT_EQ(node->get_parameter("test.beta").as_double(), 6.0);
@@ -298,14 +317,12 @@ TEST(GracefulControllerTest, dynamicParameters) {
   EXPECT_EQ(node->get_parameter("test.v_linear_min").as_double(), 8.0);
   EXPECT_EQ(node->get_parameter("test.v_linear_max").as_double(), 9.0);
   EXPECT_EQ(node->get_parameter("test.v_angular_max").as_double(), 10.0);
-  EXPECT_EQ(node->get_parameter("test.v_angular_min_in_place").as_double(), 14.0);
   EXPECT_EQ(node->get_parameter("test.slowdown_radius").as_double(), 11.0);
   EXPECT_EQ(node->get_parameter("test.initial_rotation").as_bool(), false);
-  EXPECT_EQ(node->get_parameter("test.initial_rotation_tolerance").as_double(), 12.0);
-  EXPECT_EQ(node->get_parameter("test.prefer_final_rotation").as_bool(), false);
+  EXPECT_EQ(node->get_parameter("test.initial_rotation_min_angle").as_double(), 12.0);
+  EXPECT_EQ(node->get_parameter("test.final_rotation").as_bool(), false);
   EXPECT_EQ(node->get_parameter("test.rotation_scaling_factor").as_double(), 13.0);
   EXPECT_EQ(node->get_parameter("test.allow_backward").as_bool(), true);
-  EXPECT_EQ(node->get_parameter("test.in_place_collision_resolution").as_double(), 15.0);
 
   // Set initial rotation to true
   results = params->set_parameters_atomically(
@@ -337,6 +354,84 @@ TEST(GracefulControllerTest, dynamicParameters) {
   // Check parameters. Now allow backward should be false as both cannot be true at the same time
   EXPECT_EQ(controller->getInitialRotation(), true);
   EXPECT_EQ(controller->getAllowBackward(), false);
+}
+
+TEST(GracefulControllerTest, getDifferentMotionTargets) {
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testGraceful");
+  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
+
+  // Create controller
+  auto controller = std::make_shared<GMControllerFixture>();
+  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  controller->configure(node, "test", tf, costmap_ros);
+  controller->activate();
+
+  // Set the plan
+  nav_msgs::msg::Path plan;
+  plan.header.frame_id = "map";
+  plan.poses.resize(3);
+  plan.poses[0].header.frame_id = "map";
+  plan.poses[0].pose.position.x = 1.0;
+  plan.poses[0].pose.position.y = 2.0;
+  plan.poses[0].pose.orientation = tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0));
+  plan.poses[1].header.frame_id = "map";
+  plan.poses[1].pose.position.x = 3.0;
+  plan.poses[1].pose.position.y = 4.0;
+  plan.poses[1].pose.orientation = tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0));
+  plan.poses[2].header.frame_id = "map";
+  plan.poses[2].pose.position.x = 5.0;
+  plan.poses[2].pose.position.y = 6.0;
+  plan.poses[2].pose.orientation = tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0));
+  controller->setPlan(plan);
+
+  // Set distance and get motion target
+  double motion_target_distance = 3.5;
+  auto motion_target = controller->getMotionTarget(motion_target_distance, plan);
+
+  // Check results, should be the second one
+  EXPECT_EQ(motion_target.header.frame_id, "map");
+  EXPECT_EQ(motion_target.pose.position.x, 3.0);
+  EXPECT_EQ(motion_target.pose.position.y, 4.0);
+  EXPECT_EQ(motion_target.pose.orientation, tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0)));
+
+  // Set a new distance greater than the path length and get motion target
+  motion_target_distance = 10.0;
+  motion_target = controller->getMotionTarget(motion_target_distance, plan);
+
+  // Check results: should be the last one
+  EXPECT_EQ(motion_target.header.frame_id, "map");
+  EXPECT_EQ(motion_target.pose.position.x, 5.0);
+  EXPECT_EQ(motion_target.pose.position.y, 6.0);
+  EXPECT_EQ(motion_target.pose.orientation, tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0)));
+}
+
+TEST(GracefulControllerTest, createMotionTargetMsg) {
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testGraceful");
+  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
+
+  // Create controller
+  auto controller = std::make_shared<GMControllerFixture>();
+  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  controller->configure(node, "test", tf, costmap_ros);
+  controller->activate();
+
+  // Create motion target
+  geometry_msgs::msg::PoseStamped motion_target;
+  motion_target.header.frame_id = "map";
+  motion_target.pose.position.x = 1.0;
+  motion_target.pose.position.y = 2.0;
+  motion_target.pose.orientation = tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0));
+
+  // Create motion target message
+  auto motion_target_msg = controller->createMotionTargetMsg(motion_target);
+
+  // Check results
+  EXPECT_EQ(motion_target_msg.header.frame_id, "map");
+  EXPECT_EQ(motion_target_msg.point.x, 1.0);
+  EXPECT_EQ(motion_target_msg.point.y, 2.0);
+  EXPECT_EQ(motion_target_msg.point.z, 0.01);
 }
 
 TEST(GracefulControllerTest, createSlowdownMsg) {
@@ -427,19 +522,6 @@ TEST(GracefulControllerTest, rotateToTarget) {
   // Check results: it must be a negative rotation
   EXPECT_EQ(cmd_vel.linear.x, 0.0);
   EXPECT_EQ(cmd_vel.angular.z, -0.25);
-
-  // Set very high v_angular_min_in_place velocity
-  results = params->set_parameters_atomically(
-    {rclcpp::Parameter("test.v_angular_min_in_place", 1.0)});
-  rclcpp::spin_until_future_complete(node->get_node_base_interface(), results);
-
-  // Set a new angle to target
-  angle_to_target = 0.5;
-  cmd_vel = controller->rotateToTarget(angle_to_target);
-
-  // Check results: positive velocity, at least as high as min_in_place
-  EXPECT_EQ(cmd_vel.linear.x, 0.0);
-  EXPECT_EQ(cmd_vel.angular.z, 1.0);
 }
 
 TEST(GracefulControllerTest, setSpeedLimit) {
@@ -534,7 +616,7 @@ TEST(GracefulControllerTest, emptyPlan) {
   global_plan.header.frame_id = "test_global_frame";
   controller->setPlan(global_plan);
 
-  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::InvalidPath);
+  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::PlannerException);
 }
 
 TEST(GracefulControllerTest, poseOutsideCostmap) {
@@ -589,7 +671,7 @@ TEST(GracefulControllerTest, poseOutsideCostmap) {
   global_plan.poses[0].pose.position.y = 0.0;
   controller->setPlan(global_plan);
 
-  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::ControllerException);
+  EXPECT_THROW(controller->transformGlobalPlan(robot_pose), nav2_core::PlannerException);
 }
 
 TEST(GracefulControllerTest, noPruningPlan) {
@@ -855,12 +937,12 @@ TEST(GracefulControllerTest, computeVelocityCommandRotate) {
   plan.poses[0].pose.position.y = 0.0;
   plan.poses[0].pose.orientation = tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0));
   plan.poses[1].header.frame_id = "test_global_frame";
-  plan.poses[1].pose.position.x = 0.5;
-  plan.poses[1].pose.position.y = 0.5;
+  plan.poses[1].pose.position.x = 1.0;
+  plan.poses[1].pose.position.y = 1.0;
   plan.poses[1].pose.orientation = tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0));
   plan.poses[2].header.frame_id = "test_global_frame";
-  plan.poses[2].pose.position.x = 1.0;
-  plan.poses[2].pose.position.y = 1.0;
+  plan.poses[2].pose.position.x = 2.0;
+  plan.poses[2].pose.position.y = 2.0;
   plan.poses[2].pose.orientation = tf2::toMsg(tf2::Quaternion({0, 0, 1}, 0.0));
   controller->setPlan(plan);
 
@@ -878,8 +960,8 @@ TEST(GracefulControllerTest, computeVelocityCommandRotate) {
   // Check results: the robot should rotate in place.
   // So, linear velocity should be zero and angular velocity should be a positive value below 0.5.
   EXPECT_EQ(cmd_vel.twist.linear.x, 0.0);
-  EXPECT_GT(cmd_vel.twist.angular.z, 0.0);
-  EXPECT_LE(cmd_vel.twist.angular.z, 0.5);
+  EXPECT_GE(cmd_vel.twist.angular.x, 0.0);
+  EXPECT_LE(cmd_vel.twist.angular.x, 0.5);
 }
 
 TEST(GracefulControllerTest, computeVelocityCommandRegular) {
@@ -1035,9 +1117,7 @@ TEST(GracefulControllerTest, computeVelocityCommandRegularBackwards) {
   // Check results: the robot should go straight to the target.
   // So, both linear velocity should be some negative values.
   EXPECT_LT(cmd_vel.twist.linear.x, 0.0);
-  // There might be a small bit of noise on angular velocity
-  EXPECT_LT(cmd_vel.twist.angular.z, 0.01);
-  EXPECT_GT(cmd_vel.twist.angular.z, -0.01);
+  EXPECT_LT(cmd_vel.twist.angular.z, 0.0);
 }
 
 TEST(GracefulControllerTest, computeVelocityCommandFinal) {
@@ -1120,8 +1200,8 @@ TEST(GracefulControllerTest, computeVelocityCommandFinal) {
   // Check results: the robot should do a final rotation near the target.
   // So, linear velocity should be zero and angular velocity should be a positive value below 0.5.
   EXPECT_EQ(cmd_vel.twist.linear.x, 0.0);
-  EXPECT_GE(cmd_vel.twist.angular.z, 0.0);
-  EXPECT_LE(cmd_vel.twist.angular.z, 0.5);
+  EXPECT_GE(cmd_vel.twist.angular.x, 0.0);
+  EXPECT_LE(cmd_vel.twist.angular.x, 0.5);
 }
 
 int main(int argc, char ** argv)

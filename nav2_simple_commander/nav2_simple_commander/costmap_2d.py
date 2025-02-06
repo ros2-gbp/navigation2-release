@@ -2,7 +2,6 @@
 # Copyright 2021 Samsung Research America
 # Copyright 2022 Stevedan Ogochukwu Omodolor
 # Copyright 2022 Jaehun Jackson Kim
-# Copyright 2022 Afif Swaidan
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,13 +36,9 @@ class PyCostmap2D:
         """
         Initialize costmap2D.
 
-        Args
+        Args:
         ----
             occupancy_map (OccupancyGrid): 2D OccupancyGrid Map
-
-        Returns
-        -------
-            None
 
         """
         self.size_x = occupancy_map.info.width
@@ -160,7 +155,7 @@ class PyCostmap2D:
         wy = self.origin_y + (my + 0.5) * self.resolution
         return (wx, wy)
 
-    def worldToMapValidated(self, wx: float, wy: float):
+    def worldToMap(self, wx: float, wy: float) -> tuple[int, int]:
         """
         Get the map coordinate XY using world coordinate XY.
 
@@ -171,19 +166,14 @@ class PyCostmap2D:
 
         Returns
         -------
-            (None, None): if coordinates are invalid
-            tuple of int: mx, my (if coordinates are valid)
+            tuple of int: mx, my
             mx (int): map coordinate X
             my (int): map coordinate Y
 
         """
-        if wx < self.origin_x or wy < self.origin_y:
-            return (None, None)
         mx = int((wx - self.origin_x) // self.resolution)
         my = int((wy - self.origin_y) // self.resolution)
-        if mx < self.size_x and my < self.size_y:
-            return (mx, my)
-        return (None, None)
+        return (mx, my)
 
     def getIndex(self, mx: int, my: int) -> int:
         """

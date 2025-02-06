@@ -78,9 +78,6 @@ void SmacPlannerLattice::configure(
     node, name + ".max_on_approach_iterations", rclcpp::ParameterValue(1000));
   node->get_parameter(name + ".max_on_approach_iterations", _max_on_approach_iterations);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".terminal_checking_interval", rclcpp::ParameterValue(5000));
-  node->get_parameter(name + ".terminal_checking_interval", _terminal_checking_interval);
-  nav2_util::declare_parameter_if_not_declared(
     node, name + ".smooth_path", rclcpp::ParameterValue(true));
   node->get_parameter(name + ".smooth_path", smooth_path);
 
@@ -115,15 +112,6 @@ void SmacPlannerLattice::configure(
     node, name + ".analytic_expansion_ratio", rclcpp::ParameterValue(3.5));
   node->get_parameter(name + ".analytic_expansion_ratio", _search_info.analytic_expansion_ratio);
   nav2_util::declare_parameter_if_not_declared(
-    node, name + ".analytic_expansion_max_cost", rclcpp::ParameterValue(200.0));
-  node->get_parameter(
-    name + ".analytic_expansion_max_cost", _search_info.analytic_expansion_max_cost);
-  nav2_util::declare_parameter_if_not_declared(
-    node, name + ".analytic_expansion_max_cost_override", rclcpp::ParameterValue(false));
-  node->get_parameter(
-    name + ".analytic_expansion_max_cost_override",
-    _search_info.analytic_expansion_max_cost_override);
-  nav2_util::declare_parameter_if_not_declared(
     node, name + ".analytic_expansion_max_length", rclcpp::ParameterValue(3.0));
   node->get_parameter(name + ".analytic_expansion_max_length", analytic_expansion_max_length_m);
   _search_info.analytic_expansion_max_length =
@@ -138,9 +126,6 @@ void SmacPlannerLattice::configure(
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".allow_reverse_expansion", rclcpp::ParameterValue(false));
   node->get_parameter(name + ".allow_reverse_expansion", _search_info.allow_reverse_expansion);
-  nav2_util::declare_parameter_if_not_declared(
-    node, name + ".debug_visualizations", rclcpp::ParameterValue(false));
-  node->get_parameter(name + ".debug_visualizations", _debug_visualizations);
 
   _metadata = LatticeMotionTable::getLatticeMetadata(_search_info.lattice_filepath);
   _search_info.minimum_turning_radius =
@@ -184,7 +169,7 @@ void SmacPlannerLattice::configure(
   // increments causing "wobbly" checks that could cause larger robots to virtually show collisions
   // in valid configurations. This approximation helps to bound orientation error for all checks
   // in exchange for slight inaccuracies in the collision headings in terminal search states.
-  _collision_checker = GridCollisionChecker(_costmap_ros, 72u, node);
+  _collision_checker = GridCollisionChecker(_costmap, 72u, node);
   _collision_checker.setFootprint(
     costmap_ros->getRobotFootprint(),
     costmap_ros->getUseRadius(),
@@ -196,7 +181,6 @@ void SmacPlannerLattice::configure(
     _allow_unknown,
     _max_iterations,
     _max_on_approach_iterations,
-    _terminal_checking_interval,
     _max_planning_time,
     lookup_table_dim,
     _metadata.number_of_headings);
@@ -207,12 +191,6 @@ void SmacPlannerLattice::configure(
     params.get(node, name);
     _smoother = std::make_unique<Smoother>(params);
     _smoother->initialize(_metadata.min_turning_radius);
-  }
-
-  if (_debug_visualizations) {
-    _expansions_publisher = node->create_publisher<geometry_msgs::msg::PoseArray>("expansions", 1);
-    _planned_footprints_publisher = node->create_publisher<visualization_msgs::msg::MarkerArray>(
-      "planned_footprints", 1);
   }
 
   RCLCPP_INFO(
@@ -230,10 +208,6 @@ void SmacPlannerLattice::activate()
     _logger, "Activating plugin %s of type SmacPlannerLattice",
     _name.c_str());
   _raw_plan_publisher->on_activate();
-  if (_debug_visualizations) {
-    _expansions_publisher->on_activate();
-    _planned_footprints_publisher->on_activate();
-  }
   auto node = _node.lock();
   // Add callback for dynamic parameters
   _dyn_params_handler = node->add_on_set_parameters_callback(
@@ -246,15 +220,6 @@ void SmacPlannerLattice::deactivate()
     _logger, "Deactivating plugin %s of type SmacPlannerLattice",
     _name.c_str());
   _raw_plan_publisher->on_deactivate();
-  if (_debug_visualizations) {
-    _expansions_publisher->on_deactivate();
-    _planned_footprints_publisher->on_deactivate();
-  }
-  // shutdown dyn_param_handler
-  auto node = _node.lock();
-  if (_dyn_params_handler && node) {
-    node->remove_on_set_parameters_callback(_dyn_params_handler.get());
-  }
   _dyn_params_handler.reset();
 }
 
@@ -263,7 +228,6 @@ void SmacPlannerLattice::cleanup()
   RCLCPP_INFO(
     _logger, "Cleaning up plugin %s of type SmacPlannerLattice",
     _name.c_str());
-  nav2_smac_planner::NodeHybrid::destroyStaticAssets();
   _a_star.reset();
   _smoother.reset();
   _raw_plan_publisher.reset();
@@ -271,8 +235,7 @@ void SmacPlannerLattice::cleanup()
 
 nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   const geometry_msgs::msg::PoseStamped & start,
-  const geometry_msgs::msg::PoseStamped & goal,
-  std::function<bool()> cancel_checker)
+  const geometry_msgs::msg::PoseStamped & goal)
 {
   std::lock_guard<std::mutex> lock_reinit(_mutex);
   steady_clock::time_point a = steady_clock::now();
@@ -287,34 +250,16 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   _a_star->setCollisionChecker(&_collision_checker);
 
   // Set starting point, in A* bin search coordinates
-  float mx_start, my_start, mx_goal, my_goal;
-  if (!_costmap->worldToMapContinuous(
-    start.pose.position.x,
-    start.pose.position.y,
-    mx_start,
-    my_start))
-  {
-    throw nav2_core::StartOutsideMapBounds(
-            "Start Coordinates of(" + std::to_string(start.pose.position.x) + ", " +
-            std::to_string(start.pose.position.y) + ") was outside bounds");
-  }
+  unsigned int mx, my;
+  _costmap->worldToMap(start.pose.position.x, start.pose.position.y, mx, my);
   _a_star->setStart(
-    mx_start, my_start,
+    mx, my,
     NodeLattice::motion_table.getClosestAngularBin(tf2::getYaw(start.pose.orientation)));
 
   // Set goal point, in A* bin search coordinates
-  if (!_costmap->worldToMapContinuous(
-    goal.pose.position.x,
-    goal.pose.position.y,
-    mx_goal,
-    my_goal))
-  {
-    throw nav2_core::GoalOutsideMapBounds(
-            "Goal Coordinates of(" + std::to_string(goal.pose.position.x) + ", " +
-            std::to_string(goal.pose.position.y) + ") was outside bounds");
-  }
+  _costmap->worldToMap(goal.pose.position.x, goal.pose.position.y, mx, my);
   _a_star->setGoal(
-    mx_goal, my_goal,
+    mx, my,
     NodeLattice::motion_table.getClosestAngularBin(tf2::getYaw(goal.pose.orientation)));
 
   // Setup message
@@ -329,60 +274,31 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   pose.pose.orientation.z = 0.0;
   pose.pose.orientation.w = 1.0;
 
-  // Corner case of start and goal being on the same cell
-  if (std::floor(mx_start) == std::floor(mx_goal) &&
-    std::floor(my_start) == std::floor(my_goal))
-  {
-    pose.pose = start.pose;
-    pose.pose.orientation = goal.pose.orientation;
-    plan.poses.push_back(pose);
-
-    // Publish raw path for debug
-    if (_raw_plan_publisher->get_subscription_count() > 0) {
-      _raw_plan_publisher->publish(plan);
-    }
-
-    return plan;
-  }
-
   // Compute plan
   NodeLattice::CoordinateVector path;
   int num_iterations = 0;
   std::string error;
-  std::unique_ptr<std::vector<std::tuple<float, float, float>>> expansions = nullptr;
-  if (_debug_visualizations) {
-    expansions = std::make_unique<std::vector<std::tuple<float, float, float>>>();
+  try {
+    if (!_a_star->createPath(
+        path, num_iterations, _tolerance / static_cast<float>(_costmap->getResolution())))
+    {
+      if (num_iterations < _a_star->getMaxIterations()) {
+        error = std::string("no valid path found");
+      } else {
+        error = std::string("exceeded maximum iterations");
+      }
+    }
+  } catch (const std::runtime_error & e) {
+    error = "invalid use: ";
+    error += e.what();
   }
 
-  // Note: All exceptions thrown are handled by the planner server and returned to the action
-  if (!_a_star->createPath(
-      path, num_iterations,
-      _tolerance / static_cast<float>(_costmap->getResolution()), cancel_checker, expansions.get()))
-  {
-    if (_debug_visualizations) {
-      geometry_msgs::msg::PoseArray msg;
-      geometry_msgs::msg::Pose msg_pose;
-      msg.header.stamp = _clock->now();
-      msg.header.frame_id = _global_frame;
-      for (auto & e : *expansions) {
-        msg_pose.position.x = std::get<0>(e);
-        msg_pose.position.y = std::get<1>(e);
-        msg_pose.orientation = getWorldOrientation(std::get<2>(e));
-        msg.poses.push_back(msg_pose);
-      }
-      _expansions_publisher->publish(msg);
-    }
-
-    // Note: If the start is blocked only one iteration will occur before failure
-    if (num_iterations == 1) {
-      throw nav2_core::StartOccupied("Start occupied");
-    }
-
-    if (num_iterations < _a_star->getMaxIterations()) {
-      throw nav2_core::NoValidPathCouldBeFound("no valid path found");
-    } else {
-      throw nav2_core::PlannerTimedOut("exceeded maximum iterations");
-    }
+  if (!error.empty()) {
+    RCLCPP_WARN(
+      _logger,
+      "%s: failed to create plan, %s.",
+      _name.c_str(), error.c_str());
+    return plan;
   }
 
   // Convert to world coordinates
@@ -408,38 +324,6 @@ nav_msgs::msg::Path SmacPlannerLattice::createPlan(
   // Publish raw path for debug
   if (_raw_plan_publisher->get_subscription_count() > 0) {
     _raw_plan_publisher->publish(plan);
-  }
-
-  if (_debug_visualizations) {
-    // Publish expansions for debug
-    geometry_msgs::msg::PoseArray msg;
-    geometry_msgs::msg::Pose msg_pose;
-    msg.header.stamp = _clock->now();
-    msg.header.frame_id = _global_frame;
-    for (auto & e : *expansions) {
-      msg_pose.position.x = std::get<0>(e);
-      msg_pose.position.y = std::get<1>(e);
-      msg_pose.orientation = getWorldOrientation(std::get<2>(e));
-      msg.poses.push_back(msg_pose);
-    }
-    _expansions_publisher->publish(msg);
-
-    // plot footprint path planned for debug
-    if (_planned_footprints_publisher->get_subscription_count() > 0) {
-      auto marker_array = std::make_unique<visualization_msgs::msg::MarkerArray>();
-      for (size_t i = 0; i < plan.poses.size(); i++) {
-        const std::vector<geometry_msgs::msg::Point> edge =
-          transformFootprintToEdges(plan.poses[i].pose, _costmap_ros->getRobotFootprint());
-        marker_array->markers.push_back(createMarker(edge, i, _global_frame, _clock->now()));
-      }
-
-      if (marker_array->markers.empty()) {
-        visualization_msgs::msg::Marker clear_all_marker;
-        clear_all_marker.action = visualization_msgs::msg::Marker::DELETEALL;
-        marker_array->markers.push_back(clear_all_marker);
-      }
-      _planned_footprints_publisher->publish(std::move(marker_array));
-    }
   }
 
   // Find how much time we have left to do smoothing
@@ -511,9 +395,6 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
         reinit_a_star = true;
         _search_info.analytic_expansion_max_length =
           static_cast<float>(parameter.as_double()) / _costmap->getResolution();
-      } else if (name == _name + ".analytic_expansion_max_cost") {
-        reinit_a_star = true;
-        _search_info.analytic_expansion_max_cost = static_cast<float>(parameter.as_double());
       }
     } else if (type == ParameterType::PARAMETER_BOOL) {
       if (name == _name + ".allow_unknown") {
@@ -531,9 +412,6 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
         } else {
           _smoother.reset();
         }
-      } else if (name == _name + ".analytic_expansion_max_cost_override") {
-        _search_info.analytic_expansion_max_cost_override = parameter.as_bool();
-        reinit_a_star = true;
       }
     } else if (type == ParameterType::PARAMETER_INTEGER) {
       if (name == _name + ".max_iterations") {
@@ -545,18 +423,15 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
             "disabling maximum iterations.");
           _max_iterations = std::numeric_limits<int>::max();
         }
-      } else if (name == _name + ".max_on_approach_iterations") {
-        reinit_a_star = true;
-        _max_on_approach_iterations = parameter.as_int();
-        if (_max_on_approach_iterations <= 0) {
-          RCLCPP_INFO(
-            _logger, "On approach iteration selected as <= 0, "
-            "disabling tolerance and on approach iterations.");
-          _max_on_approach_iterations = std::numeric_limits<int>::max();
-        }
-      } else if (name == _name + ".terminal_checking_interval") {
-        reinit_a_star = true;
-        _terminal_checking_interval = parameter.as_int();
+      }
+    } else if (name == _name + ".max_on_approach_iterations") {
+      reinit_a_star = true;
+      _max_on_approach_iterations = parameter.as_int();
+      if (_max_on_approach_iterations <= 0) {
+        RCLCPP_INFO(
+          _logger, "On approach iteration selected as <= 0, "
+          "disabling tolerance and on approach iterations.");
+        _max_on_approach_iterations = std::numeric_limits<int>::max();
       }
     } else if (type == ParameterType::PARAMETER_STRING) {
       if (name == _name + ".lattice_filepath") {
@@ -609,7 +484,6 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
         _allow_unknown,
         _max_iterations,
         _max_on_approach_iterations,
-        _terminal_checking_interval,
         _max_planning_time,
         lookup_table_dim,
         _metadata.number_of_headings);

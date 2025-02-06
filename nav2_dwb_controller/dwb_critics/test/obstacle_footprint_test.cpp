@@ -105,7 +105,8 @@ TEST(ObstacleFootprint, GetOrientedFootprint)
   pose.theta = theta;
   footprint_after = dwb_critics::getOrientedFootprint(pose, footprint_before);
 
-  for (uint i = 0; i < footprint_before.size(); i++) {
+  uint i;
+  for (i = 0; i < footprint_before.size(); i++) {
     ASSERT_EQ(rotate_origin(footprint_before[i], theta), footprint_after[i]);
   }
 
@@ -242,9 +243,7 @@ TEST(ObstacleFootprint, LineCost)
   costmap_ros->getCostmap()->setCost(4, 3, 100);
   costmap_ros->getCostmap()->setCost(4, 4, 100);
 
-  auto max_y_in_grid_coordinates = costmap_ros->getCostmap()->getSizeInCellsY() - 1;
-  ASSERT_EQ(max_y_in_grid_coordinates, 49);
-  ASSERT_EQ(critic->lineCost(3, 3, 0, max_y_in_grid_coordinates), 50);   // all 50
+  ASSERT_EQ(critic->lineCost(3, 3, 0, 50), 50);   // all 50
   ASSERT_EQ(critic->lineCost(4, 4, 0, 10), 100);  // all 100
   ASSERT_EQ(critic->lineCost(0, 50, 3, 3), 100);  // pass 50 and 100
 }

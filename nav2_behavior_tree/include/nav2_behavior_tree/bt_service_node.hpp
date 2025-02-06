@@ -19,10 +19,10 @@
 #include <memory>
 #include <chrono>
 
-#include "behaviortree_cpp/action_node.h"
+#include "behaviortree_cpp_v3/action_node.h"
 #include "nav2_util/node_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_behavior_tree/bt_utils.hpp"
+#include "nav2_behavior_tree/bt_conversions.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -59,7 +59,9 @@ public:
     // Get the required items from the blackboard
     auto bt_loop_duration =
       config().blackboard->template get<std::chrono::milliseconds>("bt_loop_duration");
-    getInputOrBlackboard("server_timeout", server_timeout_);
+    server_timeout_ =
+      config().blackboard->template get<std::chrono::milliseconds>("server_timeout");
+    getInput<std::chrono::milliseconds>("server_timeout", server_timeout_);
     wait_for_service_timeout_ =
       config().blackboard->template get<std::chrono::milliseconds>("wait_for_service_timeout");
 
@@ -70,7 +72,7 @@ public:
     getInput("service_name", service_name_);
     service_client_ = node_->create_client<ServiceT>(
       service_name_,
-      rclcpp::SystemDefaultsQoS(),
+      rclcpp::ServicesQoS().get_rmw_qos_profile(),
       callback_group_);
 
     // Make a request for the service without parameter
@@ -87,7 +89,7 @@ public:
       throw std::runtime_error(
               std::string(
                 "Service server %s not available",
-                service_name_.c_str()));
+                service_node_name.c_str()));
     }
 
     RCLCPP_DEBUG(
@@ -138,9 +140,6 @@ public:
       // allowing the user the option to set it in on_tick
       should_send_request_ = true;
 
-      // Clear the input request to make sure we have no leftover from previous calls
-      request_ = std::make_shared<typename ServiceT::Request>();
-
       // user defined callback, may modify "should_send_request_".
       on_tick();
 
@@ -161,7 +160,7 @@ public:
   void halt() override
   {
     request_sent_ = false;
-    resetStatus();
+    setStatus(BT::NodeStatus::IDLE);
   }
 
   /**
@@ -234,9 +233,9 @@ protected:
   void increment_recovery_count()
   {
     int recovery_count = 0;
-    [[maybe_unused]] auto res = config().blackboard->get("number_recoveries", recovery_count);  // NOLINT
+    config().blackboard->template get<int>("number_recoveries", recovery_count);  // NOLINT
     recovery_count += 1;
-    config().blackboard->set("number_recoveries", recovery_count);  // NOLINT
+    config().blackboard->template set<int>("number_recoveries", recovery_count);  // NOLINT
   }
 
   std::string service_name_, service_node_name_;

@@ -39,8 +39,6 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "nav2_core/global_planner.hpp"
 #include "nav2_msgs/srv/is_path_valid.hpp"
-#include "nav2_costmap_2d/footprint_collision_checker.hpp"
-#include "nav2_core/planner_exceptions.hpp"
 
 namespace nav2_planner
 {
@@ -68,15 +66,12 @@ public:
    * @brief Method to get plan from the desired plugin
    * @param start starting pose
    * @param goal goal request
-   * @param planner_id The planner to plan with
-   * @param cancel_checker A function to check if the action has been canceled
    * @return Path
    */
   nav_msgs::msg::Path getPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
-    const std::string & planner_id,
-    std::function<bool()> cancel_checker);
+    const std::string & planner_id);
 
 protected:
   /**
@@ -111,9 +106,7 @@ protected:
   nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   using ActionToPose = nav2_msgs::action::ComputePathToPose;
-  using ActionToPoseResult = ActionToPose::Result;
   using ActionThroughPoses = nav2_msgs::action::ComputePathThroughPoses;
-  using ActionThroughPosesResult = ActionThroughPoses::Result;
   using ActionServerToPose = nav2_util::SimpleActionServer<ActionToPose>;
   using ActionServerThroughPoses = nav2_util::SimpleActionServer<ActionThroughPoses>;
 
@@ -159,17 +152,21 @@ protected:
    */
   template<typename T>
   bool getStartPose(
+    std::unique_ptr<nav2_util::SimpleActionServer<T>> & action_server,
     typename std::shared_ptr<const typename T::Goal> goal,
     geometry_msgs::msg::PoseStamped & start);
 
   /**
    * @brief Transform start and goal poses into the costmap
    * global frame for path planning plugins to utilize
+   * @param action_server Action server to terminate if required
    * @param start The starting pose to transform
    * @param goal Goal pose to transform
    * @return bool If successful in transforming poses
    */
+  template<typename T>
   bool transformPosesToGlobalFrame(
+    std::unique_ptr<nav2_util::SimpleActionServer<T>> & action_server,
     geometry_msgs::msg::PoseStamped & curr_start,
     geometry_msgs::msg::PoseStamped & curr_goal);
 
@@ -183,9 +180,14 @@ protected:
    */
   template<typename T>
   bool validatePath(
+    std::unique_ptr<nav2_util::SimpleActionServer<T>> & action_server,
     const geometry_msgs::msg::PoseStamped & curr_goal,
     const nav_msgs::msg::Path & path,
     const std::string & planner_id);
+
+  // Our action server implements the ComputePathToPose action
+  std::unique_ptr<ActionServerToPose> action_server_pose_;
+  std::unique_ptr<ActionServerThroughPoses> action_server_poses_;
 
   /**
    * @brief The action server callback which calls planner to get the path
@@ -214,22 +216,12 @@ protected:
    */
   void publishPlan(const nav_msgs::msg::Path & path);
 
-  void exceptionWarning(
-    const geometry_msgs::msg::PoseStamped & start,
-    const geometry_msgs::msg::PoseStamped & goal,
-    const std::string & planner_id,
-    const std::exception & ex);
-
   /**
    * @brief Callback executed when a parameter change is detected
    * @param event ParameterEvent message
    */
   rcl_interfaces::msg::SetParametersResult
   dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
-
-  // Our action server implements the ComputePathToPose action
-  std::unique_ptr<ActionServerToPose> action_server_pose_;
-  std::unique_ptr<ActionServerThroughPoses> action_server_poses_;
 
   // Dynamic parameters handler
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
@@ -243,7 +235,6 @@ protected:
   std::vector<std::string> planner_ids_;
   std::vector<std::string> planner_types_;
   double max_planner_duration_;
-  rclcpp::Duration costmap_update_timeout_;
   std::string planner_ids_concat_;
 
   // TF buffer
@@ -253,13 +244,11 @@ protected:
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::unique_ptr<nav2_util::NodeThread> costmap_thread_;
   nav2_costmap_2d::Costmap2D * costmap_;
-  std::unique_ptr<nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>>
-  collision_checker_;
 
   // Publishers for the path
   rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>::SharedPtr plan_publisher_;
 
-  // Service to determine if the path is valid
+  // Service to deterime if the path is valid
   rclcpp::Service<nav2_msgs::srv::IsPathValid>::SharedPtr is_path_valid_service_;
 };
 

@@ -129,8 +129,7 @@ void CostmapTester::compareCells(
       RCLCPP_ERROR(
         rclcpp::get_logger(
           "costmap_tester"),
-        "Cell cost (%d, %d): %d, neighbor cost (%d, %d): %d, expected lowest cost:"
-        " %d, cell distance: %.2f, furthest valid distance: %.2f",
+        "Cell cost (%d, %d): %d, neighbor cost (%d, %d): %d, expected lowest cost: %d, cell distance: %.2f, furthest valid distance: %.2f", // NOLINT
         x, y, cell_cost, nx, ny, neighbor_cost, expected_lowest_cost,
         cell_distance, furthest_valid_distance);
       RCLCPP_ERROR(

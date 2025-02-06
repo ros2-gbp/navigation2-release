@@ -17,7 +17,7 @@
 #include <memory>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "behaviortree_cpp/decorator_node.h"
+#include "behaviortree_cpp_v3/decorator_node.h"
 
 #include "nav2_behavior_tree/plugins/decorator/goal_updater_node.hpp"
 
@@ -57,9 +57,7 @@ inline BT::NodeStatus GoalUpdater::tick()
 
   getInput("input_goal", goal);
 
-  // Spin multiple times due to rclcpp regression in Jazzy requiring a 'warm up' spin
-  callback_group_executor_.spin_all(std::chrono::milliseconds(1));
-  callback_group_executor_.spin_all(std::chrono::milliseconds(49));
+  callback_group_executor_.spin_some();
 
   if (last_goal_received_.header.stamp != rclcpp::Time(0)) {
     auto last_goal_received_time = rclcpp::Time(last_goal_received_.header.stamp);
@@ -86,7 +84,7 @@ GoalUpdater::callback_updated_goal(const geometry_msgs::msg::PoseStamped::Shared
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::GoalUpdater>("GoalUpdater");

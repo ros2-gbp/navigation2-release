@@ -23,7 +23,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "tf2_ros/buffer.h"
 
-#include "behaviortree_cpp/decorator_node.h"
+#include "behaviortree_cpp_v3/decorator_node.h"
 
 #include "nav2_behavior_tree/plugins/decorator/distance_controller.hpp"
 
@@ -35,22 +35,22 @@ DistanceController::DistanceController(
   const BT::NodeConfiguration & conf)
 : BT::DecoratorNode(name, conf),
   distance_(1.0),
+  global_frame_("map"),
+  robot_base_frame_("base_link"),
   first_time_(false)
 {
   getInput("distance", distance_);
+  getInput("global_frame", global_frame_);
+  getInput("robot_base_frame", robot_base_frame_);
   node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
   tf_ = config().blackboard->get<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer");
-  node_->get_parameter("transform_tolerance", transform_tolerance_);
 
-  global_frame_ = BT::deconflictPortAndParamFrame<std::string>(
-    node_, "global_frame", this);
-  robot_base_frame_ = BT::deconflictPortAndParamFrame<std::string>(
-    node_, "robot_base_frame", this);
+  node_->get_parameter("transform_tolerance", transform_tolerance_);
 }
 
 inline BT::NodeStatus DistanceController::tick()
 {
-  if (!BT::isStatusActive(status())) {
+  if (status() == BT::NodeStatus::IDLE) {
     // Reset the starting position since we're starting a new iteration of
     // the distance controller (moving from IDLE to RUNNING)
     if (!nav2_util::getCurrentPose(
@@ -89,9 +89,8 @@ inline BT::NodeStatus DistanceController::tick()
     const BT::NodeStatus child_state = child_node_->executeTick();
 
     switch (child_state) {
-      case BT::NodeStatus::SKIPPED:
       case BT::NodeStatus::RUNNING:
-        return child_state;
+        return BT::NodeStatus::RUNNING;
 
       case BT::NodeStatus::SUCCESS:
         if (!nav2_util::getCurrentPose(
@@ -114,7 +113,7 @@ inline BT::NodeStatus DistanceController::tick()
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::DistanceController>("DistanceController");

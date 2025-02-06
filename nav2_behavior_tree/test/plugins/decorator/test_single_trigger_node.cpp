@@ -18,31 +18,19 @@
 #include <memory>
 #include <set>
 
-#include "utils/test_behavior_tree_fixture.hpp"
+#include "../../test_behavior_tree_fixture.hpp"
 #include "nav2_behavior_tree/plugins/decorator/single_trigger_node.hpp"
 
 using namespace std::chrono;  // NOLINT
 using namespace std::chrono_literals;  // NOLINT
-
-// Shim BT node to access protected resetStatus method
-class ShimNode : public nav2_behavior_tree::SingleTrigger
-{
-public:
-  ShimNode(
-    const std::string & name,
-    const BT::NodeConfiguration & confi)
-  : SingleTrigger(name, confi)
-  {}
-  ~ShimNode() {}
-  void changeStatus() {resetStatus();}
-};
 
 class SingleTriggerTestFixture : public nav2_behavior_tree::BehaviorTreeTestFixture
 {
 public:
   void SetUp()
   {
-    bt_node_ = std::make_shared<ShimNode>("single_trigger", *config_);
+    bt_node_ = std::make_shared<nav2_behavior_tree::SingleTrigger>(
+      "single_trigger", *config_);
     dummy_node_ = std::make_shared<nav2_behavior_tree::DummyNode>();
     bt_node_->setChild(dummy_node_.get());
   }
@@ -54,11 +42,11 @@ public:
   }
 
 protected:
-  static std::shared_ptr<ShimNode> bt_node_;
+  static std::shared_ptr<nav2_behavior_tree::SingleTrigger> bt_node_;
   static std::shared_ptr<nav2_behavior_tree::DummyNode> dummy_node_;
 };
 
-std::shared_ptr<ShimNode>
+std::shared_ptr<nav2_behavior_tree::SingleTrigger>
 SingleTriggerTestFixture::bt_node_ = nullptr;
 std::shared_ptr<nav2_behavior_tree::DummyNode>
 SingleTriggerTestFixture::dummy_node_ = nullptr;
@@ -83,7 +71,6 @@ TEST_F(SingleTriggerTestFixture, test_behavior)
   // halt BT for a new execution run, should work when dummy node is running
   // and once when dummy node returns success and then fail
   bt_node_->halt();
-  bt_node_->changeStatus();  // BTv3.8+ doesn't reset root node automatically
   dummy_node_->changeStatus(BT::NodeStatus::RUNNING);
   EXPECT_EQ(bt_node_->executeTick(), BT::NodeStatus::RUNNING);
   dummy_node_->changeStatus(BT::NodeStatus::SUCCESS);

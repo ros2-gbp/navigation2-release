@@ -16,7 +16,9 @@
 #include <memory>
 #include <chrono>
 #include <iostream>
+#include <future>
 #include <thread>
+#include <algorithm>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -24,9 +26,10 @@
 
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "nav2_core/smoother.hpp"
-#include "nav2_core/planner_exceptions.hpp"
+#include "nav2_core/exceptions.hpp"
 #include "nav2_msgs/action/smooth_path.hpp"
 #include "nav2_smoother/nav2_smoother.hpp"
+#include "tf2_ros/create_timer_ros.h"
 
 using SmoothAction = nav2_msgs::action::SmoothPath;
 using ClientGoalHandle = rclcpp_action::ClientGoalHandle<SmoothAction>;
@@ -146,12 +149,7 @@ public:
   void setCostmap(nav2_msgs::msg::Costmap::SharedPtr msg)
   {
     costmap_msg_ = msg;
-    costmap_ = std::make_shared<nav2_costmap_2d::Costmap2D>(
-      msg->metadata.size_x, msg->metadata.size_y,
-      msg->metadata.resolution, msg->metadata.origin.position.x,
-      msg->metadata.origin.position.y);
-
-    processCurrentCostmapMsg();
+    costmap_received_ = true;
   }
 };
 
@@ -161,8 +159,8 @@ public:
   DummyFootprintSubscriber(
     nav2_util::LifecycleNode::SharedPtr node,
     const std::string & topic_name,
-    tf2_ros::Buffer & tf)
-  : FootprintSubscriber(node, topic_name, tf)
+    tf2_ros::Buffer & tf_)
+  : FootprintSubscriber(node, topic_name, tf_)
   {
     auto footprint = std::make_shared<geometry_msgs::msg::PolygonStamped>();
     footprint->header.frame_id = "base_link";  // global frame = robot frame to avoid tf lookup

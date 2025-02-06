@@ -102,9 +102,9 @@ private:
   nav2_costmap_2d::DenoiseLayer denoise_;
 };
 
-}  // namespace nav2_costmap_2d
+}
 
-using namespace nav2_costmap_2d;  // NOLINT
+using namespace nav2_costmap_2d;
 
 TEST_F(DenoiseLayerTester, removeSinglePixels4way) {
   const auto in = imageFromString<uint8_t>(
@@ -407,9 +407,10 @@ TEST_F(DenoiseLayerTester, denoiseNothing) {
 
 TEST_F(DenoiseLayerTester, constructorAndDestructor) {
   ASSERT_NO_THROW(
-  {
-    nav2_costmap_2d::DenoiseLayer layer;
-  });
+    // []()
+    {
+      nav2_costmap_2d::DenoiseLayer layer;
+    });
 }
 
 TEST_F(DenoiseLayerTester, reset) {

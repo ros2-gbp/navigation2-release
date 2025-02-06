@@ -27,6 +27,7 @@ set(library_name nav2_constrained_smoother)
 
 include_directories(
   include
+  ${CERES_INCLUDES}
 )
 
 set(dependencies
@@ -41,7 +42,7 @@ set(dependencies
 )
 
 add_library(${library_name} SHARED src/constrained_smoother.cpp)
-target_link_libraries(${library_name} Ceres::ceres)
+target_link_libraries(${library_name} ${CERES_LIBRARIES})
 # prevent pluginlib from using boost
 target_compile_definitions(${library_name} PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 ament_target_dependencies(${library_name} ${dependencies})

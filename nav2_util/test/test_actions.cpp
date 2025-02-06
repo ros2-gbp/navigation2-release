@@ -81,13 +81,6 @@ public:
     // assert(action_server_->is_cancel_requested() == false);
     // auto feedback = std::make_shared<Fibonacci::Feedback>();
     // action_server_->publish_feedback(feedback);
-    omit_preempt_subs_.reset();
-    activate_subs_.reset();
-    deactivate_subs_.reset();
-    while (action_server_->is_running()) {
-      std::this_thread::sleep_for(10ms);
-    }
-    action_server_->deactivate();
     action_server_.reset();
   }
 
@@ -157,33 +150,21 @@ public:
       std::make_shared<std::thread>(std::bind(&RclCppFixture::server_thread_func, this));
   }
 
-  void TearDown()
-  {
-    stop_.store(true);
-    if (server_thread_ && server_thread_->joinable()) {
-      server_thread_->join();
-      server_thread_.reset();
-    }
-  }
-
   ~RclCppFixture()
   {
+    server_thread_->join();
   }
 
   void server_thread_func()
   {
     auto node = std::make_shared<FibonacciServerNode>();
     node->on_init();
-    while (rclcpp::ok() && !stop_.load()) {
-      rclcpp::spin_some(node->get_node_base_interface());
-      std::this_thread::sleep_for(10ms);
-    }
+    rclcpp::spin(node->get_node_base_interface());
     node->on_term();
     node.reset();
   }
 
   std::shared_ptr<std::thread> server_thread_;
-  std::atomic<bool> stop_{false};
 };
 
 RclCppFixture g_rclcppfixture;
@@ -208,9 +189,6 @@ public:
 
   void on_term()
   {
-    omit_prempt_pub_.reset();
-    activate_pub_.reset();
-    deactivate_pub_.reset();
     action_client_.reset();
   }
 
@@ -258,7 +236,6 @@ protected:
 
 TEST_F(ActionTest, test_simple_action)
 {
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   node_->activate_server();
 
   // The goal for this invocation
@@ -273,7 +250,6 @@ TEST_F(ActionTest, test_simple_action)
       future_goal_handle), rclcpp::FutureReturnCode::SUCCESS);
 
   auto goal_handle = future_goal_handle.get();
-  EXPECT_NE(goal_handle, nullptr);
 
   // Wait for the result
   auto future_result = node_->action_client_->async_get_result(goal_handle);
@@ -322,7 +298,6 @@ TEST_F(ActionTest, test_simple_action_with_feedback)
       future_goal_handle), rclcpp::FutureReturnCode::SUCCESS);
 
   auto goal_handle = future_goal_handle.get();
-  EXPECT_NE(goal_handle, nullptr);
 
   // Wait for the result
   auto future_result = node_->action_client_->async_get_result(goal_handle);
@@ -367,7 +342,6 @@ TEST_F(ActionTest, test_simple_action_activation_cycling)
   node_->deactivate_server();
 
   auto goal_handle = future_goal_handle.get();
-  EXPECT_NE(goal_handle, nullptr);
 
   // Wait for the result
   auto future_result = node_->action_client_->async_get_result(goal_handle);
@@ -434,7 +408,6 @@ TEST_F(ActionTest, test_simple_action_preemption)
       future_goal_handle), rclcpp::FutureReturnCode::SUCCESS);
 
   auto goal_handle = future_goal_handle.get();
-  EXPECT_NE(goal_handle, nullptr);
 
   // Wait for the result
   auto future_result = node_->action_client_->async_get_result(goal_handle);
@@ -483,7 +456,6 @@ TEST_F(ActionTest, test_simple_action_preemption_after_succeeded)
 
   // Get the results
   auto goal_handle = future_goal_handle.get();
-  EXPECT_NE(goal_handle, nullptr);
 
   // Wait for the result of initial goal
   auto future_result = node_->action_client_->async_get_result(goal_handle);
@@ -575,7 +547,7 @@ int main(int argc, char ** argv)
   g_rclcppfixture.Setup();
   ::testing::InitGoogleTest(&argc, argv);
   auto result = RUN_ALL_TESTS();
-  g_rclcppfixture.TearDown();
   rclcpp::shutdown();
+  rclcpp::Rate(1).sleep();
   return result;
 }

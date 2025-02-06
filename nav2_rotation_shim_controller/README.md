@@ -25,7 +25,7 @@ This plugin implements the `nav2_core::Controller` interface allowing it to be u
   <img src="https://user-images.githubusercontent.com/14944147/144323291-29e24521-674a-41f5-8a91-732121b26b47.gif">
 </p>
 
-See its [Configuration Guide Page](https://docs.nav2.org/configuration/packages/configuring-rotation-shim-controller.html) for additional parameter descriptions.
+See its [Configuration Guide Page](https://navigation.ros.org/configuration/packages/configuring-rotation-shim-controller.html) for additional parameter descriptions.
 
 ## Configuration
 
@@ -44,11 +44,12 @@ Example fully-described XML with default parameter values:
 ```
 controller_server:
   ros__parameters:
+    use_sim_time: True
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.5
     min_theta_velocity_threshold: 0.001
-    progress_checker_plugins: ["progress_checker"]
+    progress_checker_plugin: "progress_checker"
     goal_checker_plugins: "goal_checker"
     controller_plugins: ["FollowPath"]
 
