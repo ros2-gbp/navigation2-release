@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-rotation-shim-controller
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-angles, ros-jazzy-geometry-msgs, ros-jazzy-nav2-common, ros-jazzy-nav2-controller <!nocheck>, ros-jazzy-nav2-core, ros-jazzy-nav2-costmap-2d, ros-jazzy-nav2-msgs, ros-jazzy-nav2-regulated-pure-pursuit-controller <!nocheck>, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-tf2, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-rotation-shim-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-angles, ros-jazzy-geometry-msgs, ros-jazzy-nav2-common, ros-jazzy-nav2-core, ros-jazzy-nav2-costmap-2d, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-tf2, ros-jazzy-ros-workspace
+Description: Rotation Shim Controller
