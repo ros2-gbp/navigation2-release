@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-msgs
+Section: misc
+Priority: optional
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-action-msgs, ros-jazzy-ament-cmake, ros-jazzy-builtin-interfaces, ros-jazzy-geographic-msgs, ros-jazzy-geometry-msgs, ros-jazzy-nav-msgs, ros-jazzy-nav2-common, ros-jazzy-rclcpp, ros-jazzy-rosidl-default-generators, ros-jazzy-std-msgs, ros-jazzy-ros-workspace, ros-jazzy-rosidl-typesupport-fastrtps-c, ros-jazzy-rosidl-typesupport-fastrtps-cpp
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-msgs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-action-msgs, ros-jazzy-builtin-interfaces, ros-jazzy-geographic-msgs, ros-jazzy-geometry-msgs, ros-jazzy-nav-msgs, ros-jazzy-rclcpp, ros-jazzy-rosidl-default-generators, ros-jazzy-std-msgs, ros-jazzy-ros-workspace
+Description: Messages and service files for the Nav2 stack
