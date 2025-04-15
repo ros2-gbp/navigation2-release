@@ -117,6 +117,16 @@ public:
     nav2_core::GoalChecker * goal_checker) = 0;
 
   /**
+   * @brief Cancel the current control action
+   * @return True if the cancellation was successful. If false is returned, computeVelocityCommands
+   * will be called until cancel returns true.
+   */
+  virtual bool cancel()
+  {
+    return true;
+  }
+
+  /**
    * @brief Limits the maximum linear speed of the robot.
    * @param speed_limit expressed in absolute value (in m/s)
    * or in percentage from maximum robot speed.
@@ -124,6 +134,11 @@ public:
    * or in absolute values in false case.
    */
   virtual void setSpeedLimit(const double & speed_limit, const bool & percentage) = 0;
+
+  /**
+   * @brief Reset the state of the controller if necessary after task is exited
+   */
+  virtual void reset() {}
 };
 
 }  // namespace nav2_core

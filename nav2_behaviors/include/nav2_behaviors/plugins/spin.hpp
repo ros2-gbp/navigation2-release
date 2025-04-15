@@ -22,6 +22,7 @@
 #include "nav2_behaviors/timed_behavior.hpp"
 #include "nav2_msgs/action/spin.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
 
 namespace nav2_behaviors
 {
@@ -33,7 +34,12 @@ using SpinAction = nav2_msgs::action::Spin;
  */
 class Spin : public TimedBehavior<SpinAction>
 {
+  using CostmapInfoType = nav2_core::CostmapInfoType;
+
 public:
+  using SpinActionGoal = SpinAction::Goal;
+  using SpinActionResult = SpinAction::Result;
+
   /**
    * @brief A constructor for nav2_behaviors::Spin
    */
@@ -45,7 +51,7 @@ public:
    * @param command Goal to execute
    * @return Status of behavior
    */
-  Status onRun(const std::shared_ptr<const SpinAction::Goal> command) override;
+  ResultStatus onRun(const std::shared_ptr<const SpinActionGoal> command) override;
 
   /**
    * @brief Configuration of behavior action
@@ -56,7 +62,13 @@ public:
    * @brief Loop function to run behavior
    * @return Status of behavior
    */
-  Status onCycleUpdate() override;
+  ResultStatus onCycleUpdate() override;
+
+  /**
+   * @brief Method to determine the required costmap info
+   * @return costmap resources needed
+   */
+  CostmapInfoType getResourceInfo() override {return CostmapInfoType::LOCAL;}
 
 protected:
   /**
@@ -68,7 +80,7 @@ protected:
    */
   bool isCollisionFree(
     const double & distance,
-    geometry_msgs::msg::Twist * cmd_vel,
+    const geometry_msgs::msg::Twist & cmd_vel,
     geometry_msgs::msg::Pose2D & pose2d);
 
   SpinAction::Feedback::SharedPtr feedback_;

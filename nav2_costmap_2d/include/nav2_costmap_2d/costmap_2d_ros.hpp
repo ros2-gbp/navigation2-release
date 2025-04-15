@@ -47,10 +47,12 @@
 #include "geometry_msgs/msg/polygon_stamped.h"
 #include "nav2_costmap_2d/costmap_2d_publisher.hpp"
 #include "nav2_costmap_2d/footprint.hpp"
+#include "nav2_costmap_2d/footprint_collision_checker.hpp"
 #include "nav2_costmap_2d/clear_costmap_service.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "nav2_costmap_2d/layer.hpp"
 #include "nav2_util/lifecycle_node.hpp"
+#include "nav2_msgs/srv/get_cost.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "tf2/convert.h"
 #include "tf2/LinearMath/Transform.h"
@@ -77,25 +79,33 @@ public:
    * @brief  Constructor for the wrapper
    * @param options Additional options to control creation of the node.
    */
-  Costmap2DROS(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+  explicit Costmap2DROS(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
   /**
    * @brief  Constructor for the wrapper, the node will
    * be placed in a namespace equal to the node's name
    * @param name Name of the costmap ROS node
+   * @param use_sim_time Whether to use simulation or real time
    */
-  explicit Costmap2DROS(const std::string & name);
+  explicit Costmap2DROS(const std::string & name, const bool & use_sim_time = false);
 
   /**
    * @brief  Constructor for the wrapper
    * @param name Name of the costmap ROS node
    * @param parent_namespace Absolute namespace of the node hosting the costmap node
    * @param local_namespace Namespace to append to the parent namespace
+   * @param use_sim_time Whether to use simulation or real time
    */
   explicit Costmap2DROS(
     const std::string & name,
     const std::string & parent_namespace,
-    const std::string & local_namespace);
+    const std::string & local_namespace,
+    const bool & use_sim_time);
+
+  /**
+   * @brief Common initialization for constructors
+   */
+  void init();
 
   /**
    * @brief A destructor
@@ -331,11 +341,22 @@ public:
    */
   double getRobotRadius() {return robot_radius_;}
 
+  /** @brief Get the cost at a point in costmap
+   * @param request x and y coordinates in map
+   * @param response cost of the point
+  */
+  void getCostCallback(
+    const std::shared_ptr<rmw_request_id_t>,
+    const std::shared_ptr<nav2_msgs::srv::GetCost::Request> request,
+    const std::shared_ptr<nav2_msgs::srv::GetCost::Response> response);
+
 protected:
   // Publishers and subscribers
   rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PolygonStamped>::SharedPtr
     footprint_pub_;
-  std::unique_ptr<Costmap2DPublisher> costmap_publisher_{nullptr};
+  std::unique_ptr<Costmap2DPublisher> costmap_publisher_;
+
+  std::vector<std::unique_ptr<Costmap2DPublisher>> layer_publishers_;
 
   rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr footprint_sub_;
   rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameter_sub_;
@@ -374,7 +395,7 @@ protected:
   bool always_send_full_costmap_{false};
   std::string footprint_;
   float footprint_padding_{0};
-  std::string global_frame_;       ///< The global frame for the costmap
+  std::string global_frame_;                ///< The global frame for the costmap
   int map_height_meters_{0};
   double map_publish_frequency_{0};
   double map_update_frequency_{0};
@@ -388,19 +409,23 @@ protected:
   std::vector<std::string> filter_names_;
   std::vector<std::string> filter_types_;
   double resolution_{0};
-  std::string robot_base_frame_;   ///< The frame_id of the robot base
+  std::string robot_base_frame_;            ///< The frame_id of the robot base
   double robot_radius_;
-  bool rolling_window_{false};     ///< Whether to use a rolling window version of the costmap
+  bool rolling_window_{false};          ///< Whether to use a rolling window version of the costmap
   bool track_unknown_space_{false};
-  double transform_tolerance_{0};  ///< The timeout before transform errors
+  double transform_tolerance_{0};           ///< The timeout before transform errors
+  double initial_transform_timeout_{0};   ///< The timeout before activation of the node errors
+  double map_vis_z_{0};                 ///< The height of map, allows to avoid flickering at -0.008
 
-  bool is_lifecycle_follower_{true};     ///< whether is a child-LifecycleNode or an independent node
+  bool is_lifecycle_follower_{true};   ///< whether is a child-LifecycleNode or an independent node
 
   // Derived parameters
   bool use_radius_{false};
   std::vector<geometry_msgs::msg::Point> unpadded_footprint_;
   std::vector<geometry_msgs::msg::Point> padded_footprint_;
 
+  // Services
+  rclcpp::Service<nav2_msgs::srv::GetCost>::SharedPtr get_cost_service_;
   std::unique_ptr<ClearCostmapService> clear_costmap_service_;
 
   // Dynamic parameters handler

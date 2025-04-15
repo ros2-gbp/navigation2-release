@@ -29,19 +29,25 @@ RemovePassedGoals::RemovePassedGoals(
   const BT::NodeConfiguration & conf)
 : BT::ActionNodeBase(name, conf),
   viapoint_achieved_radius_(0.5)
+{}
+
+void RemovePassedGoals::initialize()
 {
   getInput("radius", viapoint_achieved_radius_);
 
-  getInput("global_frame", global_frame_);
-  getInput("robot_base_frame", robot_base_frame_);
   tf_ = config().blackboard->get<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer");
   auto node = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
   node->get_parameter("transform_tolerance", transform_tolerance_);
+
+  robot_base_frame_ = BT::deconflictPortAndParamFrame<std::string>(
+    node, "robot_base_frame", this);
 }
 
 inline BT::NodeStatus RemovePassedGoals::tick()
 {
-  setStatus(BT::NodeStatus::RUNNING);
+  if (!BT::isStatusActive(status())) {
+    initialize();
+  }
 
   Goals goal_poses;
   getInput("input_goals", goal_poses);
@@ -55,7 +61,7 @@ inline BT::NodeStatus RemovePassedGoals::tick()
 
   geometry_msgs::msg::PoseStamped current_pose;
   if (!nav2_util::getCurrentPose(
-      current_pose, *tf_, global_frame_, robot_base_frame_,
+      current_pose, *tf_, goal_poses[0].header.frame_id, robot_base_frame_,
       transform_tolerance_))
   {
     return BT::NodeStatus::FAILURE;
@@ -79,7 +85,7 @@ inline BT::NodeStatus RemovePassedGoals::tick()
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::RemovePassedGoals>("RemovePassedGoals");

@@ -24,7 +24,7 @@ ComputePathToPoseAction::ComputePathToPoseAction(
   const std::string & xml_tag_name,
   const std::string & action_name,
   const BT::NodeConfiguration & conf)
-: BtActionNode<nav2_msgs::action::ComputePathToPose>(xml_tag_name, action_name, conf)
+: BtActionNode<Action>(xml_tag_name, action_name, conf)
 {
 }
 
@@ -40,6 +40,8 @@ void ComputePathToPoseAction::on_tick()
 BT::NodeStatus ComputePathToPoseAction::on_success()
 {
   setOutput("path", result_.result->path);
+  // Set empty error code, action was successful
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -47,6 +49,7 @@ BT::NodeStatus ComputePathToPoseAction::on_aborted()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
+  setOutput("error_code_id", result_.result->error_code);
   return BT::NodeStatus::FAILURE;
 }
 
@@ -54,6 +57,8 @@ BT::NodeStatus ComputePathToPoseAction::on_cancelled()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
+  // Set empty error code, action was cancelled
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -66,7 +71,7 @@ void ComputePathToPoseAction::halt()
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

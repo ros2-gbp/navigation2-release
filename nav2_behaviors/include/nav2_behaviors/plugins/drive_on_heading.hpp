@@ -19,12 +19,12 @@
 #include <chrono>
 #include <memory>
 #include <utility>
-#include <limits>
 
 #include "nav2_behaviors/timed_behavior.hpp"
 #include "nav2_msgs/action/drive_on_heading.hpp"
 #include "nav2_msgs/action/back_up.hpp"
 #include "nav2_util/node_utils.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
 
 namespace nav2_behaviors
 {
@@ -36,6 +36,8 @@ namespace nav2_behaviors
 template<typename ActionT = nav2_msgs::action::DriveOnHeading>
 class DriveOnHeading : public TimedBehavior<ActionT>
 {
+  using CostmapInfoType = nav2_core::CostmapInfoType;
+
 public:
   /**
    * @brief A constructor for nav2_behaviors::DriveOnHeading
@@ -56,19 +58,19 @@ public:
    * @param command Goal to execute
    * @return Status of behavior
    */
-  Status onRun(const std::shared_ptr<const typename ActionT::Goal> command) override
+  ResultStatus onRun(const std::shared_ptr<const typename ActionT::Goal> command) override
   {
     if (command->target.y != 0.0 || command->target.z != 0.0) {
       RCLCPP_INFO(
         this->logger_,
         "DrivingOnHeading in Y and Z not supported, will only move in X.");
-      return Status::FAILED;
+      return ResultStatus{Status::FAILED, ActionT::Result::INVALID_INPUT};
     }
 
     // Ensure that both the speed and direction have the same sign
     if (!((command->target.x > 0.0) == (command->speed > 0.0)) ) {
       RCLCPP_ERROR(this->logger_, "Speed and command sign did not match");
-      return Status::FAILED;
+      return ResultStatus{Status::FAILED, ActionT::Result::INVALID_INPUT};
     }
 
     command_x_ = command->target.x;
@@ -78,21 +80,21 @@ public:
     end_time_ = this->clock_->now() + command_time_allowance_;
 
     if (!nav2_util::getCurrentPose(
-        initial_pose_, *this->tf_, this->global_frame_, this->robot_base_frame_,
+        initial_pose_, *this->tf_, this->local_frame_, this->robot_base_frame_,
         this->transform_tolerance_))
     {
       RCLCPP_ERROR(this->logger_, "Initial robot pose is not available.");
-      return Status::FAILED;
+      return ResultStatus{Status::FAILED, ActionT::Result::TF_ERROR};
     }
 
-    return Status::SUCCEEDED;
+    return ResultStatus{Status::SUCCEEDED, ActionT::Result::NONE};
   }
 
   /**
    * @brief Loop function to run behavior
    * @return Status of behavior
    */
-  Status onCycleUpdate() override
+  ResultStatus onCycleUpdate() override
   {
     rclcpp::Duration time_remaining = end_time_ - this->clock_->now();
     if (time_remaining.seconds() < 0.0 && command_time_allowance_.seconds() > 0.0) {
@@ -100,16 +102,16 @@ public:
       RCLCPP_WARN(
         this->logger_,
         "Exceeded time allowance before reaching the DriveOnHeading goal - Exiting DriveOnHeading");
-      return Status::FAILED;
+      return ResultStatus{Status::FAILED, ActionT::Result::TIMEOUT};
     }
 
     geometry_msgs::msg::PoseStamped current_pose;
     if (!nav2_util::getCurrentPose(
-        current_pose, *this->tf_, this->global_frame_, this->robot_base_frame_,
+        current_pose, *this->tf_, this->local_frame_, this->robot_base_frame_,
         this->transform_tolerance_))
     {
       RCLCPP_ERROR(this->logger_, "Current robot pose is not available.");
-      return Status::FAILED;
+      return ResultStatus{Status::FAILED, ActionT::Result::TF_ERROR};
     }
 
     double diff_x = initial_pose_.pose.position.x - current_pose.pose.position.x;
@@ -121,65 +123,37 @@ public:
 
     if (distance >= std::fabs(command_x_)) {
       this->stopRobot();
-      return Status::SUCCEEDED;
+      return ResultStatus{Status::SUCCEEDED, ActionT::Result::NONE};
     }
 
-    auto cmd_vel = std::make_unique<geometry_msgs::msg::Twist>();
-    cmd_vel->linear.y = 0.0;
-    cmd_vel->angular.z = 0.0;
-
-    bool forward = command_speed_ > 0.0;
-    if (acceleration_limit_ == 0.0 || deceleration_limit_ == 0.0) {
-      RCLCPP_INFO_ONCE(this->logger_, "DriveOnHeading: no acceleration or deceleration limits set");
-      cmd_vel->linear.x = command_speed_;
-    } else {
-      double current_speed = last_vel_ == std::numeric_limits<double>::max() ? 0.0 : last_vel_;
-      double min_feasible_speed, max_feasible_speed;
-      if (forward) {
-        min_feasible_speed = current_speed + deceleration_limit_ / this->cycle_frequency_;
-        max_feasible_speed = current_speed + acceleration_limit_ / this->cycle_frequency_;
-      } else {
-        min_feasible_speed = current_speed - acceleration_limit_ / this->cycle_frequency_;
-        max_feasible_speed = current_speed - deceleration_limit_ / this->cycle_frequency_;
-      }
-      cmd_vel->linear.x = std::clamp(command_speed_, min_feasible_speed, max_feasible_speed);
-
-      // Check if we need to slow down to avoid overshooting
-      auto remaining_distance = std::fabs(command_x_) - distance;
-      double max_vel_to_stop = std::sqrt(-2.0 * deceleration_limit_ * remaining_distance);
-      if (max_vel_to_stop < std::abs(cmd_vel->linear.x)) {
-        cmd_vel->linear.x = forward ? max_vel_to_stop : -max_vel_to_stop;
-      }
-    }
-
-    // Ensure we don't go below minimum speed
-    if (std::fabs(cmd_vel->linear.x) < minimum_speed_) {
-      cmd_vel->linear.x = forward ? minimum_speed_ : -minimum_speed_;
-    }
+    auto cmd_vel = std::make_unique<geometry_msgs::msg::TwistStamped>();
+    cmd_vel->header.stamp = this->clock_->now();
+    cmd_vel->header.frame_id = this->robot_base_frame_;
+    cmd_vel->twist.linear.y = 0.0;
+    cmd_vel->twist.angular.z = 0.0;
+    cmd_vel->twist.linear.x = command_speed_;
 
     geometry_msgs::msg::Pose2D pose2d;
     pose2d.x = current_pose.pose.position.x;
     pose2d.y = current_pose.pose.position.y;
     pose2d.theta = tf2::getYaw(current_pose.pose.orientation);
 
-    if (!isCollisionFree(distance, cmd_vel.get(), pose2d)) {
+    if (!isCollisionFree(distance, cmd_vel->twist, pose2d)) {
       this->stopRobot();
       RCLCPP_WARN(this->logger_, "Collision Ahead - Exiting DriveOnHeading");
-      return Status::FAILED;
+      return ResultStatus{Status::FAILED, ActionT::Result::COLLISION_AHEAD};
     }
 
-    last_vel_ = cmd_vel->linear.x;
     this->vel_pub_->publish(std::move(cmd_vel));
 
-    return Status::RUNNING;
+    return ResultStatus{Status::RUNNING, ActionT::Result::NONE};
   }
 
-  void onCleanup() override {last_vel_ = std::numeric_limits<double>::max();}
-
-  void onActionCompletion() override
-  {
-    last_vel_ = std::numeric_limits<double>::max();
-  }
+  /**
+   * @brief Method to determine the required costmap info
+   * @return costmap resources needed
+   */
+  CostmapInfoType getResourceInfo() override {return CostmapInfoType::LOCAL;}
 
 protected:
   /**
@@ -191,7 +165,7 @@ protected:
    */
   bool isCollisionFree(
     const double & distance,
-    geometry_msgs::msg::Twist * cmd_vel,
+    const geometry_msgs::msg::Twist & cmd_vel,
     geometry_msgs::msg::Pose2D & pose2d)
   {
     // Simulate ahead by simulate_ahead_time_ in this->cycle_frequency_ increments
@@ -203,7 +177,7 @@ protected:
     bool fetch_data = true;
 
     while (cycle_count < max_cycle_count) {
-      sim_position_change = cmd_vel->linear.x * (cycle_count / this->cycle_frequency_);
+      sim_position_change = cmd_vel.linear.x * (cycle_count / this->cycle_frequency_);
       pose2d.x = init_pose.x + sim_position_change * cos(init_pose.theta);
       pose2d.y = init_pose.y + sim_position_change * sin(init_pose.theta);
       cycle_count++;
@@ -212,7 +186,7 @@ protected:
         break;
       }
 
-      if (!this->collision_checker_->isCollisionFree(pose2d, fetch_data)) {
+      if (!this->local_collision_checker_->isCollisionFree(pose2d, fetch_data)) {
         return false;
       }
       fetch_data = false;
@@ -234,26 +208,6 @@ protected:
       node,
       "simulate_ahead_time", rclcpp::ParameterValue(2.0));
     node->get_parameter("simulate_ahead_time", simulate_ahead_time_);
-
-    nav2_util::declare_parameter_if_not_declared(
-      node, this->behavior_name_ + ".acceleration_limit",
-      rclcpp::ParameterValue(0.0));
-    nav2_util::declare_parameter_if_not_declared(
-      node, this->behavior_name_ + ".deceleration_limit",
-      rclcpp::ParameterValue(0.0));
-    nav2_util::declare_parameter_if_not_declared(
-      node, this->behavior_name_ + ".minimum_speed",
-      rclcpp::ParameterValue(0.0));
-    node->get_parameter(this->behavior_name_ + ".acceleration_limit", acceleration_limit_);
-    node->get_parameter(this->behavior_name_ + ".deceleration_limit", deceleration_limit_);
-    node->get_parameter(this->behavior_name_ + ".minimum_speed", minimum_speed_);
-    if (acceleration_limit_ < 0.0 || deceleration_limit_ > 0.0) {
-      RCLCPP_ERROR(this->logger_,
-        "DriveOnHeading: acceleration_limit and deceleration_limit must be "
-        "positive and negative respectively");
-      acceleration_limit_ = std::abs(acceleration_limit_);
-      deceleration_limit_ = -std::abs(deceleration_limit_);
-    }
   }
 
   typename ActionT::Feedback::SharedPtr feedback_;
@@ -264,10 +218,6 @@ protected:
   rclcpp::Duration command_time_allowance_{0, 0};
   rclcpp::Time end_time_;
   double simulate_ahead_time_;
-  double acceleration_limit_;
-  double deceleration_limit_;
-  double minimum_speed_;
-  double last_vel_ = std::numeric_limits<double>::max();
 };
 
 }  // namespace nav2_behaviors

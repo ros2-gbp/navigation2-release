@@ -92,9 +92,8 @@ protected:
    * @param reversing_segment Return if this is a reversing segment
    * @param costmap Pointer to minimal costmap
    * @param max_time Maximum time to compute, stop early if over limit
-   * @return If smoothing was successful
    */
-  bool smoothImpl(
+  void smoothImpl(
     nav_msgs::msg::Path & path,
     bool & reversing_segment,
     const nav2_costmap_2d::Costmap2D * costmap,
@@ -121,7 +120,7 @@ protected:
     const double & value);
 
   double tolerance_, data_w_, smooth_w_;
-  int max_its_, refinement_ctr_;
+  int max_its_, refinement_ctr_, refinement_num_;
   bool do_refinement_;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_sub_;
   rclcpp::Logger logger_{rclcpp::get_logger("SimpleSmoother")};

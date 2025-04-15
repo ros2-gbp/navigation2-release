@@ -18,7 +18,7 @@ planner_server:
     expected_planner_frequency: 20.0
     planner_plugins: ["SmacHybrid"]
     SmacHybrid:
-      plugin: "nav2_smac_planner/SmacPlannerHybrid"
+      plugin: "nav2_smac_planner::SmacPlannerHybrid"
       tolerance: 0.5
       motion_model_for_search: "DUBIN" # default, non-reverse motion
       smooth_path: false # should be disabled for experiment
@@ -30,12 +30,14 @@ planner_server:
 ```
  smoother_server:
    ros__parameters:
-    smoother_plugins: ["simple_smoother", "constrained_smoother"]
+    smoother_plugins: ["simple_smoother", "constrained_smoother", "sg_smoother"]
     simple_smoother:
       plugin: "nav2_smoother::SimpleSmoother"
     constrained_smoother:
       plugin: "nav2_constrained_smoother/ConstrainedSmoother"
       w_smooth: 100000.0 # tuned
+    sg_smoother:
+      plugin: "nav2_smoother::SavitzkyGolaySmoother"
 ```
 
 Set global costmap, path planner and smoothers parameters to those desired in `nav2_params.yaml`.

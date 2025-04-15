@@ -64,6 +64,7 @@ void LatticeMotionTable::initMotionModel(
   current_lattice_filepath = search_info.lattice_filepath;
   allow_reverse_expansion = search_info.allow_reverse_expansion;
   rotation_penalty = search_info.rotation_penalty;
+  min_turning_radius = search_info.minimum_turning_radius;
 
   // Get the metadata about this minimum control set
   lattice_metadata = getLatticeMetadata(current_lattice_filepath);
@@ -77,11 +78,13 @@ void LatticeMotionTable::initMotionModel(
 
   if (!state_space) {
     if (!allow_reverse_expansion) {
-      state_space = std::make_unique<ompl::base::DubinsStateSpace>(
+      state_space = std::make_shared<ompl::base::DubinsStateSpace>(
         lattice_metadata.min_turning_radius);
+      motion_model = MotionModel::DUBIN;
     } else {
-      state_space = std::make_unique<ompl::base::ReedsSheppStateSpace>(
+      state_space = std::make_shared<ompl::base::ReedsSheppStateSpace>(
         lattice_metadata.min_turning_radius);
+      motion_model = MotionModel::REEDS_SHEPP;
     }
   }
 
@@ -111,13 +114,18 @@ void LatticeMotionTable::initMotionModel(
   }
 }
 
-MotionPrimitivePtrs LatticeMotionTable::getMotionPrimitives(const NodeLattice * node)
+MotionPrimitivePtrs LatticeMotionTable::getMotionPrimitives(
+  const NodeLattice * node,
+  unsigned int & direction_change_index)
 {
   MotionPrimitives & prims_at_heading = motion_primitives[node->pose.theta];
   MotionPrimitivePtrs primitive_projection_list;
   for (unsigned int i = 0; i != prims_at_heading.size(); i++) {
     primitive_projection_list.push_back(&prims_at_heading[i]);
   }
+
+  // direction change index
+  direction_change_index = static_cast<unsigned int>(primitive_projection_list.size());
 
   if (allow_reverse_expansion) {
     // Find normalized heading bin of the reverse expansion
@@ -172,7 +180,12 @@ float & LatticeMotionTable::getAngleFromBin(const unsigned int & bin_idx)
   return lattice_metadata.heading_angles[bin_idx];
 }
 
-NodeLattice::NodeLattice(const unsigned int index)
+double LatticeMotionTable::getAngle(const double & theta)
+{
+  return getClosestAngularBin(theta);
+}
+
+NodeLattice::NodeLattice(const uint64_t index)
 : parent(nullptr),
   pose(0.0f, 0.0f, 0.0f),
   _cell_cost(std::numeric_limits<float>::quiet_NaN()),
@@ -180,7 +193,8 @@ NodeLattice::NodeLattice(const unsigned int index)
   _index(index),
   _was_visited(false),
   _motion_primitive(nullptr),
-  _backwards(false)
+  _backwards(false),
+  _is_node_valid(false)
 {
 }
 
@@ -200,6 +214,7 @@ void NodeLattice::reset()
   pose.theta = 0.0f;
   _motion_primitive = nullptr;
   _backwards = false;
+  _is_node_valid = false;
 }
 
 bool NodeLattice::isNodeValid(
@@ -208,6 +223,11 @@ bool NodeLattice::isNodeValid(
   MotionPrimitive * motion_primitive,
   bool is_backwards)
 {
+  // Already found, we can return the result
+  if (!std::isnan(_cell_cost)) {
+    return _is_node_valid;
+  }
+
   // Check primitive end pose
   // Convert grid quantization of primitives to radians, then collision checker quantization
   static const double bin_size = 2.0 * M_PI / collision_checker->getPrecomputedAngles().size();
@@ -215,6 +235,8 @@ bool NodeLattice::isNodeValid(
   if (collision_checker->inCollision(
       this->pose.x, this->pose.y, angle /*bin in collision checker*/, traverse_unknown))
   {
+    _is_node_valid = false;
+    _cell_cost = collision_checker->getCost();
     return false;
   }
 
@@ -225,7 +247,8 @@ bool NodeLattice::isNodeValid(
   if (motion_primitive) {
     const float & grid_resolution = motion_table.lattice_metadata.grid_resolution;
     const float & resolution_diag_sq = 2.0 * grid_resolution * grid_resolution;
-    MotionPose last_pose(1e9, 1e9, 1e9), pose_dist(0.0, 0.0, 0.0);
+    MotionPose last_pose(1e9, 1e9, 1e9, TurnDirection::UNKNOWN);
+    MotionPose pose_dist(0.0, 0.0, 0.0, TurnDirection::UNKNOWN);
 
     // Back out the initial node starting point to move motion primitive relative to
     MotionPose initial_pose, prim_pose;
@@ -255,6 +278,8 @@ bool NodeLattice::isNodeValid(
             prim_pose._theta / bin_size /*bin in collision checker*/,
             traverse_unknown))
         {
+          _is_node_valid = false;
+          _cell_cost = std::max(max_cell_cost, collision_checker->getCost());
           return false;
         }
         max_cell_cost = std::max(max_cell_cost, collision_checker->getCost());
@@ -263,7 +288,8 @@ bool NodeLattice::isNodeValid(
   }
 
   _cell_cost = max_cell_cost;
-  return true;
+  _is_node_valid = true;
+  return _is_node_valid;
 }
 
 float NodeLattice::getTraversalCost(const NodePtr & child)
@@ -318,8 +344,7 @@ float NodeLattice::getTraversalCost(const NodePtr & child)
 
 float NodeLattice::getHeuristicCost(
   const Coordinates & node_coords,
-  const Coordinates & goal_coords,
-  const nav2_costmap_2d::Costmap2D * costmap)
+  const Coordinates & goal_coords)
 {
   // get obstacle heuristic value
   const float obstacle_heuristic = getObstacleHeuristic(
@@ -414,17 +439,19 @@ float NodeLattice::getDistanceHeuristic(
 
 void NodeLattice::precomputeDistanceHeuristic(
   const float & lookup_table_dim,
-  const MotionModel & motion_model,
+  const MotionModel & /*motion_model*/,
   const unsigned int & dim_3_size,
   const SearchInfo & search_info)
 {
   // Dubin or Reeds-Shepp shortest distances
   if (!search_info.allow_reverse_expansion) {
-    motion_table.state_space = std::make_unique<ompl::base::DubinsStateSpace>(
+    motion_table.state_space = std::make_shared<ompl::base::DubinsStateSpace>(
       search_info.minimum_turning_radius);
+    motion_table.motion_model = MotionModel::DUBIN;
   } else {
-    motion_table.state_space = std::make_unique<ompl::base::ReedsSheppStateSpace>(
+    motion_table.state_space = std::make_shared<ompl::base::ReedsSheppStateSpace>(
       search_info.minimum_turning_radius);
+    motion_table.motion_model = MotionModel::REEDS_SHEPP;
   }
   motion_table.lattice_metadata =
     LatticeMotionTable::getLatticeMetadata(search_info.lattice_filepath);
@@ -459,26 +486,22 @@ void NodeLattice::precomputeDistanceHeuristic(
 }
 
 void NodeLattice::getNeighbors(
-  std::function<bool(const unsigned int &, nav2_smac_planner::NodeLattice * &)> & NeighborGetter,
+  std::function<bool(const uint64_t &,
+  nav2_smac_planner::NodeLattice * &)> & NeighborGetter,
   GridCollisionChecker * collision_checker,
   const bool & traverse_unknown,
   NodeVector & neighbors)
 {
-  unsigned int index = 0;
+  uint64_t index = 0;
   float angle;
   bool backwards = false;
   NodePtr neighbor = nullptr;
   Coordinates initial_node_coords, motion_projection;
-  MotionPrimitivePtrs motion_primitives = motion_table.getMotionPrimitives(this);
+  unsigned int direction_change_index = 0;
+  MotionPrimitivePtrs motion_primitives = motion_table.getMotionPrimitives(
+    this,
+    direction_change_index);
   const float & grid_resolution = motion_table.lattice_metadata.grid_resolution;
-
-  unsigned int direction_change_idx = 1e9;
-  for (unsigned int i = 0; i != motion_primitives.size(); i++) {
-    if (motion_primitives[0]->start_angle != motion_primitives[i]->start_angle) {
-      direction_change_idx = i;
-      break;
-    }
-  }
 
   for (unsigned int i = 0; i != motion_primitives.size(); i++) {
     const MotionPose & end_pose = motion_primitives[i]->poses.back();
@@ -501,7 +524,7 @@ void NodeLattice::getNeighbors(
       // account in case the robot base footprint is asymmetric.
       backwards = false;
       angle = motion_projection.theta;
-      if (i >= direction_change_idx) {
+      if (i >= direction_change_index) {
         backwards = true;
         angle = motion_projection.theta - (motion_table.num_angle_quantization / 2);
         if (angle < 0) {

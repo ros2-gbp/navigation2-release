@@ -29,6 +29,9 @@ namespace nav2_behavior_tree
  */
 class ComputePathToPoseAction : public BtActionNode<nav2_msgs::action::ComputePathToPose>
 {
+  using Action = nav2_msgs::action::ComputePathToPose;
+  using ActionResult = Action::Result;
+
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::ComputePathToPoseAction
@@ -57,7 +60,7 @@ public:
   BT::NodeStatus on_aborted() override;
 
   /**
-   * @brief Function to perform some user-defined operation upon cancelation of the action
+   * @brief Function to perform some user-defined operation upon cancellation of the action
    */
   BT::NodeStatus on_cancelled() override;
 
@@ -74,13 +77,15 @@ public:
   {
     return providedBasicPorts(
       {
-        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathToPose node"),
         BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination to plan to"),
         BT::InputPort<geometry_msgs::msg::PoseStamped>(
           "start", "Start pose of the path if overriding current robot pose"),
         BT::InputPort<std::string>(
           "planner_id", "",
           "Mapped name to the planner plugin type to use"),
+        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathToPose node"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The compute path to pose error code"),
       });
   }
 };

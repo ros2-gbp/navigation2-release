@@ -46,6 +46,8 @@ public:
   CriticManagerWrapper()
   : CriticManager() {}
 
+  virtual ~CriticManagerWrapper() = default;
+
   virtual void loadCritics()
   {
     critics_.clear();
@@ -63,12 +65,22 @@ public:
 
   bool getDummyCriticInitialized()
   {
-    return dynamic_cast<DummyCritic *>(critics_[0].get())->initialized_;
+    const auto critic = critics_[0].get();
+    if (critic == nullptr) {
+      return false;
+    }
+    const auto dummy_critic = dynamic_cast<DummyCritic *>(critic);
+    return dummy_critic == nullptr ? false : dummy_critic->initialized_;
   }
 
   bool getDummyCriticScored()
   {
-    return dynamic_cast<DummyCritic *>(critics_[0].get())->scored_;
+    const auto critic = critics_[0].get();
+    if (critic == nullptr) {
+      return false;
+    }
+    const auto dummy_critic = dynamic_cast<DummyCritic *>(critic);
+    return dummy_critic == nullptr ? false : dummy_critic->scored_;
   }
 };
 
@@ -77,6 +89,8 @@ class CriticManagerWrapperEnum : public CriticManager
 public:
   CriticManagerWrapperEnum()
   : CriticManager() {}
+
+  virtual ~CriticManagerWrapperEnum() = default;
 
   unsigned int getCriticNum()
   {
@@ -88,7 +102,7 @@ TEST(CriticManagerTests, BasicCriticOperations)
 {
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("my_node");
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap");
+    "dummy_costmap", "", "dummy_costmap", true);
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State lstate;
   costmap_ros->on_configure(lstate);
@@ -127,7 +141,7 @@ TEST(CriticManagerTests, CriticLoadingTest)
     "critic_manager.critics",
     rclcpp::ParameterValue(std::vector<std::string>{"ConstraintCritic", "PreferForwardCritic"}));
   auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
-    "dummy_costmap", "", "dummy_costmap");
+    "dummy_costmap", "", "dummy_costmap", true);
   ParametersHandler param_handler(node);
   rclcpp_lifecycle::State state;
   costmap_ros->on_configure(state);
