@@ -1,0 +1,12 @@
+Source: ros-kilted-nav2-navfn-planner
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-kilted-ament-cmake, ros-kilted-ament-cmake-gtest <!nocheck>, ros-kilted-ament-lint-auto <!nocheck>, ros-kilted-ament-lint-common <!nocheck>, ros-kilted-builtin-interfaces, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-common, ros-kilted-nav2-core, ros-kilted-nav2-costmap-2d, ros-kilted-nav2-util, ros-kilted-pluginlib, ros-kilted-rclcpp, ros-kilted-rclcpp-lifecycle, ros-kilted-tf2-ros, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-nav2-navfn-planner
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-kilted-builtin-interfaces, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-core, ros-kilted-nav2-costmap-2d, ros-kilted-nav2-util, ros-kilted-pluginlib, ros-kilted-rclcpp, ros-kilted-rclcpp-lifecycle, ros-kilted-tf2-ros, ros-kilted-ros-workspace
+Description: Nav2 NavFn planner
