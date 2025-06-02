@@ -1,0 +1,12 @@
+Source: ros-kilted-nav2-core
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-kilted-ament-cmake, ros-kilted-ament-lint-auto <!nocheck>, ros-kilted-ament-lint-common <!nocheck>, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-behavior-tree, ros-kilted-nav2-common, ros-kilted-nav2-costmap-2d, ros-kilted-nav2-util, ros-kilted-pluginlib, ros-kilted-rclcpp, ros-kilted-rclcpp-lifecycle, ros-kilted-tf2-ros, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-nav2-core
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-behavior-tree, ros-kilted-nav2-costmap-2d, ros-kilted-nav2-util, ros-kilted-pluginlib, ros-kilted-rclcpp, ros-kilted-rclcpp-lifecycle, ros-kilted-tf2-ros, ros-kilted-ros-workspace
+Description: A set of headers for plugins core to the Nav2 stack
