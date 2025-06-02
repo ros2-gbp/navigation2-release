@@ -24,14 +24,6 @@
 #include "nav2_smac_planner/node_2d.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
-
 TEST(Node2DTest, test_node_2d)
 {
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
@@ -142,10 +134,8 @@ TEST(Node2DTest, test_node_2d_neighbors)
   unsigned char cost = static_cast<unsigned int>(1);
   nav2_smac_planner::Node2D * node = new nav2_smac_planner::Node2D(1);
   node->setCost(cost);
-  std::function<bool(const uint64_t &,
-    nav2_smac_planner::Node2D * &)> neighborGetter =
-    [&, this](const uint64_t & index,
-    nav2_smac_planner::Node2D * & neighbor_rtn) -> bool
+  std::function<bool(const uint64_t &, nav2_smac_planner::Node2D * &)> neighborGetter =
+    [](const uint64_t &, nav2_smac_planner::Node2D * &) -> bool
     {
       return false;
     };
@@ -156,4 +146,17 @@ TEST(Node2DTest, test_node_2d_neighbors)
 
   // should be empty since totally invalid
   EXPECT_EQ(neighbors.size(), 0u);
+}
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

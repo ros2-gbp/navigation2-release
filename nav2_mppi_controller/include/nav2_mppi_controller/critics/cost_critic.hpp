@@ -95,7 +95,7 @@ protected:
     * @param wy Float world Y coord
     * @param mx unsigned int map X coord
     * @param my unsigned into map Y coord
-    * @return if successsful
+    * @return if successful
     */
   inline bool worldToMapFloat(float wx, float wy, unsigned int & mx, unsigned int & my) const
   {
@@ -144,6 +144,7 @@ protected:
   std::string inflation_layer_name_;
 
   unsigned int power_{0};
+  bool enforce_path_inversion_{false};
 };
 
 }  // namespace mppi::critics

@@ -29,14 +29,6 @@
 #include "nav2_smac_planner/collision_checker.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
-
 TEST(AStarTest, test_a_star_2d)
 {
   auto lnode = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
@@ -301,7 +293,6 @@ TEST(AStarTest, test_a_star_lattice)
     nav2_smac_planner::MotionModel::STATE_LATTICE, info);
   int max_iterations = 10000;
   float tolerance = 10.0;
-  int it_on_approach = 10;
   int terminal_checking_interval = 5000;
   double max_planning_time = 120.0;
   int num_it = 0;
@@ -434,4 +425,17 @@ TEST(AStarTest, test_constants)
     nav2_smac_planner::fromString(
       "REEDS_SHEPP"), nav2_smac_planner::MotionModel::REEDS_SHEPP);
   EXPECT_EQ(nav2_smac_planner::fromString("NONE"), nav2_smac_planner::MotionModel::UNKNOWN);
+}
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

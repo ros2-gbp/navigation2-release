@@ -15,6 +15,8 @@
 #ifndef NAV2_BEHAVIOR_TREE__BT_ACTION_SERVER_HPP_
 #define NAV2_BEHAVIOR_TREE__BT_ACTION_SERVER_HPP_
 
+#include <chrono>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,6 +26,8 @@
 #include "nav2_behavior_tree/ros_topic_logger.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_util/simple_action_server.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -86,6 +90,13 @@ public:
    * @return bool true on SUCCESS and false on FAILURE
    */
   bool on_cleanup();
+
+  /**
+   * @brief Enable (or disable) Groot2 monitoring of BT
+   * @param enable Groot2 monitoring
+   * @param server_port Groot2 Server port, first of the pair (server_port, publisher_port)
+   */
+  void setGrootMonitoring(const bool enable, const unsigned server_port);
 
   /**
    * @brief Replace current BT with another one
@@ -184,6 +195,25 @@ public:
     tree_.haltTree();
   }
 
+  /**
+   * @brief Set internal error code and message
+   * @param error_code the internal error code
+   * @param error_msg the internal error message
+   */
+  void setInternalError(uint16_t error_code, const std::string & error_msg);
+
+  /**
+   * @brief reset internal error code and message
+   */
+  void resetInternalError(void);
+
+  /**
+   * @brief populate result with internal error code and error_msg if not NONE
+   * @param result the action server result to be updated
+   * @return bool action server result was changed
+   */
+  bool populateInternalError(typename std::shared_ptr<typename ActionT::Result> result);
+
 protected:
   /**
    * @brief Action server callback
@@ -214,7 +244,7 @@ protected:
   // The blackboard shared by all of the nodes in the tree
   BT::Blackboard::Ptr blackboard_;
 
-  // The XML file that cointains the Behavior Tree to create
+  // The XML file that contains the Behavior Tree to create
   std::string current_bt_xml_filename_;
   std::string default_bt_xml_filename_;
 
@@ -224,8 +254,8 @@ protected:
   // Libraries to pull plugins (BT Nodes) from
   std::vector<std::string> plugin_lib_names_;
 
-  // Error code id names
-  std::vector<std::string> error_code_names_;
+  // Error code name prefixes
+  std::vector<std::string> error_code_name_prefixes_;
 
   // A regular, non-spinning ROS node that we can use for calls to the action client
   rclcpp::Node::SharedPtr client_node_;
@@ -254,11 +284,19 @@ protected:
   // should the BT be reloaded even if the same xml filename is requested?
   bool always_reload_bt_xml_ = false;
 
+  // Parameters for Groot2 monitoring
+  bool enable_groot_monitoring_ = true;
+  int groot_server_port_ = 1667;
+
   // User-provided callbacks
   OnGoalReceivedCallback on_goal_received_callback_;
   OnLoopCallback on_loop_callback_;
   OnPreemptCallback on_preempt_callback_;
   OnCompletionCallback on_completion_callback_;
+
+  // internal error tracking (IOW not behaviorTree blackboard errors)
+  uint16_t internal_error_code_;
+  std::string internal_error_msg_;
 };
 
 }  // namespace nav2_behavior_tree

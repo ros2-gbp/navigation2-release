@@ -15,10 +15,11 @@
 #ifndef NAV2_SMAC_PLANNER__ANALYTIC_EXPANSION_HPP_
 #define NAV2_SMAC_PLANNER__ANALYTIC_EXPANSION_HPP_
 
-#include <string>
-#include <vector>
+#include <functional>
 #include <list>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "nav2_smac_planner/node_2d.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
@@ -115,7 +116,7 @@ public:
 
   /**
    * @brief Takes an expanded nodes to clean up, if necessary, of any state
-   * information that may be poluting it from a prior search iteration
+   * information that may be polluting it from a prior search iteration
    * @param expanded_nodes Expanded node to clean up from search
    */
   void cleanNode(const NodePtr & nodes);

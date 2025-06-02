@@ -19,6 +19,7 @@
 #include <QtWidgets>
 #include <QBasicTimer>
 
+#include <memory>
 #include <string>
 
 // ROS
@@ -26,6 +27,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "rviz_common/panel.hpp"
+#include "rviz_common/ros_integration/ros_node_abstraction_iface.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "nav2_msgs/action/dock_robot.hpp"
 #include "nav2_msgs/action/undock_robot.hpp"
@@ -55,7 +57,6 @@ public:
 
 private Q_SLOTS:
   void startThread();
-  void onStartup();
   void onDockingButtonPressed();
   void onUndockingButtonPressed();
   void onCancelDocking();
@@ -87,6 +88,9 @@ private:
 
   // The (non-spinning) client node used to invoke the action client
   rclcpp::Node::SharedPtr client_node_;
+
+  // The Node pointer that we need to keep alive for the duration of this plugin.
+  std::shared_ptr<rviz_common::ros_integration::RosNodeAbstractionIface> node_ptr_;
 
   // Timeout value when waiting for action servers to respond
   std::chrono::milliseconds server_timeout_;

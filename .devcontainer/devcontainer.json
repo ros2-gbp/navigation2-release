@@ -4,7 +4,7 @@
         "dockerfile": "../Dockerfile",
         "context": "..",
         "target": "dever",
-        "cacheFrom": "ghcr.io/ros-navigation/navigation2:jazzy"
+        "cacheFrom": "ghcr.io/ros-navigation/navigation2:kilted"
     },
     "runArgs": [
         "--name=nav2"

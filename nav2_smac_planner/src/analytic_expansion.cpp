@@ -110,7 +110,7 @@ typename AnalyticExpansion<NodeT>::NodePtr AnalyticExpansion<NodeT>::tryAnalytic
         // The analytic expansion can short-cut near obstacles when closer to a goal
         // So, we can attempt to refine it more by increasing the possible radius
         // higher than the minimum turning radius and use the best solution based on
-        // a scoring function similar to that used in traveral cost estimation.
+        // a scoring function similar to that used in traversal cost estimation.
         auto scoringFn = [&](const AnalyticExpansionNodes & expansion) {
             if (expansion.size() < 2) {
               return std::numeric_limits<float>::max();
@@ -337,28 +337,28 @@ void AnalyticExpansion<NodeT>::cleanNode(const NodePtr & /*expanded_nodes*/)
 template<>
 typename AnalyticExpansion<Node2D>::AnalyticExpansionNodes AnalyticExpansion<Node2D>::
 getAnalyticPath(
-  const NodePtr & node,
-  const NodePtr & goal,
-  const NodeGetter & node_getter,
-  const ompl::base::StateSpacePtr & state_space)
+  const NodePtr &,
+  const NodePtr &,
+  const NodeGetter &,
+  const ompl::base::StateSpacePtr &)
 {
   return AnalyticExpansionNodes();
 }
 
 template<>
 typename AnalyticExpansion<Node2D>::NodePtr AnalyticExpansion<Node2D>::setAnalyticPath(
-  const NodePtr & node,
-  const NodePtr & goal_node,
-  const AnalyticExpansionNodes & expanded_nodes)
+  const NodePtr &,
+  const NodePtr &,
+  const AnalyticExpansionNodes &)
 {
   return NodePtr(nullptr);
 }
 
 template<>
 typename AnalyticExpansion<Node2D>::NodePtr AnalyticExpansion<Node2D>::tryAnalyticExpansion(
-  const NodePtr & current_node, const NodePtr & goal_node,
-  const NodeGetter & getter, int & analytic_iterations,
-  int & closest_distance)
+  const NodePtr &, const NodePtr &,
+  const NodeGetter &, int &,
+  int &)
 {
   return NodePtr(nullptr);
 }

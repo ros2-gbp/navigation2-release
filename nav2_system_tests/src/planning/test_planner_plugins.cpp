@@ -17,6 +17,8 @@
 #include <vector>
 #include <string>
 
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "planner_tester.hpp"
 #include "nav2_util/lifecycle_utils.hpp"
@@ -64,7 +66,7 @@ void testSmallPathValidityAndOrientation(std::string plugin, double length)
   auto path = obj->getPlan(start, goal, "GridBased", dummy_cancel_checker);
   EXPECT_GT((int)path.poses.size(), 0);
   EXPECT_NEAR(tf2::getYaw(path.poses.back().pose.orientation), -M_PI, 0.01);
-  // obj->onCleanup(state);
+  obj->onCleanup(state);
   obj.reset();
 }
 
@@ -114,7 +116,7 @@ void testSmallPathValidityAndNoOrientation(std::string plugin, double length)
       atan2(dy, dx),
       0.01);
   }
-  // obj->onCleanup(state);
+  obj->onCleanup(state);
   obj.reset();
 }
 
@@ -144,7 +146,7 @@ void testCancel(std::string plugin)
   EXPECT_THROW(
     obj->getPlan(start, goal, "GridBased", always_cancelled),
     nav2_core::PlannerCancelled);
-  // obj->onCleanup(state);
+  obj->onCleanup(state);
   obj.reset();
 }
 
