@@ -6,7 +6,7 @@
 # docker build -t nav2:latest \
 #   --build-arg UNDERLAY_MIXINS \
 #   --build-arg OVERLAY_MIXINS ./
-ARG FROM_IMAGE=ros:jazzy
+ARG FROM_IMAGE=ros:kilted
 ARG UNDERLAY_WS=/opt/underlay_ws
 ARG OVERLAY_WS=/opt/overlay_ws
 
@@ -168,7 +168,7 @@ RUN mkdir -p $ROOT_SRV
 
 # install demo dependencies
 RUN apt-get update && apt-get install -y \
-      ros-$ROS_DISTRO-rviz2 
+      ros-$ROS_DISTRO-rviz2
 
 # install gzweb dependacies
 RUN apt-get install -y --no-install-recommends \

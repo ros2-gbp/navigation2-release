@@ -16,7 +16,6 @@
 #define OPENNAV_DOCKING__POSE_FILTER_HPP_
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 namespace opennav_docking
 {
@@ -31,7 +30,7 @@ public:
   /**
    * @brief Create a pose filter instance.
    * @param coef Filtering coefficient. Valid range is 0-1, where 0 means take the new measurement
-   * @param timeout If time between measurments exceeds this value, take the new measurement.
+   * @param timeout If time between measurements exceeds this value, take the new measurement.
    */
   PoseFilter(double coef, double timeout);
 

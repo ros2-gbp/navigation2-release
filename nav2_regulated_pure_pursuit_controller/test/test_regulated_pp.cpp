@@ -27,14 +27,6 @@
 #include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
 #include "nav2_core/controller_exceptions.hpp"
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
-
 class BasicAPIRPP : public nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
 {
 public:
@@ -260,7 +252,7 @@ INSTANTIATE_TEST_SUITE_P(
   1.0,
   {1.0, 0.0}
 },
-    // Origin to hte negative X axis
+    // Origin to the negative X axis
     CircleSegmentIntersectionParam{
   {0.0, 0.0},
   {-2.0, 0.0},
@@ -405,7 +397,7 @@ TEST(RegulatedPurePursuitTest, projectCarrotPastGoal) {
   EXPECT_NEAR(pt.pose.position.x, cos(135.0 * M_PI / 180) * 10.0, EPSILON);
   EXPECT_NEAR(pt.pose.position.y, sin(135.0 * M_PI / 180) * 10.0, EPSILON);
 
-  // 2 poses bck
+  // 2 poses back
   path.poses.clear();
   path.poses.resize(2);
   path.poses[0].pose.position.x = -2.0;
@@ -673,7 +665,7 @@ TEST(RegulatedPurePursuitTest, applyConstraints)
   // ctrl->resetVelocityRegulationScaling();
   // curvature = 0.0;
 
-  // min changable cost
+  // min changeable cost
   // pose_cost = 1;
   // linear_vel = 0.5;
   // curr_speed.linear.x = 0.5;
@@ -728,6 +720,7 @@ TEST(RegulatedPurePursuitTest, testDynamicParameter)
       rclcpp::Parameter("test.rotate_to_heading_angular_vel", 18.0),
       rclcpp::Parameter("test.min_approach_linear_velocity", 1.0),
       rclcpp::Parameter("test.max_allowed_time_to_collision_up_to_carrot", 2.0),
+      rclcpp::Parameter("test.min_distance_to_obstacle", 2.0),
       rclcpp::Parameter("test.cost_scaling_dist", 2.0),
       rclcpp::Parameter("test.cost_scaling_gain", 4.0),
       rclcpp::Parameter("test.regulated_linear_scaling_min_radius", 10.0),
@@ -757,6 +750,7 @@ TEST(RegulatedPurePursuitTest, testDynamicParameter)
   EXPECT_EQ(
     node->get_parameter(
       "test.max_allowed_time_to_collision_up_to_carrot").as_double(), 2.0);
+  EXPECT_EQ(node->get_parameter("test.min_distance_to_obstacle").as_double(), 2.0);
   EXPECT_EQ(node->get_parameter("test.cost_scaling_dist").as_double(), 2.0);
   EXPECT_EQ(node->get_parameter("test.cost_scaling_gain").as_double(), 4.0);
   EXPECT_EQ(node->get_parameter("test.regulated_linear_scaling_min_radius").as_double(), 10.0);
@@ -1151,4 +1145,17 @@ TEST_F(TransformGlobalPlanTest, prune_after_leaving_costmap)
   EXPECT_NEAR(transformed_plan.poses.size(), 10u, 1);
   EXPECT_NEAR(transformed_plan.poses[0].pose.position.x, 0.0, 0.5);
   EXPECT_NEAR(transformed_plan.poses[0].pose.position.y, 0.0, 0.5);
+}
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

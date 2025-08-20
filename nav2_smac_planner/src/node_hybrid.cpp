@@ -86,7 +86,7 @@ void HybridMotionTable::initDubin(
   // 2) chord length must be greater than sqrt(2) to leave current cell
   // 3) maximum curvature must be respected, represented by minimum turning angle
   // Thusly:
-  // On circle of radius minimum turning angle, we need select motion primatives
+  // On circle of radius minimum turning angle, we need select motion primitives
   // with chord length > sqrt(2) and be an increment of our bin size
   //
   // chord >= sqrt(2) >= 2 * R * sin (angle / 2); where angle / N = quantized bin size
@@ -168,9 +168,9 @@ void HybridMotionTable::initDubin(
     const TurnDirection turn_dir = projections[i]._turn_dir;
     if (turn_dir != TurnDirection::FORWARD && turn_dir != TurnDirection::REVERSE) {
       // Turning, so length is the arc length
-      const float angle = projections[i]._theta * bin_size;
-      const float turning_rad = delta_dist / (2.0f * sin(angle / 2.0f));
-      travel_costs[i] = turning_rad * angle;
+      const float arc_angle = projections[i]._theta * bin_size;
+      const float turning_rad = delta_dist / (2.0f * sin(arc_angle / 2.0f));
+      travel_costs[i] = turning_rad * arc_angle;
     } else {
       travel_costs[i] = delta_dist;
     }
@@ -289,9 +289,9 @@ void HybridMotionTable::initReedsShepp(
     const TurnDirection turn_dir = projections[i]._turn_dir;
     if (turn_dir != TurnDirection::FORWARD && turn_dir != TurnDirection::REVERSE) {
       // Turning, so length is the arc length
-      const float angle = projections[i]._theta * bin_size;
-      const float turning_rad = delta_dist / (2.0f * sin(angle / 2.0f));
-      travel_costs[i] = turning_rad * angle;
+      const float arc_angle = projections[i]._theta * bin_size;
+      const float turning_rad = delta_dist / (2.0f * sin(arc_angle / 2.0f));
+      travel_costs[i] = turning_rad * arc_angle;
     } else {
       travel_costs[i] = delta_dist;
     }
@@ -304,11 +304,11 @@ MotionPoses HybridMotionTable::getProjections(const NodeHybrid * node)
   projection_list.reserve(projections.size());
 
   for (unsigned int i = 0; i != projections.size(); i++) {
-    const MotionPose & motion_model = projections[i];
+    const MotionPose & proj_motion_model = projections[i];
 
     // normalize theta, I know its overkill, but I've been burned before...
     const float & node_heading = node->pose.theta;
-    float new_heading = node_heading + motion_model._theta;
+    float new_heading = node_heading + proj_motion_model._theta;
 
     if (new_heading < 0.0) {
       new_heading += num_angle_quantization_float;
@@ -321,7 +321,7 @@ MotionPoses HybridMotionTable::getProjections(const NodeHybrid * node)
     projection_list.emplace_back(
       delta_xs[i][node_heading] + node->pose.x,
       delta_ys[i][node_heading] + node->pose.y,
-      new_heading, motion_model._turn_dir);
+      new_heading, proj_motion_model._turn_dir);
   }
 
   return projection_list;
@@ -442,12 +442,18 @@ float NodeHybrid::getTraversalCost(const NodePtr & child)
 
 float NodeHybrid::getHeuristicCost(
   const Coordinates & node_coords,
-  const Coordinates & goal_coords)
+  const CoordinateVector & goals_coords)
 {
+  // obstacle heuristic does not depend on goal heading
   const float obstacle_heuristic =
-    getObstacleHeuristic(node_coords, goal_coords, motion_table.cost_penalty);
-  const float dist_heuristic = getDistanceHeuristic(node_coords, goal_coords, obstacle_heuristic);
-  return std::max(obstacle_heuristic, dist_heuristic);
+    getObstacleHeuristic(node_coords, goals_coords[0], motion_table.cost_penalty);
+  float distance_heuristic = std::numeric_limits<float>::max();
+  for (unsigned int i = 0; i < goals_coords.size(); i++) {
+    distance_heuristic = std::min(
+      distance_heuristic,
+      getDistanceHeuristic(node_coords, goals_coords[i], obstacle_heuristic));
+  }
+  return std::max(obstacle_heuristic, distance_heuristic);
 }
 
 void NodeHybrid::initMotionModel(
@@ -542,7 +548,7 @@ void NodeHybrid::resetObstacleHeuristic(
 
 float NodeHybrid::getObstacleHeuristic(
   const Coordinates & node_coords,
-  const Coordinates & goal_coords,
+  const Coordinates &,
   const float & cost_penalty)
 {
   // If already expanded, return the cost
@@ -628,8 +634,8 @@ float NodeHybrid::getObstacleHeuristic(
           unsigned int y_offset = (new_idx / size_x) * 2;
           unsigned int x_offset = (new_idx - ((new_idx / size_x) * size_x)) * 2;
           cost = costmap->getCost(x_offset, y_offset);
-          for (unsigned int i = 0; i < 2u; ++i) {
-            unsigned int mxd = x_offset + i;
+          for (unsigned int k = 0; k < 2u; ++k) {
+            unsigned int mxd = x_offset + k;
             if (mxd >= costmap->getSizeInCellsX()) {
               continue;
             }
@@ -638,7 +644,7 @@ float NodeHybrid::getObstacleHeuristic(
               if (myd >= costmap->getSizeInCellsY()) {
                 continue;
               }
-              if (i == 0 && j == 0) {
+              if (k == 0 && j == 0) {
                 continue;
               }
               cost = std::min(cost, static_cast<float>(costmap->getCost(mxd, myd)));
@@ -648,7 +654,7 @@ float NodeHybrid::getObstacleHeuristic(
           cost = static_cast<float>(costmap->getCost(new_idx));
         }
 
-        if (cost >= INSCRIBED) {
+        if (cost >= INSCRIBED_COST) {
           continue;
         }
 

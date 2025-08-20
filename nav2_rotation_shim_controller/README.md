@@ -1,8 +1,8 @@
 # Nav2 Rotation Shim Controller
 
-This is a controller (local trajectory planner) that implements a "shim" controller plugin. It was developed by [Steve Macenski](https://www.linkedin.com/in/steve-macenski-41a985101/) while at [Samsung Research](https://www.sra.samsung.com/). 
+This is a controller (local trajectory planner) that implements a "shim" controller plugin. It was developed by [Steve Macenski](https://www.linkedin.com/in/steve-macenski-41a985101/) while at [Samsung Research](https://www.sra.samsung.com/).
 
-The Rotation Shim Controller stands between the controller server and the main controller plugin to implement a specific behavior often troublesome for other algorithms. This shim will rotate a robot in place to the rough heading of a newly received path. Afterwards, it will forward all future commands on that path to the main controller. It will take in a ``primary_controller`` parameter, containing the actual controller to use for path tracking once aligned with the path. 
+The Rotation Shim Controller stands between the controller server and the main controller plugin to implement a specific behavior often troublesome for other algorithms. This shim will rotate a robot in place to the rough heading of a newly received path. Afterwards, it will forward all future commands on that path to the main controller. It will take in a ``primary_controller`` parameter, containing the actual controller to use for path tracking once aligned with the path.
 
 This is useful for situations when working with plugins that are either too specialized or tuned for a particular task that they can fail to adequately solve the full local planning problem performantly. Examples include:
 
@@ -17,7 +17,7 @@ When the `rotate_to_goal_heading` parameter is set to true, this controller is a
 The Rotation Shim Controller is suitable for:
 - Robots that can rotate in place, such as differential and omnidirectional robots.
 - Preference to rotate in place rather than 'spiral out' when starting to track a new path that is at a significantly different heading than the robot's current heading.
-- Using planners that are non-kinematically feasible, such as NavFn, Theta\*, or Smac 2D (Feasible planners such as Smac Hybrid-A* and State Lattice will start search from the robot's actual starting heading, requiring no rotation). 
+- Using planners that are non-kinematically feasible, such as NavFn, Theta\*, or Smac 2D (Feasible planners such as Smac Hybrid-A* and State Lattice will start search from the robot's actual starting heading, requiring no rotation).
 
 This plugin implements the `nav2_core::Controller` interface allowing it to be used across the navigation stack as a local trajectory planner in the controller server's action server (`controller_server`). It will host an internal plugin of your actual path tracker (e.g. MPPI, RPP, DWB, TEB, etc) that will be used after the robot has rotated to the rough starting heading of the path.
 
@@ -29,7 +29,7 @@ See its [Configuration Guide Page](https://docs.nav2.org/configuration/packages/
 
 ## Configuration
 
-| Parameter | Description | 
+| Parameter | Description |
 |-----|----|
 | `angular_dist_threshold` | Maximum angular distance, in radians, away from the path heading to trigger rotation until within. |
 | `forward_sampling_distance` | Forward distance, in meters, along path to select a sampling point to use to approximate path heading |

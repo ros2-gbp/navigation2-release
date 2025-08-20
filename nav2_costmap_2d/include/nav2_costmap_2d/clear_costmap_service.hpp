@@ -22,10 +22,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_msgs/srv/clear_costmap_except_region.hpp"
 #include "nav2_msgs/srv/clear_costmap_around_robot.hpp"
-#include "nav2_msgs/srv/clear_costmap_around_pose.hpp"
 #include "nav2_msgs/srv/clear_entire_costmap.hpp"
 #include "nav2_costmap_2d/costmap_layer.hpp"
 #include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/service_server.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -42,7 +42,8 @@ public:
   /**
    * @brief A constructor
    */
-  ClearCostmapService(const nav2_util::LifecycleNode::WeakPtr & parent, Costmap2DROS & costmap);
+  ClearCostmapService(
+    const nav2_util::LifecycleNode::WeakPtr & parent, Costmap2DROS & costmap);
 
   /**
    * @brief A constructor
@@ -60,11 +61,6 @@ public:
   void clearRegion(double reset_distance, bool invert);
 
   /**
-   * @brief Clears the region around a specific pose
-   */
-  void clearAroundPose(const geometry_msgs::msg::PoseStamped & pose, double reset_distance);
-
-  /**
    * @brief Clears all layers
    */
   void clearEntirely();
@@ -80,7 +76,8 @@ private:
   unsigned char reset_value_;
 
   // Server for clearing the costmap
-  rclcpp::Service<nav2_msgs::srv::ClearCostmapExceptRegion>::SharedPtr clear_except_service_;
+  nav2_util::ServiceServer<nav2_msgs::srv::ClearCostmapExceptRegion,
+    std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>::SharedPtr clear_except_service_;
   /**
    * @brief Callback to clear costmap except in a given region
    */
@@ -89,7 +86,8 @@ private:
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapExceptRegion::Request> request,
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapExceptRegion::Response> response);
 
-  rclcpp::Service<nav2_msgs::srv::ClearCostmapAroundRobot>::SharedPtr clear_around_service_;
+  nav2_util::ServiceServer<nav2_msgs::srv::ClearCostmapAroundRobot,
+    std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>::SharedPtr clear_around_service_;
   /**
    * @brief Callback to clear costmap in a given region
    */
@@ -98,17 +96,8 @@ private:
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundRobot::Request> request,
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundRobot::Response> response);
 
-  rclcpp::Service<nav2_msgs::srv::ClearCostmapAroundPose>::SharedPtr
-    clear_around_pose_service_;
-  /**
-   * @brief Callback to clear costmap around a given pose
-   */
-  void clearAroundPoseCallback(
-    const std::shared_ptr<rmw_request_id_t> request_header,
-    const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundPose::Request> request,
-    const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundPose::Response> response);
-
-  rclcpp::Service<nav2_msgs::srv::ClearEntireCostmap>::SharedPtr clear_entire_service_;
+  nav2_util::ServiceServer<nav2_msgs::srv::ClearEntireCostmap,
+    std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>::SharedPtr clear_entire_service_;
   /**
    * @brief Callback to clear costmap
    */
