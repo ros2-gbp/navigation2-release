@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-simple-commander
+Section: misc
+Priority: optional
+Maintainer: steve <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), python3-pytest <!nocheck>, ros-jazzy-ament-copyright <!nocheck>, ros-jazzy-ament-flake8 <!nocheck>, ros-jazzy-ament-pep257 <!nocheck>, ros-jazzy-ros-workspace, python3-all, python3-setuptools, dh-python
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-simple-commander
+Architecture: any
+Depends: ${python3:Depends}, ${misc:Depends}, ros-jazzy-action-msgs, ros-jazzy-geometry-msgs, ros-jazzy-lifecycle-msgs, ros-jazzy-nav2-msgs, ros-jazzy-rclpy, ros-jazzy-ros-workspace
+Description: An importable library for writing mobile robot applications in python3
