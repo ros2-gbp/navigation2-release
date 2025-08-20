@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-core
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-cmake-pytest <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-geometry-msgs, ros-jazzy-launch <!nocheck>, ros-jazzy-launch-testing <!nocheck>, ros-jazzy-nav-msgs, ros-jazzy-nav2-behavior-tree, ros-jazzy-nav2-common, ros-jazzy-nav2-costmap-2d, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-std-msgs, ros-jazzy-tf2-ros, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-core
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-geometry-msgs, ros-jazzy-nav-msgs, ros-jazzy-nav2-behavior-tree, ros-jazzy-nav2-costmap-2d, ros-jazzy-nav2-util, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-std-msgs, ros-jazzy-tf2-ros, ros-jazzy-ros-workspace
+Description: A set of headers for plugins core to the Nav2 stack
