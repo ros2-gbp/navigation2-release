@@ -1,0 +1,12 @@
+Source: ros-kilted-nav2-system-tests
+Section: misc
+Priority: optional
+Maintainer: Carlos Orduno <carlos.a.orduno@intel.com>
+Build-Depends: debhelper (>= 9.0.0), lcov <!nocheck>, python3-zmq <!nocheck>, ros-kilted-ament-cmake, ros-kilted-ament-cmake-gtest <!nocheck>, ros-kilted-ament-cmake-pytest <!nocheck>, ros-kilted-ament-index-cpp <!nocheck>, ros-kilted-ament-lint-auto <!nocheck>, ros-kilted-ament-lint-common <!nocheck>, ros-kilted-geometry-msgs <!nocheck>, ros-kilted-launch <!nocheck>, ros-kilted-launch-ros <!nocheck>, ros-kilted-launch-testing <!nocheck>, ros-kilted-nav-msgs <!nocheck>, ros-kilted-nav2-amcl <!nocheck>, ros-kilted-nav2-behavior-tree <!nocheck>, ros-kilted-nav2-bringup <!nocheck>, ros-kilted-nav2-common, ros-kilted-nav2-lifecycle-manager <!nocheck>, ros-kilted-nav2-map-server <!nocheck>, ros-kilted-nav2-minimal-tb3-sim <!nocheck>, ros-kilted-nav2-msgs <!nocheck>, ros-kilted-nav2-navfn-planner <!nocheck>, ros-kilted-nav2-planner <!nocheck>, ros-kilted-nav2-util <!nocheck>, ros-kilted-navigation2 <!nocheck>, ros-kilted-rclcpp <!nocheck>, ros-kilted-rclcpp-lifecycle <!nocheck>, ros-kilted-rclpy <!nocheck>, ros-kilted-robot-state-publisher <!nocheck>, ros-kilted-std-msgs <!nocheck>, ros-kilted-tf2 <!nocheck>, ros-kilted-tf2-geometry-msgs <!nocheck>, ros-kilted-tf2-ros <!nocheck>, ros-kilted-visualization-msgs <!nocheck>, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-nav2-system-tests
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-kilted-ros-workspace
+Description: A sets of system-level tests for Nav2 usually involving full robot simulation
