@@ -1,0 +1,12 @@
+Source: ros-kilted-navigation2
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-kilted-ament-cmake, ros-kilted-nav2-common, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-navigation2
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-kilted-nav2-amcl, ros-kilted-nav2-behavior-tree, ros-kilted-nav2-behaviors, ros-kilted-nav2-bt-navigator, ros-kilted-nav2-collision-monitor, ros-kilted-nav2-constrained-smoother, ros-kilted-nav2-controller, ros-kilted-nav2-core, ros-kilted-nav2-costmap-2d, ros-kilted-nav2-dwb-controller, ros-kilted-nav2-graceful-controller, ros-kilted-nav2-lifecycle-manager, ros-kilted-nav2-map-server, ros-kilted-nav2-mppi-controller, ros-kilted-nav2-msgs, ros-kilted-nav2-navfn-planner, ros-kilted-nav2-planner, ros-kilted-nav2-regulated-pure-pursuit-controller, ros-kilted-nav2-rotation-shim-controller, ros-kilted-nav2-route, ros-kilted-nav2-rviz-plugins, ros-kilted-nav2-simple-commander, ros-kilted-nav2-smac-planner, ros-kilted-nav2-smoother, ros-kilted-nav2-theta-star-planner, ros-kilted-nav2-util, ros-kilted-nav2-velocity-smoother, ros-kilted-nav2-voxel-grid, ros-kilted-nav2-waypoint-follower, ros-kilted-opennav-docking, ros-kilted-opennav-docking-bt, ros-kilted-opennav-docking-core, ros-kilted-ros-workspace
+Description: ROS2 Navigation Stack
