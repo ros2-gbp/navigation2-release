@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <limits>
 
+#include "Eigen/Core"
 #include "nav2_smac_planner/smac_planner_lattice.hpp"
 
 // #define BENCHMARK_TESTING
@@ -511,68 +512,66 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
   bool reinit_smoother = false;
 
   for (auto parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if(param_name.find(_name + ".") != 0) {
-      continue;
-    }
-    if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == _name + ".max_planning_time") {
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
+
+    if (type == ParameterType::PARAMETER_DOUBLE) {
+      if (name == _name + ".max_planning_time") {
         reinit_a_star = true;
         _max_planning_time = parameter.as_double();
-      } else if (param_name == _name + ".tolerance") {
+      } else if (name == _name + ".tolerance") {
         _tolerance = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".lookup_table_size") {
+      } else if (name == _name + ".lookup_table_size") {
         reinit_a_star = true;
         _lookup_table_size = parameter.as_double();
-      } else if (param_name == _name + ".reverse_penalty") {
+      } else if (name == _name + ".reverse_penalty") {
         reinit_a_star = true;
         _search_info.reverse_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".change_penalty") {
+      } else if (name == _name + ".change_penalty") {
         reinit_a_star = true;
         _search_info.change_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".non_straight_penalty") {
+      } else if (name == _name + ".non_straight_penalty") {
         reinit_a_star = true;
         _search_info.non_straight_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".cost_penalty") {
+      } else if (name == _name + ".cost_penalty") {
         reinit_a_star = true;
         _search_info.cost_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".rotation_penalty") {
+      } else if (name == _name + ".rotation_penalty") {
         reinit_a_star = true;
         _search_info.rotation_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".analytic_expansion_ratio") {
+      } else if (name == _name + ".analytic_expansion_ratio") {
         reinit_a_star = true;
         _search_info.analytic_expansion_ratio = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".analytic_expansion_max_length") {
+      } else if (name == _name + ".analytic_expansion_max_length") {
         reinit_a_star = true;
         _search_info.analytic_expansion_max_length =
           static_cast<float>(parameter.as_double()) / _costmap->getResolution();
-      } else if (param_name == _name + ".analytic_expansion_max_cost") {
+      } else if (name == _name + ".analytic_expansion_max_cost") {
         reinit_a_star = true;
         _search_info.analytic_expansion_max_cost = static_cast<float>(parameter.as_double());
       }
-    } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == _name + ".allow_unknown") {
+    } else if (type == ParameterType::PARAMETER_BOOL) {
+      if (name == _name + ".allow_unknown") {
         reinit_a_star = true;
         _allow_unknown = parameter.as_bool();
-      } else if (param_name == _name + ".cache_obstacle_heuristic") {
+      } else if (name == _name + ".cache_obstacle_heuristic") {
         reinit_a_star = true;
         _search_info.cache_obstacle_heuristic = parameter.as_bool();
-      } else if (param_name == _name + ".allow_reverse_expansion") {
+      } else if (name == _name + ".allow_reverse_expansion") {
         reinit_a_star = true;
         _search_info.allow_reverse_expansion = parameter.as_bool();
-      } else if (param_name == _name + ".smooth_path") {
+      } else if (name == _name + ".smooth_path") {
         if (parameter.as_bool()) {
           reinit_smoother = true;
         } else {
           _smoother.reset();
         }
-      } else if (param_name == _name + ".analytic_expansion_max_cost_override") {
+      } else if (name == _name + ".analytic_expansion_max_cost_override") {
         _search_info.analytic_expansion_max_cost_override = parameter.as_bool();
         reinit_a_star = true;
       }
-    } else if (param_type == ParameterType::PARAMETER_INTEGER) {
-      if (param_name == _name + ".max_iterations") {
+    } else if (type == ParameterType::PARAMETER_INTEGER) {
+      if (name == _name + ".max_iterations") {
         reinit_a_star = true;
         _max_iterations = parameter.as_int();
         if (_max_iterations <= 0) {
@@ -581,7 +580,7 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
             "disabling maximum iterations.");
           _max_iterations = std::numeric_limits<int>::max();
         }
-      } else if (param_name == _name + ".max_on_approach_iterations") {
+      } else if (name == _name + ".max_on_approach_iterations") {
         reinit_a_star = true;
         _max_on_approach_iterations = parameter.as_int();
         if (_max_on_approach_iterations <= 0) {
@@ -590,12 +589,12 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
             "disabling tolerance and on approach iterations.");
           _max_on_approach_iterations = std::numeric_limits<int>::max();
         }
-      } else if (param_name == _name + ".terminal_checking_interval") {
+      } else if (name == _name + ".terminal_checking_interval") {
         reinit_a_star = true;
         _terminal_checking_interval = parameter.as_int();
       }
-    } else if (param_type == ParameterType::PARAMETER_STRING) {
-      if (param_name == _name + ".lattice_filepath") {
+    } else if (type == ParameterType::PARAMETER_STRING) {
+      if (name == _name + ".lattice_filepath") {
         reinit_a_star = true;
         if (_smoother) {
           reinit_smoother = true;

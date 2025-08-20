@@ -66,19 +66,10 @@ void CostmapLayer::clearArea(int start_x, int start_y, int end_x, int end_y, boo
 {
   current_ = false;
   unsigned char * grid = getCharMap();
-
-  int size_x = getSizeInCellsX();
-  int size_y = getSizeInCellsY();
-
-  start_x = std::clamp(start_x, 0, size_x);
-  start_y = std::clamp(start_y, 0, size_y);
-  end_x = std::clamp(end_x, 0, size_x);
-  end_y = std::clamp(end_y, 0, size_y);
-
-  for (int x = 0; x < size_x; x++) {
+  for (int x = 0; x < static_cast<int>(getSizeInCellsX()); x++) {
     bool xrange = x > start_x && x < end_x;
 
-    for (int y = 0; y < size_y; y++) {
+    for (int y = 0; y < static_cast<int>(getSizeInCellsY()); y++) {
       if ((xrange && y > start_y && y < end_y) == invert) {
         continue;
       }

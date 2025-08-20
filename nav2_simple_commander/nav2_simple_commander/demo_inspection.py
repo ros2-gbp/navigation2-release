@@ -26,7 +26,7 @@ collecting information about stock quantity and location.
 """
 
 
-def main() -> None:
+def main():
     rclpy.init()
 
     navigator = BasicNavigator()
@@ -76,14 +76,14 @@ def main() -> None:
             inspection_pose.pose.orientation.w = 0.707
         inspection_points.append(deepcopy(inspection_pose))
 
-    wpf_task = navigator.followWaypoints(inspection_points)
+    navigator.followWaypoints(inspection_points)
 
     # Do something during our route (e.x. AI to analyze stock information or upload to the cloud)
-    # Simply the current waypoint ID for the demonstration
+    # Simply the current waypoint ID for the demonstation
     i = 0
-    while not navigator.isTaskComplete(task=wpf_task):
+    while not navigator.isTaskComplete():
         i += 1
-        feedback = navigator.getFeedback(task=wpf_task)
+        feedback = navigator.getFeedback()
         if feedback and i % 5 == 0:
             print(
                 'Executing current waypoint: '
@@ -98,14 +98,12 @@ def main() -> None:
     elif result == TaskResult.CANCELED:
         print('Inspection of shelving was canceled. Returning to start...')
     elif result == TaskResult.FAILED:
-        (error_code, error_msg) = navigator.getTaskError()
-        print(f'Inspection of shelving failed!:{error_code}:{error_msg}')
-        print('Returning to start...')
+        print('Inspection of shelving failed! Returning to start...')
 
     # go back to start
     initial_pose.header.stamp = navigator.get_clock().now().to_msg()
-    go_to_pose_task = navigator.goToPose(initial_pose)
-    while not navigator.isTaskComplete(task=go_to_pose_task):
+    navigator.goToPose(initial_pose)
+    while not navigator.isTaskComplete():
         pass
 
     exit(0)

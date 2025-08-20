@@ -33,6 +33,15 @@ using std::filesystem::path;
 
 using lifecycle_msgs::msg::Transition;
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+
+RclCppFixture g_rclcppfixture;
+
 class MapServerTestFixture : public ::testing::Test
 {
 public:
@@ -225,17 +234,4 @@ TEST_F(MapServerTestFixture, NoInitialMap)
 
   ASSERT_EQ(load_res->result, nav2_msgs::srv::LoadMap::Response::RESULT_SUCCESS);
   verifyMapMsg(load_res->map);
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

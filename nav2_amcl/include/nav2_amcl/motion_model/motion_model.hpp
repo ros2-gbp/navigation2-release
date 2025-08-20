@@ -17,8 +17,11 @@
 #ifndef NAV2_AMCL__MOTION_MODEL__MOTION_MODEL_HPP_
 #define NAV2_AMCL__MOTION_MODEL__MOTION_MODEL_HPP_
 
+#include <string>
+#include <memory>
+
 #include "nav2_amcl/pf/pf.hpp"
-#include "nav2_amcl/pf/pf_vector.hpp"
+#include "nav2_amcl/pf/pf_pdf.hpp"
 
 namespace nav2_amcl
 {

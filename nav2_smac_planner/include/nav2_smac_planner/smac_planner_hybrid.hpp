@@ -32,7 +32,7 @@
 #include "geometry_msgs/msg/pose_array.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 #include "nav2_util/node_utils.hpp"
-#include "tf2/utils.hpp"
+#include "tf2/utils.h"
 
 namespace nav2_smac_planner
 {
@@ -91,7 +91,7 @@ public:
 
 protected:
   /**
-   * @brief Callback executed when a parameter change is detected
+   * @brief Callback executed when a paramter change is detected
    * @param parameters list of changed parameters
    */
   rcl_interfaces::msg::SetParametersResult

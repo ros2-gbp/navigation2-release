@@ -19,7 +19,7 @@
 #include "nav2_costmap_2d/footprint_subscriber.hpp"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-#include "tf2/utils.hpp"
+#include "tf2/utils.h"
 #pragma GCC diagnostic pop
 
 namespace nav2_costmap_2d

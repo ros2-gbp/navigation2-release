@@ -13,29 +13,25 @@
 # limitations under the License. Reserved.
 
 import logging
-from typing import Any, List, Tuple, TypedDict, Union
+from typing import Tuple, Union
 
-from nav2_smac_planner.lattice_primitives.trajectory import (FloatNDArray, Path, Trajectory,
-                                                             TrajectoryFloat, TrajectoryParameters)
 import numpy as np
 
+from trajectory import Path, Trajectory, TrajectoryParameters
+
 logger = logging.getLogger(__name__)
-
-
-class TrajectoryGeneratorConfigDict(TypedDict):
-    turning_radius: float
 
 
 class TrajectoryGenerator:
     """Handles all the logic for generating trajectories."""
 
-    def __init__(self, config: TrajectoryGeneratorConfigDict):
+    def __init__(self, config: dict):
         """Init TrajectoryGenerator using the user supplied config."""
         self.turning_radius = config['turning_radius']
 
     def _get_arc_point(
-        self, trajectory_params: TrajectoryParameters, t: TrajectoryFloat
-    ) -> Tuple[float, float, TrajectoryFloat]:
+        self, trajectory_params: TrajectoryParameters, t: float
+    ) -> Tuple[float, float, float]:
         """
         Get point on the arc trajectory using the following parameterization.
 
@@ -105,8 +101,8 @@ class TrajectoryGenerator:
         return x, y, yaw
 
     def _get_line_point(
-        self, start_point: FloatNDArray, end_point: FloatNDArray, t: float
-    ) -> FloatNDArray:
+        self, start_point: np.array, end_point: np.array, t: float
+    ) -> Tuple[float, float]:
         """
         Get point on a line segment using the following parameterization.
 
@@ -174,7 +170,7 @@ class TrajectoryGenerator:
 
         xs = []
         ys = []
-        yaws: List[TrajectoryFloat] = []
+        yaws = []
 
         for i in range(1, number_of_steps + 1):
 
@@ -187,7 +183,7 @@ class TrajectoryGenerator:
                 x, y = self._get_line_point(
                     np.array([0, 0]), trajectory_params.arc_start_point, line_t
                 )
-                yaw: TrajectoryFloat = trajectory_params.start_angle
+                yaw = trajectory_params.start_angle
 
             # Handle the arc
             elif cur_t <= transition_points[1]:
@@ -211,20 +207,20 @@ class TrajectoryGenerator:
             cur_t += t_step
 
         # Convert to numpy arrays
-        xs_np = np.array(xs)
-        ys_np = np.array(ys)
-        yaws_np = np.array(yaws)
+        xs = np.array(xs)
+        ys = np.array(ys)
+        yaws = np.array(yaws)
 
         # The last point may be slightly off due to rounding issues
         # so we correct the last point to be exactly the end point
-        xs_np[-1], ys_np[-1] = trajectory_params.end_point
-        yaws_np[-1] = trajectory_params.end_angle
+        xs[-1], ys[-1] = trajectory_params.end_point
+        yaws[-1] = trajectory_params.end_angle
 
-        return Path(xs_np, ys_np, yaws_np)
+        return Path(xs, ys, yaws)
 
     def _get_intersection_point(
         self, m1: float, c1: float, m2: float, c2: float
-    ) -> FloatNDArray:
+    ) -> np.array:
         """
         Get the intersection point of two lines.
 
@@ -248,14 +244,14 @@ class TrajectoryGenerator:
 
         """
 
-        def line1(x: float) -> float:
+        def line1(x):
             return m1 * x + c1
 
         x_point = (c2 - c1) / (m1 - m2)
 
         return np.array([x_point, line1(x_point)])
 
-    def _is_left_turn(self, intersection_point: FloatNDArray, end_point: FloatNDArray) -> Any:
+    def _is_left_turn(self, intersection_point: np.array, end_point: np.array) -> bool:
         """
         Determine if a trajectory will be a left turn.
 
@@ -282,7 +278,7 @@ class TrajectoryGenerator:
         return det >= 0
 
     def _is_dir_vec_correct(
-        self, point1: FloatNDArray, point2: FloatNDArray, line_angle: float
+        self, point1: np.array, point2: np.array, line_angle: float
     ) -> bool:
         """
         Check that the direction vector agrees with the line angle.
@@ -332,7 +328,7 @@ class TrajectoryGenerator:
             return False
 
     def _calculate_trajectory_params(
-        self, end_point: FloatNDArray, start_angle: float, end_angle: float
+        self, end_point: np.array, start_angle: float, end_angle: float
     ) -> Union[TrajectoryParameters, None]:
         """
         Calculate the parameters for a trajectory with the desired constraints.
@@ -478,18 +474,18 @@ class TrajectoryGenerator:
         x1, y1 = arc_start_point
         x2, y2 = arc_end_point
 
-        # Find intersection point of the perpendicular lines of line 1 and 2
+        # Find intersection point of the perpindicular lines of line 1 and 2
         # that pass through arc start and arc end point respectively
         if m1 == 0:
             # If line 1 has gradient 0 then it is the x-axis.
 
-            def perp_line2(x: float) -> Any:
+            def perp_line2(x):
                 return -1 / m2 * (x - x2) + y2
 
             circle_center = np.array([x1, perp_line2(x1)])
         elif m2 == 0:
 
-            def perp_line1(x: float) -> Any:
+            def perp_line1(x):
                 return -1 / m1 * (x - x1) + y1
 
             circle_center = np.array([x2, perp_line1(x2)])
@@ -530,7 +526,7 @@ class TrajectoryGenerator:
 
     def generate_trajectory(
         self,
-        end_point: FloatNDArray,
+        end_point: np.array,
         start_angle: float,
         end_angle: float,
         primitive_resolution: float,

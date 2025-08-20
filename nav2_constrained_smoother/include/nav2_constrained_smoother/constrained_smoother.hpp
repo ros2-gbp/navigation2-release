@@ -27,6 +27,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_util/odometry_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
+#include "geometry_msgs/msg/pose2_d.hpp"
 
 namespace nav2_constrained_smoother
 {

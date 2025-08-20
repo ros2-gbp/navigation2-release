@@ -49,8 +49,6 @@ BtNavigator::BtNavigator(rclcpp::NodeOptions options)
     this, "robot_base_frame", rclcpp::ParameterValue(std::string("base_link")));
   declare_parameter_if_not_declared(
     this, "odom_topic", rclcpp::ParameterValue(std::string("odom")));
-  declare_parameter_if_not_declared(
-    this, "filter_duration", rclcpp::ParameterValue(0.3));
 }
 
 BtNavigator::~BtNavigator()
@@ -67,13 +65,12 @@ BtNavigator::on_configure(const rclcpp_lifecycle::State & state)
     get_node_base_interface(), get_node_timers_interface());
   tf_->setCreateTimerInterface(timer_interface);
   tf_->setUsingDedicatedThread(true);
-  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_, this, false);
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_, this, true);
 
   global_frame_ = get_parameter("global_frame").as_string();
   robot_frame_ = get_parameter("robot_base_frame").as_string();
   transform_tolerance_ = get_parameter("transform_tolerance").as_double();
   odom_topic_ = get_parameter("odom_topic").as_string();
-  filter_duration_ = get_parameter("filter_duration").as_double();
 
   // Libraries to pull plugins (BT Nodes) from
   std::vector<std::string> plugin_lib_names;
@@ -93,7 +90,7 @@ BtNavigator::on_configure(const rclcpp_lifecycle::State & state)
 
   // Odometry smoother object for getting current speed
   auto node = shared_from_this();
-  odom_smoother_ = std::make_shared<nav2_util::OdomSmoother>(node, filter_duration_, odom_topic_);
+  odom_smoother_ = std::make_shared<nav2_util::OdomSmoother>(node, 0.3, odom_topic_);
 
   // Navigator defaults
   const std::vector<std::string> default_navigator_ids = {

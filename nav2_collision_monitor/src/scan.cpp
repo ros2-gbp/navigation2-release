@@ -17,7 +17,7 @@
 #include <cmath>
 #include <functional>
 
-#include "tf2/transform_datatypes.hpp"
+#include "tf2/transform_datatypes.h"
 
 #include "nav2_util/robot_utils.hpp"
 

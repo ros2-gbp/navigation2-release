@@ -25,7 +25,6 @@
 
 #include "nav2_util/lifecycle_service_client.hpp"
 #include "nav2_util/node_thread.hpp"
-#include "nav2_util/service_server.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/empty.hpp"
 #include "nav2_msgs/srv/manage_lifecycle_nodes.hpp"
@@ -75,13 +74,13 @@ protected:
   std::unique_ptr<nav2_util::NodeThread> service_thread_;
 
   // The services provided by this node
-  nav2_util::ServiceServer<ManageLifecycleNodes>::SharedPtr manager_srv_;
-  nav2_util::ServiceServer<std_srvs::srv::Trigger>::SharedPtr is_active_srv_;
+  rclcpp::Service<ManageLifecycleNodes>::SharedPtr manager_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr is_active_srv_;
   /**
    * @brief Lifecycle node manager callback function
    * @param request_header Header of the service request
    * @param request Service request
-   * @param response Service response
+   * @param reponse Service response
    */
   void managerCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
@@ -92,7 +91,7 @@ protected:
    * state.
    * @param request_header Header of the request
    * @param request Service request
-   * @param response Service response
+   * @param reponse Service response
    */
   void isActiveCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
@@ -148,12 +147,6 @@ protected:
    * @brief Support function for creating service clients
    */
   void createLifecycleServiceClients();
-
-  // Support function for creating service servers
-  /**
-   * @brief Support function for creating service servers
-   */
-  void createLifecycleServiceServers();
 
   // Support functions for shutdown
   /**
@@ -239,7 +232,6 @@ protected:
   rclcpp::TimerBase::SharedPtr bond_timer_;
   rclcpp::TimerBase::SharedPtr bond_respawn_timer_;
   std::chrono::milliseconds bond_timeout_;
-  std::chrono::milliseconds service_timeout_;
 
   // A map of all nodes to check bond connection
   std::map<std::string, std::shared_ptr<bond::Bond>> bond_map_;

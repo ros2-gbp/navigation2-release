@@ -293,13 +293,11 @@ NavfnPlanner::makePlan(
       p.position.x = goal.position.x - tolerance;
       while (p.position.x <= goal.position.x + tolerance) {
         potential = getPointPotential(p.position);
-        if (potential < POT_HIGH) {
-          double sdist = squared_distance(p, goal);
-          if (sdist < best_sdist) {
-            best_sdist = sdist;
-            best_pose = p;
-            found_legal = true;
-          }
+        double sdist = squared_distance(p, goal);
+        if (potential < POT_HIGH && sdist < best_sdist) {
+          best_sdist = sdist;
+          best_pose = p;
+          found_legal = true;
         }
         p.position.x += resolution;
       }
@@ -525,21 +523,19 @@ NavfnPlanner::dynamicParametersCallback(std::vector<rclcpp::Parameter> parameter
 {
   rcl_interfaces::msg::SetParametersResult result;
   for (auto parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if(param_name.find(name_ + ".") != 0) {
-      continue;
-    }
-    if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == name_ + ".tolerance") {
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
+
+    if (type == ParameterType::PARAMETER_DOUBLE) {
+      if (name == name_ + ".tolerance") {
         tolerance_ = parameter.as_double();
       }
-    } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == name_ + ".use_astar") {
+    } else if (type == ParameterType::PARAMETER_BOOL) {
+      if (name == name_ + ".use_astar") {
         use_astar_ = parameter.as_bool();
-      } else if (param_name == name_ + ".allow_unknown") {
+      } else if (name == name_ + ".allow_unknown") {
         allow_unknown_ = parameter.as_bool();
-      } else if (param_name == name_ + ".use_final_approach_orientation") {
+      } else if (name == name_ + ".use_final_approach_orientation") {
         use_final_approach_orientation_ = parameter.as_bool();
       }
     }

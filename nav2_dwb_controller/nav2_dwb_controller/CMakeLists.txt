@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(nav2_dwb_controller)
 
-find_package(ament_cmake REQUIRED)
-find_package(nav2_common REQUIRED)
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
 
-nav2_package()
+find_package(ament_cmake REQUIRED)
 
 ament_package()

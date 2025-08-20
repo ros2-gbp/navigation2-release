@@ -98,16 +98,13 @@ SimpleProgressChecker::dynamicParametersCallback(std::vector<rclcpp::Parameter> 
 {
   rcl_interfaces::msg::SetParametersResult result;
   for (auto parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if (param_name.find(plugin_name_ + ".") != 0) {
-      continue;
-    }
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
 
-    if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == plugin_name_ + ".required_movement_radius") {
+    if (type == ParameterType::PARAMETER_DOUBLE) {
+      if (name == plugin_name_ + ".required_movement_radius") {
         radius_ = parameter.as_double();
-      } else if (param_name == plugin_name_ + ".movement_time_allowance") {
+      } else if (name == plugin_name_ + ".movement_time_allowance") {
         time_allowance_ = rclcpp::Duration::from_seconds(parameter.as_double());
       }
     }

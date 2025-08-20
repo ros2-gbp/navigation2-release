@@ -350,6 +350,12 @@ void RegulatedPurePursuitController::rotateToHeading(
   const double min_feasible_angular_speed = curr_speed.angular.z - params_->max_angular_accel * dt;
   const double max_feasible_angular_speed = curr_speed.angular.z + params_->max_angular_accel * dt;
   angular_vel = std::clamp(angular_vel, min_feasible_angular_speed, max_feasible_angular_speed);
+
+  // Check if we need to slow down to avoid overshooting
+  double max_vel_to_stop = std::sqrt(2 * params_->max_angular_accel * fabs(angle_to_path));
+  if (fabs(angular_vel) > max_vel_to_stop) {
+    angular_vel = sign * max_vel_to_stop;
+  }
 }
 
 geometry_msgs::msg::Point RegulatedPurePursuitController::circleSegmentIntersection(
@@ -525,7 +531,7 @@ double RegulatedPurePursuitController::findVelocitySignChange(
     double ab_y = transformed_plan.poses[pose_id + 1].pose.position.y -
       transformed_plan.poses[pose_id].pose.position.y;
 
-    /* Checking for the existence of cusp, in the path, using the dot product
+    /* Checking for the existance of cusp, in the path, using the dot product
     and determine it's distance from the robot. If there is no cusp in the path,
     then just determine the distance to the goal location. */
     const double dot_prod = (oa_x * ab_x) + (oa_y * ab_y);

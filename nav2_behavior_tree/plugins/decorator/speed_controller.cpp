@@ -50,6 +50,8 @@ SpeedController::SpeedController(
   d_rate_ = max_rate_ - min_rate_;
   d_speed_ = max_speed_ - min_speed_;
 
+  std::string odom_topic;
+  node_->get_parameter_or("odom_topic", odom_topic, std::string("odom"));
   odom_smoother_ = config().blackboard->get<std::shared_ptr<nav2_util::OdomSmoother>>(
     "odom_smoother");
 }
@@ -66,7 +68,7 @@ inline BT::NodeStatus SpeedController::tick()
     first_tick_ = true;
   }
 
-  nav_msgs::msg::Goals current_goals;
+  std::vector<geometry_msgs::msg::PoseStamped> current_goals;
   BT::getInputOrBlackboard("goals", current_goals);
   geometry_msgs::msg::PoseStamped current_goal;
   BT::getInputOrBlackboard("goal", current_goal);

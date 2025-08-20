@@ -25,9 +25,7 @@ namespace nav2_behavior_tree
 
 /**
  * @brief A BT::DecoratorNode that triggers its child only once and returns FAILURE
- * for every succeeding tick (reset when halted)
- * @note This is an Asynchronous (long-running) node which may return a RUNNING state while executing.
- *       It will re-initialize when halted.
+ * for every succeeding tick
  */
 class SingleTrigger : public BT::DecoratorNode
 {

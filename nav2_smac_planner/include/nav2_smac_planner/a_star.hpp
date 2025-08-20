@@ -16,12 +16,14 @@
 #ifndef NAV2_SMAC_PLANNER__A_STAR_HPP_
 #define NAV2_SMAC_PLANNER__A_STAR_HPP_
 
-#include <functional>
+#include <vector>
+#include <iostream>
+#include <unordered_map>
 #include <memory>
 #include <queue>
-#include <tuple>
 #include <utility>
-#include <vector>
+#include <tuple>
+#include "Eigen/Core"
 
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_core/planner_exceptions.hpp"
@@ -102,7 +104,7 @@ public:
 
   /**
    * @brief Creating path from given costmap, start, and goal
-   * @param path Reference to a vector of indices of generated path
+   * @param path Reference to a vector of indicies of generated path
    * @param num_iterations Reference to number of iterations to create plan
    * @param tolerance Reference to tolerance in costmap nodes
    * @param cancel_checker Function to check if the task has been canceled
@@ -162,7 +164,7 @@ public:
 
   /**
    * @brief Get maximum number of on-approach iterations after within threshold
-   * @return Reference to Maximum on-approach iterations parameter
+   * @return Reference to Maximum on-appraoch iterations parameter
    */
   int & getOnApproachMaxIterations();
 
@@ -231,7 +233,7 @@ protected:
   inline bool areInputsValid();
 
   /**
-   * @brief Clear heuristic queue of nodes to search
+   * @brief Clear hueristic queue of nodes to search
    */
   inline void clearQueue();
 

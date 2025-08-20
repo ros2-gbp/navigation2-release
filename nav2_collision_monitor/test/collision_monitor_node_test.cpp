@@ -220,7 +220,6 @@ protected:
 Tester::Tester()
 {
   cm_ = std::make_shared<CollisionMonitorWrapper>();
-  cm_->declare_parameter("enable_stamped_cmd_vel", rclcpp::ParameterValue(false));
 
   footprint_pub_ = cm_->create_publisher<geometry_msgs::msg::PolygonStamped>(
     FOOTPRINT_TOPIC, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
@@ -821,10 +820,12 @@ TEST_F(Tester, testProcessStopSlowdownLimit)
   publishCmdVel(0.5, 0.2, 0.1);
   ASSERT_TRUE(waitCmdVel(500ms));
   const double speed = std::sqrt(0.5 * 0.5 + 0.2 * 0.2);
-  const double ratio = LINEAR_LIMIT / speed;
+  const double linear_ratio = LINEAR_LIMIT / speed;
+  const double angular_ratio = ANGULAR_LIMIT / 0.1;
+  const double ratio = std::min(linear_ratio, angular_ratio);
   ASSERT_NEAR(cmd_vel_out_->linear.x, 0.5 * ratio, EPSILON);
   ASSERT_NEAR(cmd_vel_out_->linear.y, 0.2 * ratio, EPSILON);
-  ASSERT_NEAR(cmd_vel_out_->angular.z, 0.09, EPSILON);
+  ASSERT_NEAR(cmd_vel_out_->angular.z, 0.1 * ratio, EPSILON);
   ASSERT_TRUE(waitActionState(500ms));
   ASSERT_EQ(action_state_->action_type, LIMIT);
   ASSERT_EQ(action_state_->polygon_name, "Limit");
@@ -906,10 +907,12 @@ TEST_F(Tester, testPolygonSource)
   publishCmdVel(0.5, 0.2, 0.1);
   EXPECT_TRUE(waitCmdVel(500ms));
   const double speed = std::sqrt(0.5 * 0.5 + 0.2 * 0.2);
-  const double ratio = LINEAR_LIMIT / speed;
+  const double linear_ratio = LINEAR_LIMIT / speed;
+  const double angular_ratio = ANGULAR_LIMIT / 0.1;
+  const double ratio = std::min(linear_ratio, angular_ratio);
   EXPECT_NEAR(cmd_vel_out_->linear.x, 0.5 * ratio, EPSILON);
   EXPECT_NEAR(cmd_vel_out_->linear.y, 0.2 * ratio, EPSILON);
-  EXPECT_NEAR(cmd_vel_out_->angular.z, 0.09, EPSILON);
+  EXPECT_NEAR(cmd_vel_out_->angular.z, 0.1 * ratio, EPSILON);
   EXPECT_TRUE(waitActionState(500ms));
   EXPECT_EQ(action_state_->action_type, LIMIT);
   EXPECT_EQ(action_state_->polygon_name, "Limit");
@@ -1231,7 +1234,7 @@ TEST_F(Tester, testSourceTimeoutOverride)
   // change_ratio = (1.5 m / 3.0 m/s) / TIME_BEFORE_COLLISION s
   double change_ratio = (1.5 / 3.0) / TIME_BEFORE_COLLISION;
   // Range configured but not published, range source should be considered invalid
-  // but as we set the source_timeout of the Range source to 0.0, its validity check is overridden
+  // but as we set the source_timeout of the Range source to 0.0, its validity check is overidden
   ASSERT_NEAR(
     cmd_vel_out_->linear.x, 3.0 * change_ratio, 3.0 * SIMULATION_TIME_STEP / TIME_BEFORE_COLLISION);
   ASSERT_NEAR(cmd_vel_out_->linear.y, 0.0, EPSILON);
@@ -1530,12 +1533,12 @@ TEST_F(Tester, testVelocityPolygonStop)
   // 1. Forward:  0 -> 0.5 m/s
   // 2. Backward: 0 -> -0.5 m/s
   setCommonParameters();
-  addPolygon("VelocityPolygon", VELOCITY_POLYGON, 1.0, "stop");
-  addPolygonVelocitySubPolygon("VelocityPolygon", "Forward", 0.0, 0.5, 0.0, 1.0, 4.0);
-  addPolygonVelocitySubPolygon("VelocityPolygon", "Backward", -0.5, 0.0, 0.0, 1.0, 2.0);
-  setPolygonVelocityVectors("VelocityPolygon", {"Forward", "Backward"});
+  addPolygon("VelocityPoylgon", VELOCITY_POLYGON, 1.0, "stop");
+  addPolygonVelocitySubPolygon("VelocityPoylgon", "Forward", 0.0, 0.5, 0.0, 1.0, 4.0);
+  addPolygonVelocitySubPolygon("VelocityPoylgon", "Backward", -0.5, 0.0, 0.0, 1.0, 2.0);
+  setPolygonVelocityVectors("VelocityPoylgon", {"Forward", "Backward"});
   addSource(POINTCLOUD_NAME, POINTCLOUD);
-  setVectors({"VelocityPolygon"}, {POINTCLOUD_NAME});
+  setVectors({"VelocityPoylgon"}, {POINTCLOUD_NAME});
 
   rclcpp::Time curr_time = cm_->now();
   // Start Collision Monitor node
@@ -1562,7 +1565,7 @@ TEST_F(Tester, testVelocityPolygonStop)
   ASSERT_NEAR(cmd_vel_out_->angular.z, 0.0, EPSILON);
   ASSERT_TRUE(waitActionState(500ms));
   ASSERT_EQ(action_state_->action_type, STOP);
-  ASSERT_EQ(action_state_->polygon_name, "VelocityPolygon");
+  ASSERT_EQ(action_state_->polygon_name, "VelocityPoylgon");
 
   // 3. Switch to Backward velocity polygon
   // Obstacle is far away from Backward velocity polygon
@@ -1585,7 +1588,7 @@ TEST_F(Tester, testVelocityPolygonStop)
   ASSERT_NEAR(cmd_vel_out_->angular.z, 0.0, EPSILON);
   ASSERT_TRUE(waitActionState(500ms));
   ASSERT_EQ(action_state_->action_type, STOP);
-  ASSERT_EQ(action_state_->polygon_name, "VelocityPolygon");
+  ASSERT_EQ(action_state_->polygon_name, "VelocityPoylgon");
 
   // Stop Collision Monitor node
   cm_->stop();

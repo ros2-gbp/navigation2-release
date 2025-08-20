@@ -19,12 +19,11 @@ namespace mppi::critics
 
 void GoalAngleCritic::initialize()
 {
-  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
-  getParentParam(enforce_path_inversion_, "enforce_path_inversion", false);
-
   auto getParam = parameters_handler_->getParamGetter(name_);
+
   getParam(power_, "cost_power", 1);
   getParam(weight_, "cost_weight", 3.0f);
+
   getParam(threshold_to_consider_, "threshold_to_consider", 0.5f);
 
   RCLCPP_INFO(
@@ -36,26 +35,22 @@ void GoalAngleCritic::initialize()
 
 void GoalAngleCritic::score(CriticData & data)
 {
-  if (!enabled_) {
-    return;
-  }
-
-  geometry_msgs::msg::Pose goal = utils::getCriticGoal(data, enforce_path_inversion_);
-
-  if (!utils::withinPositionGoalTolerance(
-      threshold_to_consider_, data.state.pose.pose, goal))
+  if (!enabled_ || !utils::withinPositionGoalTolerance(
+      threshold_to_consider_, data.state.pose.pose, data.goal))
   {
     return;
   }
 
-  double goal_yaw = tf2::getYaw(goal.orientation);
+  const auto goal_idx = data.path.x.shape(0) - 1;
+  const float goal_yaw = data.path.yaws(goal_idx);
 
-  if(power_ > 1u) {
-    data.costs += (((utils::shortest_angular_distance(data.trajectories.yaws, goal_yaw).abs()).
-      rowwise().mean()) * weight_).pow(power_).eval();
+  if (power_ > 1u) {
+    data.costs += xt::pow(
+      xt::mean(xt::fabs(utils::shortest_angular_distance(data.trajectories.yaws, goal_yaw)), {1}) *
+      weight_, power_);
   } else {
-    data.costs += (((utils::shortest_angular_distance(data.trajectories.yaws, goal_yaw).abs()).
-      rowwise().mean()) * weight_).eval();
+    data.costs += xt::mean(
+      xt::fabs(utils::shortest_angular_distance(data.trajectories.yaws, goal_yaw)), {1}) * weight_;
   }
 }
 

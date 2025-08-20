@@ -36,8 +36,6 @@ void nav2_behavior_tree::BackUpAction::initialize()
   getInput("backup_speed", speed);
   double time_allowance;
   getInput("time_allowance", time_allowance);
-  bool disable_collision_checks;
-  getInput("disable_collision_checks", disable_collision_checks);
 
   // Populate the input message
   goal_.target.x = dist;
@@ -45,7 +43,6 @@ void nav2_behavior_tree::BackUpAction::initialize()
   goal_.target.z = 0.0;
   goal_.speed = speed;
   goal_.time_allowance = rclcpp::Duration::from_seconds(time_allowance);
-  goal_.disable_collision_checks = disable_collision_checks;
 }
 
 void BackUpAction::on_tick()
@@ -60,28 +57,19 @@ void BackUpAction::on_tick()
 BT::NodeStatus BackUpAction::on_success()
 {
   setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
 BT::NodeStatus BackUpAction::on_aborted()
 {
   setOutput("error_code_id", result_.result->error_code);
-  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
 BT::NodeStatus BackUpAction::on_cancelled()
 {
   setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
-}
-
-void BackUpAction::on_timeout()
-{
-  setOutput("error_code_id", ActionResult::TIMEOUT);
-  setOutput("error_msg", "Behavior Tree action client timed out waiting.");
 }
 
 }  // namespace nav2_behavior_tree

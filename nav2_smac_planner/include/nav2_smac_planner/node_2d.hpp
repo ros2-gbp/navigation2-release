@@ -15,10 +15,14 @@
 #ifndef NAV2_SMAC_PLANNER__NODE_2D_HPP_
 #define NAV2_SMAC_PLANNER__NODE_2D_HPP_
 
-#include <functional>
-#include <memory>
-#include <stdexcept>
+#include <math.h>
 #include <vector>
+#include <iostream>
+#include <memory>
+#include <queue>
+#include <limits>
+#include <utility>
+#include <functional>
 
 #include "nav2_smac_planner/types.hpp"
 #include "nav2_smac_planner/constants.hpp"
@@ -68,7 +72,7 @@ public:
   /**
    * @brief operator== for comparisons
    * @param Node2D right hand side node reference
-   * @return If cell indices are equal
+   * @return If cell indicies are equal
    */
   bool operator==(const Node2D & rhs)
   {
@@ -258,7 +262,7 @@ public:
 
   /**
    * @brief Set the starting pose for planning, as a node index
-   * @param path Reference to a vector of indices of generated path
+   * @param path Reference to a vector of indicies of generated path
    * @return whether the path was able to be backtraced
    */
   bool backtracePath(CoordinateVector & path);

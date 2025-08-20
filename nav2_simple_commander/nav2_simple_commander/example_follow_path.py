@@ -17,12 +17,13 @@ from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 import rclpy
 
+
 """
 Basic navigation demo to follow a given path after smoothing
 """
 
 
-def main() -> None:
+def main():
     rclpy.init()
 
     navigator = BasicNavigator()
@@ -53,10 +54,10 @@ def main() -> None:
     smoothed_path = navigator.smoothPath(path)
 
     # Follow path
-    follow_path_task = navigator.followPath(smoothed_path)
+    navigator.followPath(smoothed_path)
 
     i = 0
-    while not navigator.isTaskComplete(task=follow_path_task):
+    while not navigator.isTaskComplete():
         ################################################
         #
         # Implement some code here for your application!
@@ -65,13 +66,13 @@ def main() -> None:
 
         # Do something with the feedback
         i += 1
-        feedback = navigator.getFeedback(task=follow_path_task)
+        feedback = navigator.getFeedback()
         if feedback and i % 5 == 0:
             print(
                 'Estimated distance remaining to goal position: '
-                + f'{feedback.distance_to_goal:.3f}'
+                + '{0:.3f}'.format(feedback.distance_to_goal)
                 + '\nCurrent speed of the robot: '
-                + f'{feedback.speed:.3f}'
+                + '{0:.3f}'.format(feedback.speed)
             )
 
     # Do something depending on the return code
@@ -81,8 +82,7 @@ def main() -> None:
     elif result == TaskResult.CANCELED:
         print('Goal was canceled!')
     elif result == TaskResult.FAILED:
-        (error_code, error_msg) = navigator.getTaskError()
-        print('Goal failed!{error_code}:{error_msg}')
+        print('Goal failed!')
     else:
         print('Goal has an invalid return status!')
 

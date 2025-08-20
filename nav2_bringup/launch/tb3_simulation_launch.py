@@ -18,17 +18,24 @@ import os
 import tempfile
 
 from ament_index_python.packages import get_package_share_directory
+
 from launch import LaunchDescription
-from launch.actions import (DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription,
-                            OpaqueFunction, RegisterEventHandler)
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+    RegisterEventHandler,
+)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnShutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PythonExpression
+
 from launch_ros.actions import Node
 
 
-def generate_launch_description() -> LaunchDescription:
+def generate_launch_description():
     # Get the launch directory
     bringup_dir = get_package_share_directory('nav2_bringup')
     launch_dir = os.path.join(bringup_dir, 'launch')
@@ -37,8 +44,8 @@ def generate_launch_description() -> LaunchDescription:
     # Create the launch configuration variables
     slam = LaunchConfiguration('slam')
     namespace = LaunchConfiguration('namespace')
+    use_namespace = LaunchConfiguration('use_namespace')
     map_yaml_file = LaunchConfiguration('map')
-    graph_filepath = LaunchConfiguration('graph')
     use_sim_time = LaunchConfiguration('use_sim_time')
     params_file = LaunchConfiguration('params_file')
     autostart = LaunchConfiguration('autostart')
@@ -70,6 +77,12 @@ def generate_launch_description() -> LaunchDescription:
         'namespace', default_value='', description='Top-level namespace'
     )
 
+    declare_use_namespace_cmd = DeclareLaunchArgument(
+        'use_namespace',
+        default_value='false',
+        description='Whether to apply a namespace to the navigation stack',
+    )
+
     declare_slam_cmd = DeclareLaunchArgument(
         'slam', default_value='False', description='Whether run a SLAM'
     )
@@ -77,11 +90,6 @@ def generate_launch_description() -> LaunchDescription:
     declare_map_yaml_cmd = DeclareLaunchArgument(
         'map',
         default_value=os.path.join(bringup_dir, 'maps', 'tb3_sandbox.yaml'),
-    )
-
-    declare_graph_file_cmd = DeclareLaunchArgument(
-        'graph',
-        default_value=os.path.join(bringup_dir, 'graphs', 'turtlebot3_graph.geojson'),
     )
 
     declare_use_sim_time_cmd = DeclareLaunchArgument(
@@ -178,6 +186,7 @@ def generate_launch_description() -> LaunchDescription:
         condition=IfCondition(use_rviz),
         launch_arguments={
             'namespace': namespace,
+            'use_namespace': use_namespace,
             'use_sim_time': use_sim_time,
             'rviz_config': rviz_config_file,
         }.items(),
@@ -187,20 +196,18 @@ def generate_launch_description() -> LaunchDescription:
         PythonLaunchDescriptionSource(os.path.join(launch_dir, 'bringup_launch.py')),
         launch_arguments={
             'namespace': namespace,
+            'use_namespace': use_namespace,
             'slam': slam,
             'map': map_yaml_file,
-            'graph': graph_filepath,
             'use_sim_time': use_sim_time,
             'params_file': params_file,
             'autostart': autostart,
             'use_composition': use_composition,
             'use_respawn': use_respawn,
-            'use_keepout_zones': 'False',
-            'use_speed_zones': 'False',
         }.items(),
     )
     # The SDF file for the world is a xacro file because we wanted to
-    # conditionally load the SceneBroadcaster plugin based on whether we're
+    # conditionally load the SceneBroadcaster plugin based on wheter we're
     # running in headless mode. But currently, the Gazebo command line doesn't
     # take SDF strings for worlds, so the output of xacro needs to be saved into
     # a temporary file and passed to Gazebo.
@@ -248,9 +255,9 @@ def generate_launch_description() -> LaunchDescription:
 
     # Declare the launch options
     ld.add_action(declare_namespace_cmd)
+    ld.add_action(declare_use_namespace_cmd)
     ld.add_action(declare_slam_cmd)
     ld.add_action(declare_map_yaml_cmd)
-    ld.add_action(declare_graph_file_cmd)
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_params_file_cmd)
     ld.add_action(declare_autostart_cmd)

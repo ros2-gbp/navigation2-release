@@ -15,15 +15,10 @@
 
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
+
 import rclpy
 from rclpy.duration import Duration
 
-"""
-Basic item picking demo. In this demonstration, the expectation
-is that there is a person at the item shelf to put the item on the robot
-and at the pallet jack to remove it
-(probably with some kind of button for 'got item, robot go do next task').
-"""
 
 # Shelf positions for picking
 shelf_positions = {
@@ -40,9 +35,16 @@ shipping_destinations = {
     'frieght_bay_3': [-6.0, -5.0, 3.14],
 }
 
+"""
+Basic item picking demo. In this demonstration, the expectation
+is that there is a person at the item shelf to put the item on the robot
+and at the pallet jack to remove it
+(probably with some kind of button for 'got item, robot go do next task').
+"""
 
-def main() -> None:
-    # Received virtual request for picking item at Shelf A and bring to
+
+def main():
+    # Recieved virtual request for picking item at Shelf A and bring to
     # worker at the pallet jack 7 for shipping. This request would
     # contain the shelf ID ('shelf_A') and shipping destination ('frieght_bay_3')
     ####################
@@ -80,21 +82,21 @@ def main() -> None:
         shelf_item_pose.pose.orientation.z = -0.707
         shelf_item_pose.pose.orientation.w = 0.707
     print(f'Received request for item picking at {request_item_location}.')
-    go_to_pose_task = navigator.goToPose(shelf_item_pose)
+    navigator.goToPose(shelf_item_pose)
 
     # Do something during our route
     # (e.x. queue up future tasks or detect person for fine-tuned positioning)
-    # Simply print information for workers on the robot's ETA for the demonstration
+    # Simply print information for workers on the robot's ETA for the demonstation
     i = 0
-    while not navigator.isTaskComplete(task=go_to_pose_task):
+    while not navigator.isTaskComplete():
         i += 1
-        feedback = navigator.getFeedback(task=go_to_pose_task)
+        feedback = navigator.getFeedback()
         if feedback and i % 5 == 0:
             print(
                 'Estimated time of arrival at '
                 + request_item_location
                 + ' for worker: '
-                + '{:.0f}'.format(
+                + '{0:.0f}'.format(
                     Duration.from_msg(feedback.estimated_time_remaining).nanoseconds
                     / 1e9
                 )
@@ -121,7 +123,7 @@ def main() -> None:
         ][1]
         shipping_destination.pose.orientation.z = 1.0
         shipping_destination.pose.orientation.w = 0.0
-        go_to_pose_task = navigator.goToPose(shipping_destination)
+        navigator.goToPose(shipping_destination)
 
     elif result == TaskResult.CANCELED:
         print(
@@ -131,12 +133,10 @@ def main() -> None:
         navigator.goToPose(initial_pose)
 
     elif result == TaskResult.FAILED:
-        (error_code, error_msg) = navigator.getTaskError()
-        print(f'Task at {request_item_location} failed!:'
-              f'{error_code}:{error_msg}')
+        print(f'Task at {request_item_location} failed!')
         exit(-1)
 
-    while not navigator.isTaskComplete(task=go_to_pose_task):
+    while not navigator.isTaskComplete():
         pass
 
     exit(0)

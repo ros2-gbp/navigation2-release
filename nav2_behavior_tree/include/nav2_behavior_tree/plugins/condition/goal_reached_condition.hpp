@@ -20,11 +20,8 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "behaviortree_cpp/condition_node.h"
-#include "behaviortree_cpp/json_export.h"
-#include "nav2_behavior_tree/bt_utils.hpp"
-#include "nav2_behavior_tree/json_utils.hpp"
 #include "tf2_ros/buffer.h"
-
+#include "nav2_behavior_tree/bt_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -32,8 +29,6 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::ConditionNode that returns SUCCESS when a specified goal
  * is reached and FAILURE otherwise
- * @note This is an Asynchronous (long-running) node which may return a RUNNING state while executing.
- *       It will re-initialize when halted.
  */
 class GoalReachedCondition : public BT::ConditionNode
 {
@@ -77,11 +72,9 @@ public:
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-
     return {
       BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination"),
+      BT::InputPort<std::string>("global_frame", "Global frame"),
       BT::InputPort<std::string>("robot_base_frame", "Robot base frame")
     };
   }

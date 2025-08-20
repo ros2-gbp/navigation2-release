@@ -16,16 +16,16 @@
 import math
 
 from geometry_msgs.msg import Quaternion, Transform
-from nav_msgs.msg import OccupancyGrid
 import numpy as np
 import tf_transformations
+
 
 """
 Transformation utilities for the loopback simulator
 """
 
 
-def addYawToQuat(quaternion: Quaternion, yaw_to_add: float) -> Quaternion:
+def addYawToQuat(quaternion, yaw_to_add):
     q = [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
     q2 = tf_transformations.quaternion_from_euler(0.0, 0.0, yaw_to_add)
     q_new = tf_transformations.quaternion_multiply(q, q2)
@@ -37,7 +37,7 @@ def addYawToQuat(quaternion: Quaternion, yaw_to_add: float) -> Quaternion:
     return new_quaternion
 
 
-def transformStampedToMatrix(transform: Transform) -> np.ndarray[np.float64, np.dtype[np.float64]]:
+def transformStampedToMatrix(transform):
     translation = transform.transform.translation
     rotation = transform.transform.rotation
     matrix = np.eye(4)
@@ -54,7 +54,7 @@ def transformStampedToMatrix(transform: Transform) -> np.ndarray[np.float64, np.
     return matrix
 
 
-def matrixToTransform(matrix: np.ndarray[np.float64, np.dtype[np.float64]]) -> Transform:
+def matrixToTransform(matrix):
     transform = Transform()
     transform.translation.x = matrix[0, 3]
     transform.translation.y = matrix[1, 3]
@@ -67,11 +67,11 @@ def matrixToTransform(matrix: np.ndarray[np.float64, np.dtype[np.float64]]) -> T
     return transform
 
 
-def worldToMap(world_x: float, world_y: float, map_msg: OccupancyGrid) -> tuple[int, int]:
+def worldToMap(world_x, world_y, map_msg):
     map_x = int(math.floor((world_x - map_msg.info.origin.position.x) / map_msg.info.resolution))
     map_y = int(math.floor((world_y - map_msg.info.origin.position.y) / map_msg.info.resolution))
     return map_x, map_y
 
 
-def getMapOccupancy(x: int, y: int, map_msg: OccupancyGrid):  # type: ignore[no-untyped-def]
+def getMapOccupancy(x, y, map_msg):
     return map_msg.data[y * map_msg.info.width + x]

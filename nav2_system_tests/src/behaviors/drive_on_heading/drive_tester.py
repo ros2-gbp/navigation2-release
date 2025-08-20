@@ -15,24 +15,25 @@
 
 import sys
 import time
-from typing import Optional
 
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import Point32, PolygonStamped
 from nav2_msgs.action import DriveOnHeading
 from nav2_msgs.msg import Costmap
 from nav2_msgs.srv import ManageLifecycleNodes
+
 import rclpy
-from rclpy.action import ActionClient  # type: ignore[attr-defined]
-from rclpy.action.client import ClientGoalHandle
+
+from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile
 
 
 class DriveTest(Node):
 
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__(node_name='drive_tester', namespace='')
         self.costmap_qos = QoSProfile(
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
@@ -45,12 +46,10 @@ class DriveTest(Node):
             Costmap, 'local_costmap/costmap_raw', self.costmap_qos)
         self.footprint_pub = self.create_publisher(
             PolygonStamped, 'local_costmap/published_footprint', 10)
-        self.goal_handle: Optional[ClientGoalHandle[
-                DriveOnHeading.Goal, DriveOnHeading.Result,
-                DriveOnHeading.Feedback]] = None
-        self.action_result = DriveOnHeading.Result()
+        self.goal_handle = None
+        self.action_result = None
 
-    def sendCommand(self, command: DriveOnHeading.Goal) -> bool:
+    def sendCommand(self, command):
         self.info_msg('Sending goal request...')
         self.goal_future = self.action_client.send_goal_async(command)
         try:
@@ -59,7 +58,7 @@ class DriveTest(Node):
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
 
-        if not self.goal_handle or not self.goal_handle.accepted:
+        if not self.goal_handle.accepted:
             self.error_msg('Goal rejected')
             return False
 
@@ -69,8 +68,8 @@ class DriveTest(Node):
         self.info_msg("Waiting for 'DriveOnHeading' action to complete")
         try:
             rclpy.spin_until_future_complete(self, self.result_future)
-            status = self.result_future.result().status  # type: ignore[union-attr]
-            result = self.result_future.result().result  # type: ignore[union-attr]
+            status = self.result_future.result().status
+            result = self.result_future.result().result
             self.action_result = result
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
@@ -84,7 +83,7 @@ class DriveTest(Node):
         self.info_msg('DriveOnHeading failed to meet target!')
         return False
 
-    def sendAndPreemptWithFasterCommand(self, command: DriveOnHeading.Goal) -> bool:
+    def sendAndPreemptWithFasterCommand(self, command):
         # Send initial goal
         self.info_msg('Sending goal request...')
         self.goal_future = self.action_client.send_goal_async(command)
@@ -94,7 +93,7 @@ class DriveTest(Node):
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
 
-        if not self.goal_handle or not self.goal_handle.accepted:
+        if not self.goal_handle.accepted:
             self.error_msg('Goal rejected')
             return False
 
@@ -112,7 +111,7 @@ class DriveTest(Node):
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
 
-        if not self.goal_handle or not self.goal_handle.accepted:
+        if not self.goal_handle.accepted:
             self.error_msg('Preemption rejected')
             return False
 
@@ -123,8 +122,8 @@ class DriveTest(Node):
         self.info_msg("Waiting for 'DriveOnHeading' action Preemption to complete")
         try:
             rclpy.spin_until_future_complete(self, self.result_future)
-            status = self.result_future.result().status  # type: ignore[union-attr]
-            result = self.result_future.result().result  # type: ignore[union-attr]
+            status = self.result_future.result().status
+            result = self.result_future.result().result
             self.action_result = result
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
@@ -138,7 +137,7 @@ class DriveTest(Node):
         self.info_msg('DriveOnHeading failed to meet target!')
         return False
 
-    def sendAndCancelCommand(self, command: DriveOnHeading.Goal) -> bool:
+    def sendAndCancelCommand(self, command):
         self.info_msg('Sending goal request...')
         self.goal_future = self.action_client.send_goal_async(command)
         try:
@@ -147,7 +146,7 @@ class DriveTest(Node):
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
 
-        if not self.goal_handle or not self.goal_handle.accepted:
+        if not self.goal_handle.accepted:
             self.error_msg('Goal rejected')
             return False
 
@@ -159,7 +158,7 @@ class DriveTest(Node):
         cancel_future = self.goal_handle.cancel_goal_async()
         rclpy.spin_until_future_complete(self, cancel_future)
         rclpy.spin_until_future_complete(self, self.result_future)
-        status = self.result_future.result().status  # type: ignore[union-attr]
+        status = self.result_future.result().status
         if status != GoalStatus.STATUS_CANCELED:
             self.info_msg(f'Goal failed with status code: {status}')
             return False
@@ -167,7 +166,7 @@ class DriveTest(Node):
             self.info_msg('Goal was canceled successfully')
             return True
 
-    def sendFreeCostmap(self) -> None:
+    def sendFreeCostmap(self):
         costmap_msg = Costmap()
         costmap_msg.header.frame_id = 'odom'
         costmap_msg.header.stamp = self.get_clock().now().to_msg()
@@ -190,7 +189,7 @@ class DriveTest(Node):
         ]
         self.footprint_pub.publish(footprint_msg)
 
-    def sendOccupiedCostmap(self) -> None:
+    def sendOccupiedCostmap(self):
         costmap_msg = Costmap()
         costmap_msg.header.frame_id = 'odom'
         costmap_msg.header.stamp = self.get_clock().now().to_msg()
@@ -213,7 +212,7 @@ class DriveTest(Node):
         ]
         self.footprint_pub.publish(footprint_msg)
 
-    def run(self) -> bool:
+    def run(self):
         while not self.action_client.wait_for_server(timeout_sec=1.0):
             self.info_msg("'DriveOnHeading' action server not available, waiting...")
 
@@ -290,7 +289,7 @@ class DriveTest(Node):
             self.info_msg('Test D passed')
         return True
 
-    def shutdown(self) -> None:
+    def shutdown(self):
         self.info_msg('Shutting down')
 
         self.action_client.destroy()
@@ -312,17 +311,17 @@ class DriveTest(Node):
 
         self.info_msg(f'{transition_service} finished')
 
-    def info_msg(self, msg: str) -> None:
+    def info_msg(self, msg: str):
         self.get_logger().info(msg)
 
-    def warn_msg(self, msg: str) -> None:
+    def warn_msg(self, msg: str):
         self.get_logger().warn(msg)
 
-    def error_msg(self, msg: str) -> None:
+    def error_msg(self, msg: str):
         self.get_logger().error(msg)
 
 
-def main(argv: list[str] = sys.argv[1:]):  # type: ignore[no-untyped-def]
+def main(argv=sys.argv[1:]):
     rclpy.init()
     time.sleep(10)
     test = DriveTest()
