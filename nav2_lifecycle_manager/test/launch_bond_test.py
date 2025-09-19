@@ -16,38 +16,35 @@
 import os
 import sys
 
-from launch import LaunchDescription, LaunchService
+from launch import LaunchDescription
+from launch import LaunchService
 from launch.actions import ExecuteProcess
 from launch_ros.actions import Node
 from launch_testing.legacy import LaunchTestService
 
 
-def generate_launch_description() -> LaunchDescription:
-    return LaunchDescription(
-        [
-            Node(
-                package='nav2_lifecycle_manager',
-                executable='lifecycle_manager',
-                name='lifecycle_manager_test',
-                output='screen',
-                parameters=[
-                    {'use_sim_time': False},
-                    {'autostart': False},
-                    {'node_names': ['bond_tester']},
-                ],
-            ),
-        ]
-    )
+def generate_launch_description():
+    return LaunchDescription([
+        Node(
+            package='nav2_lifecycle_manager',
+            executable='lifecycle_manager',
+            name='lifecycle_manager_test',
+            output='screen',
+            parameters=[{'use_sim_time': False},
+                        {'autostart': False},
+                        {'node_names': ['bond_tester']}]),
+    ])
 
 
-def main(argv: list[str] = sys.argv[1:]):  # type: ignore[no-untyped-def]
+def main(argv=sys.argv[1:]):
     ld = generate_launch_description()
 
     testExecutable = os.getenv('TEST_EXECUTABLE')
 
     test1_action = ExecuteProcess(
-        cmd=[testExecutable], name='test_bond_gtest', output='screen'
-    )
+        cmd=[testExecutable],
+        name='test_bond_gtest',
+        output='screen')
 
     lts = LaunchTestService()
     lts.add_test_action(ld, test1_action)

@@ -21,50 +21,57 @@ import time
 from typing import Optional
 
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import Pose, PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import NavigateToPose
 from nav2_msgs.srv import ManageLifecycleNodes
+
 import rclpy
-from rclpy.action import ActionClient  # type: ignore[attr-defined]
+
+from rclpy.action import ActionClient
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile
 
 
 class NavTester(Node):
 
-    def __init__(self, initial_pose: Pose, goal_pose: Pose, namespace: str = ''):
+    def __init__(
+        self,
+        initial_pose: Pose,
+        goal_pose: Pose,
+        namespace: str = ''
+    ):
         super().__init__(node_name='nav2_tester', namespace=namespace)
-        self.initial_pose_pub = self.create_publisher(
-            PoseWithCovarianceStamped, 'initialpose', 10
-        )
+        self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
+                                                      'initialpose', 10)
         self.goal_pub = self.create_publisher(PoseStamped, 'goal_pose', 10)
 
         pose_qos = QoSProfile(
-            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=QoSReliabilityPolicy.RELIABLE,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1,
-        )
+          durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+          reliability=QoSReliabilityPolicy.RELIABLE,
+          history=QoSHistoryPolicy.KEEP_LAST,
+          depth=1)
 
-        self.model_pose_sub = self.create_subscription(
-            PoseWithCovarianceStamped, 'amcl_pose', self.poseCallback, pose_qos
-        )
+        self.model_pose_sub = self.create_subscription(PoseWithCovarianceStamped,
+                                                       'amcl_pose', self.poseCallback, pose_qos)
         self.initial_pose_received = False
         self.initial_pose = initial_pose
         self.goal_pose = goal_pose
         self.action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
-    def info_msg(self, msg: str) -> None:
+    def info_msg(self, msg: str):
         self.get_logger().info('\033[1;37;44m' + msg + '\033[0m')
 
-    def warn_msg(self, msg: str) -> None:
+    def warn_msg(self, msg: str):
         self.get_logger().warn('\033[1;37;43m' + msg + '\033[0m')
 
-    def error_msg(self, msg: str) -> None:
+    def error_msg(self, msg: str):
         self.get_logger().error('\033[1;37;41m' + msg + '\033[0m')
 
-    def setInitialPose(self) -> None:
+    def setInitialPose(self):
         msg = PoseWithCovarianceStamped()
         msg.pose.pose = self.initial_pose
         msg.header.frame_id = 'map'
@@ -72,17 +79,17 @@ class NavTester(Node):
         self.initial_pose_pub.publish(msg)
         self.currentPose = self.initial_pose
 
-    def getStampedPoseMsg(self, pose: Pose) -> PoseStamped:
+    def getStampedPoseMsg(self, pose: Pose):
         msg = PoseStamped()
         msg.header.frame_id = 'map'
         msg.pose = pose
         return msg
 
-    def publishGoalPose(self, goal_pose: Optional[Pose] = None) -> None:
+    def publishGoalPose(self, goal_pose: Optional[Pose] = None):
         self.goal_pose = goal_pose if goal_pose is not None else self.goal_pose
         self.goal_pub.publish(self.getStampedPoseMsg(self.goal_pose))
 
-    def runNavigateAction(self, goal_pose: Optional[Pose] = None) -> bool:
+    def runNavigateAction(self, goal_pose: Optional[Pose] = None):
         # Sends a `NavToPose` action request and waits for completion
         self.info_msg("Waiting for 'NavigateToPose' action server")
         while not self.action_client.wait_for_server(timeout_sec=1.0):
@@ -98,7 +105,7 @@ class NavTester(Node):
         rclpy.spin_until_future_complete(self, send_goal_future)
         goal_handle = send_goal_future.result()
 
-        if not goal_handle or not goal_handle.accepted:
+        if not goal_handle.accepted:
             self.error_msg('Goal rejected')
             return False
 
@@ -107,7 +114,7 @@ class NavTester(Node):
 
         self.info_msg("Waiting for 'NavigateToPose' action to complete")
         rclpy.spin_until_future_complete(self, get_result_future)
-        status = get_result_future.result().status  # type: ignore[union-attr]
+        status = get_result_future.result().status
         if status != GoalStatus.STATUS_ABORTED:
             self.info_msg(f'Goal failed with status code: {status}')
             return False
@@ -115,12 +122,12 @@ class NavTester(Node):
         self.info_msg('Goal failed, as expected!')
         return True
 
-    def poseCallback(self, msg: PoseWithCovarianceStamped) -> None:
+    def poseCallback(self, msg):
         self.info_msg('Received amcl_pose')
         self.current_pose = msg.pose.pose
         self.initial_pose_received = True
 
-    def reachesGoal(self, timeout: float, distance: float) -> bool:
+    def reachesGoal(self, timeout, distance):
         goalReached = False
         start_time = time.time()
 
@@ -135,17 +142,14 @@ class NavTester(Node):
                     self.error_msg('Robot timed out reaching its goal!')
                     return False
 
-        self.info_msg('Robot reached its goal!')
-        return True
-
-    def distanceFromGoal(self) -> float:
+    def distanceFromGoal(self):
         d_x = self.current_pose.position.x - self.goal_pose.position.x
         d_y = self.current_pose.position.y - self.goal_pose.position.y
         distance = math.sqrt(d_x * d_x + d_y * d_y)
         self.info_msg(f'Distance from goal is: {distance}')
         return distance
 
-    def wait_for_node_active(self, node_name: str) -> None:
+    def wait_for_node_active(self, node_name: str):
         # Waits for the node within the tester namespace to become active
         self.info_msg(f'Waiting for {node_name} to become active')
         node_service = f'{node_name}/get_state'
@@ -154,20 +158,18 @@ class NavTester(Node):
             self.info_msg(f'{node_service} service not available, waiting...')
         req = GetState.Request()  # empty request
         state = 'UNKNOWN'
-        while state != 'active':
+        while (state != 'active'):
             self.info_msg(f'Getting {node_name} state...')
             future = state_client.call_async(req)
             rclpy.spin_until_future_complete(self, future)
             if future.result() is not None:
-                state = future.result().current_state.label  # type: ignore[union-attr]
+                state = future.result().current_state.label
                 self.info_msg(f'Result of get_state: {state}')
             else:
-                self.error_msg(
-                    f'Exception while calling service: {future.exception()!r}'
-                )
+                self.error_msg(f'Exception while calling service: {future.exception()!r}')
             time.sleep(5)
 
-    def shutdown(self) -> None:
+    def shutdown(self):
         self.info_msg('Shutting down')
         self.action_client.destroy()
 
@@ -202,7 +204,7 @@ class NavTester(Node):
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
 
-    def wait_for_initial_pose(self) -> None:
+    def wait_for_initial_pose(self):
         self.initial_pose_received = False
         while not self.initial_pose_received:
             self.info_msg('Setting initial pose')
@@ -211,10 +213,10 @@ class NavTester(Node):
             rclpy.spin_once(self, timeout_sec=1)
 
 
-def run_all_tests(robot_tester: NavTester) -> bool:
+def run_all_tests(robot_tester):
     # set transforms to use_sim_time
     result = True
-    if result:
+    if (result):
         robot_tester.wait_for_node_active('amcl')
         robot_tester.wait_for_initial_pose()
         robot_tester.wait_for_node_active('bt_navigator')
@@ -222,7 +224,7 @@ def run_all_tests(robot_tester: NavTester) -> bool:
 
     # Add more tests here if desired
 
-    if result:
+    if (result):
         robot_tester.info_msg('Test PASSED')
     else:
         robot_tester.error_msg('Test FAILED')
@@ -230,7 +232,7 @@ def run_all_tests(robot_tester: NavTester) -> bool:
     return result
 
 
-def fwd_pose(x: float = 0.0, y: float = 0.0, z: float = 0.01) -> Pose:
+def fwd_pose(x=0.0, y=0.0, z=0.01):
     initial_pose = Pose()
     initial_pose.position.x = x
     initial_pose.position.y = y
@@ -242,7 +244,7 @@ def fwd_pose(x: float = 0.0, y: float = 0.0, z: float = 0.01) -> Pose:
     return initial_pose
 
 
-def get_testers(args: argparse.Namespace) -> list[NavTester]:
+def get_testers(args):
     testers = []
 
     if args.robot:
@@ -250,46 +252,27 @@ def get_testers(args: argparse.Namespace) -> list[NavTester]:
         init_x, init_y, final_x, final_y = args.robot[0]
         tester = NavTester(
             initial_pose=fwd_pose(float(init_x), float(init_y)),
-            goal_pose=fwd_pose(float(final_x), float(final_y)),
-        )
+            goal_pose=fwd_pose(float(final_x), float(final_y)))
         tester.info_msg(
-            'Starting tester, robot going from '
-            + init_x
-            + ', '
-            + init_y
-            + ' to '
-            + final_x
-            + ', '
-            + final_y
-            + '.'
-        )
+            'Starting tester, robot going from ' + init_x + ', ' + init_y +
+            ' to ' + final_x + ', ' + final_y + '.')
         testers.append(tester)
         return testers
 
     return testers
 
 
-def main(argv: list[str] = sys.argv[1:]):  # type: ignore[no-untyped-def]
+def main(argv=sys.argv[1:]):
     # The robot(s) positions from the input arguments
     parser = argparse.ArgumentParser(description='System-level navigation tester node')
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument(
-        '-r',
-        '--robot',
-        action='append',
-        nargs=4,
-        metavar=('init_x', 'init_y', 'final_x', 'final_y'),
-        help='The robot starting and final positions.',
-    )
-    group.add_argument(
-        '-rs',
-        '--robots',
-        action='append',
-        nargs=5,
-        metavar=('name', 'init_x', 'init_y', 'final_x', 'final_y'),
-        help="The robot's namespace and starting and final positions. "
-        + 'Repeating the argument for multiple robots is supported.',
-    )
+    group.add_argument('-r', '--robot', action='append', nargs=4,
+                       metavar=('init_x', 'init_y', 'final_x', 'final_y'),
+                       help='The robot starting and final positions.')
+    group.add_argument('-rs', '--robots', action='append', nargs=5,
+                       metavar=('name', 'init_x', 'init_y', 'final_x', 'final_y'),
+                       help="The robot's namespace and starting and final positions. " +
+                            'Repeating the argument for multiple robots is supported.')
 
     args, unknown = parser.parse_known_args()
 

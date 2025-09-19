@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License. Reserved.
 
-from typing import Any, Optional
-
 import numpy as np
-from numpy.typing import NDArray
 
 
-def normalize_angle(angle: float) -> float:
+def normalize_angle(angle):
     """
     Normalize the angle to between [0, 2pi).
 
@@ -31,17 +28,16 @@ def normalize_angle(angle: float) -> float:
     The normalized angle in the range [0,2pi)
 
     """
-    while angle >= 2 * np.pi:
-        angle -= 2 * np.pi
+    while angle >= 2*np.pi:
+        angle -= 2*np.pi
 
     while angle < 0:
-        angle += 2 * np.pi
+        angle += 2*np.pi
 
     return angle
 
 
-def angle_difference(angle_1: float, angle_2: float,
-                     left_turn: Optional[float] = None) -> float:
+def angle_difference(angle_1, angle_2, left_turn=None):
     """
     Calculate the difference between two angles based on a given direction.
 
@@ -80,8 +76,7 @@ def angle_difference(angle_1: float, angle_2: float,
             return 2 * np.pi - abs(angle_1 - angle_2)
 
 
-def interpolate_yaws(start_angle: float, end_angle: float,
-                     left_turn: bool, steps: int) -> Any:
+def interpolate_yaws(start_angle, end_angle, left_turn, steps):
     """
     Create equally spaced yaws between two angles.
 
@@ -115,7 +110,7 @@ def interpolate_yaws(start_angle: float, end_angle: float,
     return yaws
 
 
-def get_rotation_matrix(angle: float) -> NDArray[np.floating[Any]]:
+def get_rotation_matrix(angle):
     """
     Return a rotation matrix that is equivalent to a 2D rotation of angle.
 
@@ -128,4 +123,5 @@ def get_rotation_matrix(angle: float) -> NDArray[np.floating[Any]]:
     A 2x2 matrix representing a 2D rotation by angle
 
     """
-    return np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    return np.array([[np.cos(angle), -np.sin(angle)],
+                    [np.sin(angle), np.cos(angle)]])

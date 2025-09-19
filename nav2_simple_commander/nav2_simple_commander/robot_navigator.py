@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 # Copyright 2021 Samsung Research America
-# Copyright 2025 Open Navigation LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,32 +16,27 @@
 
 from enum import Enum
 import time
-from typing import Any, Optional, Union
 
 from action_msgs.msg import GoalStatus
 from builtin_interfaces.msg import Duration
-from geographic_msgs.msg import GeoPose
-from geometry_msgs.msg import Point, PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import Point
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from lifecycle_msgs.srv import GetState
-from nav2_msgs.action import (AssistedTeleop, BackUp, ComputeAndTrackRoute,
-                              ComputePathThroughPoses, ComputePathToPose, ComputeRoute, DockRobot,
-                              DriveOnHeading, FollowGPSWaypoints, FollowPath, FollowWaypoints,
-                              NavigateThroughPoses, NavigateToPose, SmoothPath, Spin, UndockRobot)
-from nav2_msgs.msg import Route
-from nav2_msgs.srv import (ClearCostmapAroundRobot, ClearCostmapExceptRegion, ClearEntireCostmap,
-                           GetCostmap, LoadMap, ManageLifecycleNodes)
-from nav_msgs.msg import Goals, OccupancyGrid, Path
+from nav2_msgs.action import AssistedTeleop, BackUp, Spin
+from nav2_msgs.action import ComputePathThroughPoses, ComputePathToPose
+from nav2_msgs.action import FollowPath, FollowWaypoints, NavigateThroughPoses, NavigateToPose
+from nav2_msgs.action import SmoothPath
+from nav2_msgs.srv import ClearEntireCostmap, GetCostmap, LoadMap, ManageLifecycleNodes
+
 import rclpy
-from rclpy.action import ActionClient  # type: ignore[attr-defined]
-from rclpy.action.client import ClientGoalHandle
+from rclpy.action import ActionClient
 from rclpy.duration import Duration as rclpyDuration
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
-from rclpy.task import Future
-from rclpy.type_support import GetResultServiceResponse
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
 
-# Task Result enum for the result of the task being executed
 class TaskResult(Enum):
     UNKNOWN = 0
     SUCCEEDED = 1
@@ -50,150 +44,76 @@ class TaskResult(Enum):
     FAILED = 3
 
 
-# Task enum for the task being executed, if its a long-running task to be able to obtain
-# necessary contextual information in `isTaskComplete` and `getFeedback` regarding the task
-# which is running.
-class RunningTask(Enum):
-    NONE = 0
-    NAVIGATE_TO_POSE = 1
-    NAVIGATE_THROUGH_POSES = 2
-    FOLLOW_PATH = 3
-    FOLLOW_WAYPOINTS = 4
-    FOLLOW_GPS_WAYPOINTS = 5
-    SPIN = 6
-    BACKUP = 7
-    DRIVE_ON_HEADING = 8
-    ASSISTED_TELEOP = 9
-    DOCK_ROBOT = 10
-    UNDOCK_ROBOT = 11
-    COMPUTE_AND_TRACK_ROUTE = 12
-
-
 class BasicNavigator(Node):
 
-    def __init__(self, node_name: str = 'basic_navigator', namespace: str = '') -> None:
+    def __init__(self, node_name='basic_navigator', namespace=''):
         super().__init__(node_name=node_name, namespace=namespace)
         self.initial_pose = PoseStamped()
         self.initial_pose.header.frame_id = 'map'
-
-        self.goal_handle: Optional[ClientGoalHandle[Any, Any, Any]] = None
-        self.result_future: \
-            Optional[Future[GetResultServiceResponse[Any]]] = None
-        self.feedback: Any = None
-        self.status: Optional[int] = None
-
-        # Since the route server's compute and track action server is likely
-        # to be running simultaneously with another (e.g. controller, WPF) server,
-        # we must track its futures and feedback separately. Additionally, the
-        # route tracking feedback is uniquely important to be complete and ordered
-        self.route_goal_handle: Optional[ClientGoalHandle[Any, Any, Any]] = None
-        self.route_result_future: \
-            Optional[Future[GetResultServiceResponse[Any]]] = None
-        self.route_feedback: list[Any] = []
-
-        # Error code and messages from servers
-        self.last_action_error_code = 0
-        self.last_action_error_msg = ''
+        self.goal_handle = None
+        self.result_future = None
+        self.feedback = None
+        self.status = None
 
         amcl_pose_qos = QoSProfile(
-            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=QoSReliabilityPolicy.RELIABLE,
-            history=QoSHistoryPolicy.KEEP_LAST,
-            depth=1,
-        )
+          durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+          reliability=QoSReliabilityPolicy.RELIABLE,
+          history=QoSHistoryPolicy.KEEP_LAST,
+          depth=1)
 
         self.initial_pose_received = False
-        self.nav_through_poses_client = ActionClient(
-            self, NavigateThroughPoses, 'navigate_through_poses'
-        )
+        self.nav_through_poses_client = ActionClient(self,
+                                                     NavigateThroughPoses,
+                                                     'navigate_through_poses')
         self.nav_to_pose_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
-        self.follow_waypoints_client = ActionClient(
-            self, FollowWaypoints, 'follow_waypoints'
-        )
-        self.follow_gps_waypoints_client = ActionClient(
-            self, FollowGPSWaypoints, 'follow_gps_waypoints'
-        )
+        self.follow_waypoints_client = ActionClient(self, FollowWaypoints, 'follow_waypoints')
         self.follow_path_client = ActionClient(self, FollowPath, 'follow_path')
-        self.compute_path_to_pose_client = ActionClient(
-            self, ComputePathToPose, 'compute_path_to_pose'
-        )
-        self.compute_path_through_poses_client = ActionClient(
-            self, ComputePathThroughPoses, 'compute_path_through_poses'
-        )
+        self.compute_path_to_pose_client = ActionClient(self, ComputePathToPose,
+                                                        'compute_path_to_pose')
+        self.compute_path_through_poses_client = ActionClient(self, ComputePathThroughPoses,
+                                                              'compute_path_through_poses')
         self.smoother_client = ActionClient(self, SmoothPath, 'smooth_path')
-        self.compute_route_client = ActionClient(self, ComputeRoute, 'compute_route')
-        self.compute_and_track_route_client = ActionClient(self, ComputeAndTrackRoute,
-                                                           'compute_and_track_route')
         self.spin_client = ActionClient(self, Spin, 'spin')
         self.backup_client = ActionClient(self, BackUp, 'backup')
-        self.drive_on_heading_client = ActionClient(
-            self, DriveOnHeading, 'drive_on_heading'
-        )
-        self.assisted_teleop_client = ActionClient(
-            self, AssistedTeleop, 'assisted_teleop'
-        )
-        self.docking_client = ActionClient(self, DockRobot, 'dock_robot')
-        self.undocking_client = ActionClient(self, UndockRobot, 'undock_robot')
-        self.localization_pose_sub = self.create_subscription(
-            PoseWithCovarianceStamped,
-            'amcl_pose',
-            self._amclPoseCallback,
-            amcl_pose_qos,
-        )
-        self.initial_pose_pub = self.create_publisher(
-            PoseWithCovarianceStamped, 'initialpose', 10
-        )
+        self.assisted_teleop_client = ActionClient(self, AssistedTeleop, 'assisted_teleop')
+        self.localization_pose_sub = self.create_subscription(PoseWithCovarianceStamped,
+                                                              'amcl_pose',
+                                                              self._amclPoseCallback,
+                                                              amcl_pose_qos)
+        self.initial_pose_pub = self.create_publisher(PoseWithCovarianceStamped,
+                                                      'initialpose',
+                                                      10)
         self.change_maps_srv = self.create_client(LoadMap, 'map_server/load_map')
         self.clear_costmap_global_srv = self.create_client(
-            ClearEntireCostmap, 'global_costmap/clear_entirely_global_costmap'
-        )
+            ClearEntireCostmap, 'global_costmap/clear_entirely_global_costmap')
         self.clear_costmap_local_srv = self.create_client(
-            ClearEntireCostmap, 'local_costmap/clear_entirely_local_costmap'
-        )
-        self.clear_costmap_except_region_srv = self.create_client(
-            ClearCostmapExceptRegion, 'local_costmap/clear_costmap_except_region'
-        )
-        self.clear_costmap_around_robot_srv = self.create_client(
-            ClearCostmapAroundRobot, 'local_costmap/clear_costmap_around_robot'
-        )
-        self.get_costmap_global_srv = self.create_client(
-            GetCostmap, 'global_costmap/get_costmap'
-        )
-        self.get_costmap_local_srv = self.create_client(
-            GetCostmap, 'local_costmap/get_costmap'
-        )
+            ClearEntireCostmap, 'local_costmap/clear_entirely_local_costmap')
+        self.get_costmap_global_srv = self.create_client(GetCostmap, 'global_costmap/get_costmap')
+        self.get_costmap_local_srv = self.create_client(GetCostmap, 'local_costmap/get_costmap')
 
-    def destroyNode(self) -> None:
+    def destroyNode(self):
         self.destroy_node()
 
-    def destroy_node(self) -> None:
+    def destroy_node(self):
         self.nav_through_poses_client.destroy()
         self.nav_to_pose_client.destroy()
         self.follow_waypoints_client.destroy()
         self.follow_path_client.destroy()
         self.compute_path_to_pose_client.destroy()
         self.compute_path_through_poses_client.destroy()
-        self.compute_and_track_route_client.destroy()
-        self.compute_route_client.destroy()
         self.smoother_client.destroy()
         self.spin_client.destroy()
         self.backup_client.destroy()
-        self.drive_on_heading_client.destroy()
-        self.assisted_teleop_client.destroy()
-        self.follow_gps_waypoints_client.destroy()
-        self.docking_client.destroy()
-        self.undocking_client.destroy()
         super().destroy_node()
 
-    def setInitialPose(self, initial_pose: PoseStamped) -> None:
+    def setInitialPose(self, initial_pose):
         """Set the initial pose to the localization system."""
         self.initial_pose_received = False
         self.initial_pose = initial_pose
         self._setInitialPose()
 
-    def goThroughPoses(self, poses: Goals, behavior_tree: str = '') -> Optional[RunningTask]:
+    def goThroughPoses(self, poses, behavior_tree=''):
         """Send a `NavThroughPoses` action request."""
-        self.clearTaskError()
         self.debug("Waiting for 'NavigateThroughPoses' action server")
         while not self.nav_through_poses_client.wait_for_server(timeout_sec=1.0):
             self.info("'NavigateThroughPoses' action server not available, waiting...")
@@ -203,24 +123,20 @@ class BasicNavigator(Node):
         goal_msg.behavior_tree = behavior_tree
 
         self.info(f'Navigating with {len(goal_msg.poses)} goals....')
-        send_goal_future = self.nav_through_poses_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
+        send_goal_future = self.nav_through_poses_client.send_goal_async(goal_msg,
+                                                                         self._feedbackCallback)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = f'NavigateThroughPoses request with {len(poses)} was rejected!'
-            self.setTaskError(NavigateThroughPoses.UNKNOWN, msg)
-            self.error(msg)
-            return None
+        if not self.goal_handle.accepted:
+            self.error(f'Goal with {len(poses)} poses was rejected!')
+            return False
 
         self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.NAVIGATE_THROUGH_POSES
+        return True
 
-    def goToPose(self, pose: PoseStamped, behavior_tree: str = '') -> Optional[RunningTask]:
+    def goToPose(self, pose, behavior_tree=''):
         """Send a `NavToPose` action request."""
-        self.clearTaskError()
         self.debug("Waiting for 'NavigateToPose' action server")
         while not self.nav_to_pose_client.wait_for_server(timeout_sec=1.0):
             self.info("'NavigateToPose' action server not available, waiting...")
@@ -229,37 +145,23 @@ class BasicNavigator(Node):
         goal_msg.pose = pose
         goal_msg.behavior_tree = behavior_tree
 
-        self.info(
-            'Navigating to goal: '
-            + str(pose.pose.position.x)
-            + ' '
-            + str(pose.pose.position.y)
-            + '...'
-        )
-        send_goal_future = self.nav_to_pose_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
+        self.info('Navigating to goal: ' + str(pose.pose.position.x) + ' ' +
+                  str(pose.pose.position.y) + '...')
+        send_goal_future = self.nav_to_pose_client.send_goal_async(goal_msg,
+                                                                   self._feedbackCallback)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = (
-                'NavigateToPose goal to '
-                + str(pose.pose.position.x)
-                + ' '
-                + str(pose.pose.position.y)
-                + ' was rejected!'
-            )
-            self.setTaskError(NavigateToPose.UNKNOWN, msg)
-            self.error(msg)
-            return None
+        if not self.goal_handle.accepted:
+            self.error('Goal to ' + str(pose.pose.position.x) + ' ' +
+                       str(pose.pose.position.y) + ' was rejected!')
+            return False
 
         self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.NAVIGATE_TO_POSE
+        return True
 
-    def followWaypoints(self, poses: list[PoseStamped]) -> Optional[RunningTask]:
+    def followWaypoints(self, poses):
         """Send a `FollowWaypoints` action request."""
-        self.clearTaskError()
         self.debug("Waiting for 'FollowWaypoints' action server")
         while not self.follow_waypoints_client.wait_for_server(timeout_sec=1.0):
             self.info("'FollowWaypoints' action server not available, waiting...")
@@ -268,80 +170,39 @@ class BasicNavigator(Node):
         goal_msg.poses = poses
 
         self.info(f'Following {len(goal_msg.poses)} goals....')
-        send_goal_future = self.follow_waypoints_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
+        send_goal_future = self.follow_waypoints_client.send_goal_async(goal_msg,
+                                                                        self._feedbackCallback)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = f'Following {len(poses)} waypoints request was rejected!'
-            self.setTaskError(FollowWaypoints.UNKNOWN, msg)
-            self.error(msg)
-            return None
+        if not self.goal_handle.accepted:
+            self.error(f'Following {len(poses)} waypoints request was rejected!')
+            return False
 
         self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.FOLLOW_WAYPOINTS
+        return True
 
-    def followGpsWaypoints(self, gps_poses: list[GeoPose]) -> Optional[RunningTask]:
-        """Send a `FollowGPSWaypoints` action request."""
-        self.clearTaskError()
-        self.debug("Waiting for 'FollowWaypoints' action server")
-        while not self.follow_gps_waypoints_client.wait_for_server(timeout_sec=1.0):
-            self.info("'FollowWaypoints' action server not available, waiting...")
-
-        goal_msg = FollowGPSWaypoints.Goal()
-        goal_msg.gps_poses = gps_poses
-
-        self.info(f'Following {len(goal_msg.gps_poses)} gps goals....')
-        send_goal_future = self.follow_gps_waypoints_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.goal_handle = send_goal_future.result()
-
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = f'Following {len(gps_poses)} gps waypoints request was rejected!'
-            self.setTaskError(FollowGPSWaypoints.UNKNOWN, msg)
-            self.error(msg)
-            return None
-
-        self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.FOLLOW_GPS_WAYPOINTS
-
-    def spin(
-            self, spin_dist: float = 1.57, time_allowance: int = 10,
-            disable_collision_checks: bool = False) -> Optional[RunningTask]:
-        self.clearTaskError()
+    def spin(self, spin_dist=1.57, time_allowance=10):
         self.debug("Waiting for 'Spin' action server")
         while not self.spin_client.wait_for_server(timeout_sec=1.0):
             self.info("'Spin' action server not available, waiting...")
         goal_msg = Spin.Goal()
         goal_msg.target_yaw = spin_dist
         goal_msg.time_allowance = Duration(sec=time_allowance)
-        goal_msg.disable_collision_checks = disable_collision_checks
 
         self.info(f'Spinning to angle {goal_msg.target_yaw}....')
-        send_goal_future = self.spin_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
+        send_goal_future = self.spin_client.send_goal_async(goal_msg, self._feedbackCallback)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'Spin request was rejected!'
-            self.setTaskError(Spin.UNKNOWN, msg)
-            self.error(msg)
-            return None
+        if not self.goal_handle.accepted:
+            self.error('Spin request was rejected!')
+            return False
 
         self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.SPIN
+        return True
 
-    def backup(
-            self, backup_dist: float = 0.15, backup_speed: float = 0.025,
-            time_allowance: int = 10,
-            disable_collision_checks: bool = False) -> Optional[RunningTask]:
-        self.clearTaskError()
+    def backup(self, backup_dist=0.15, backup_speed=0.025, time_allowance=10):
         self.debug("Waiting for 'Backup' action server")
         while not self.backup_client.wait_for_server(timeout_sec=1.0):
             self.info("'Backup' action server not available, waiting...")
@@ -349,83 +210,40 @@ class BasicNavigator(Node):
         goal_msg.target = Point(x=float(backup_dist))
         goal_msg.speed = backup_speed
         goal_msg.time_allowance = Duration(sec=time_allowance)
-        goal_msg.disable_collision_checks = disable_collision_checks
 
         self.info(f'Backing up {goal_msg.target.x} m at {goal_msg.speed} m/s....')
-        send_goal_future = self.backup_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
+        send_goal_future = self.backup_client.send_goal_async(goal_msg, self._feedbackCallback)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'Backup request was rejected!'
-            self.setTaskError(BackUp.UNKNOWN, msg)
-            self.error(msg)
-            return None
+        if not self.goal_handle.accepted:
+            self.error('Backup request was rejected!')
+            return False
 
         self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.BACKUP
+        return True
 
-    def driveOnHeading(
-            self, dist: float = 0.15, speed: float = 0.025,
-            time_allowance: int = 10,
-            disable_collision_checks: bool = False) -> Optional[RunningTask]:
-        self.clearTaskError()
-        self.debug("Waiting for 'DriveOnHeading' action server")
-        while not self.backup_client.wait_for_server(timeout_sec=1.0):
-            self.info("'DriveOnHeading' action server not available, waiting...")
-        goal_msg = DriveOnHeading.Goal()
-        goal_msg.target = Point(x=float(dist))
-        goal_msg.speed = speed
-        goal_msg.time_allowance = Duration(sec=time_allowance)
-        goal_msg.disable_collision_checks = disable_collision_checks
-
-        self.info(f'Drive {goal_msg.target.x} m on heading at {goal_msg.speed} m/s....')
-        send_goal_future = self.drive_on_heading_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.goal_handle = send_goal_future.result()
-
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'Drive On Heading request was rejected!'
-            self.setTaskError(DriveOnHeading.UNKNOWN, msg)
-            self.error(msg)
-            return None
-
-        self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.DRIVE_ON_HEADING
-
-    def assistedTeleop(self, time_allowance: int = 30) -> Optional[RunningTask]:
-
-        self.clearTaskError()
-        self.debug("Wanting for 'assisted_teleop' action server")
-
+    def assistedTeleop(self, time_allowance=30):
+        self.debug("Wainting for 'assisted_teleop' action server")
         while not self.assisted_teleop_client.wait_for_server(timeout_sec=1.0):
             self.info("'assisted_teleop' action server not available, waiting...")
         goal_msg = AssistedTeleop.Goal()
         goal_msg.time_allowance = Duration(sec=time_allowance)
 
         self.info("Running 'assisted_teleop'....")
-        send_goal_future = self.assisted_teleop_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
+        send_goal_future = \
+            self.assisted_teleop_client.send_goal_async(goal_msg, self._feedbackCallback)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'Assisted Teleop request was rejected!'
-            self.setTaskError(AssistedTeleop.UNKNOWN, msg)
-            self.error(msg)
-            return None
+        if not self.goal_handle.accepted:
+            self.error('Assisted Teleop request was rejected!')
+            return False
 
         self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.ASSISTED_TELEOP
+        return True
 
-    def followPath(self, path: Path, controller_id: str = '',
-                   goal_checker_id: str = '') -> Optional[RunningTask]:
-        self.clearTaskError()
+    def followPath(self, path, controller_id='', goal_checker_id=''):
         """Send a `FollowPath` action request."""
         self.debug("Waiting for 'FollowPath' action server")
         while not self.follow_path_client.wait_for_server(timeout_sec=1.0):
@@ -437,160 +255,37 @@ class BasicNavigator(Node):
         goal_msg.goal_checker_id = goal_checker_id
 
         self.info('Executing path...')
-        send_goal_future = self.follow_path_client.send_goal_async(
-            goal_msg, self._feedbackCallback
-        )
+        send_goal_future = self.follow_path_client.send_goal_async(goal_msg,
+                                                                   self._feedbackCallback)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'FollowPath goal was rejected!'
-            self.setTaskError(FollowPath.UNKNOWN, msg)
-            self.error(msg)
-            return None
+        if not self.goal_handle.accepted:
+            self.error('Follow path was rejected!')
+            return False
 
         self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.FOLLOW_PATH
+        return True
 
-    def dockRobotByPose(self, dock_pose: PoseStamped,
-                        dock_type: str = '', nav_to_dock: bool = True) -> Optional[RunningTask]:
-        self.clearTaskError()
-        """Send a `DockRobot` action request."""
-        self.info("Waiting for 'DockRobot' action server")
-        while not self.docking_client.wait_for_server(timeout_sec=1.0):
-            self.info('"DockRobot" action server not available, waiting...')
-
-        goal_msg = DockRobot.Goal()
-        goal_msg.use_dock_id = False
-        goal_msg.dock_pose = dock_pose
-        goal_msg.dock_type = dock_type
-        goal_msg.navigate_to_staging_pose = nav_to_dock  # if want to navigate before staging
-
-        self.info('Docking at pose: ' + str(dock_pose) + '...')
-        send_goal_future = self.docking_client.send_goal_async(goal_msg,
-                                                               self._feedbackCallback)
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.goal_handle = send_goal_future.result()
-
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'DockRobot request was rejected!'
-            self.setTaskError(DockRobot.UNKNOWN, msg)
-            self.error(msg)
-            return None
-
-        self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.DOCK_ROBOT
-
-    def dockRobotByID(self, dock_id: str, nav_to_dock: bool = True) -> Optional[RunningTask]:
-        """Send a `DockRobot` action request."""
-        self.clearTaskError()
-        self.info("Waiting for 'DockRobot' action server")
-        while not self.docking_client.wait_for_server(timeout_sec=1.0):
-            self.info('"DockRobot" action server not available, waiting...')
-
-        goal_msg = DockRobot.Goal()
-        goal_msg.use_dock_id = True
-        goal_msg.dock_id = dock_id
-        goal_msg.navigate_to_staging_pose = nav_to_dock  # if want to navigate before staging
-
-        self.info('Docking at dock ID: ' + str(dock_id) + '...')
-        send_goal_future = self.docking_client.send_goal_async(goal_msg,
-                                                               self._feedbackCallback)
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.goal_handle = send_goal_future.result()
-
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'DockRobot request was rejected!'
-            self.setTaskError(DockRobot.UNKNOWN, msg)
-            self.error(msg)
-            return None
-
-        self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.DOCK_ROBOT
-
-    def undockRobot(self, dock_type: str = '') -> Optional[RunningTask]:
-        """Send a `UndockRobot` action request."""
-        self.clearTaskError()
-        self.info("Waiting for 'UndockRobot' action server")
-        while not self.undocking_client.wait_for_server(timeout_sec=1.0):
-            self.info('"UndockRobot" action server not available, waiting...')
-
-        goal_msg = UndockRobot.Goal()
-        goal_msg.dock_type = dock_type
-
-        self.info('Undocking from dock of type: ' + str(dock_type) + '...')
-        send_goal_future = self.undocking_client.send_goal_async(goal_msg,
-                                                                 self._feedbackCallback)
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.goal_handle = send_goal_future.result()
-
-        if not self.goal_handle or not self.goal_handle.accepted:
-            msg = 'UndockRobot request was rejected!'
-            self.setTaskError(UndockRobot.UNKNOWN, msg)
-            self.error(msg)
-            return None
-
-        self.result_future = self.goal_handle.get_result_async()
-        return RunningTask.UNDOCK_ROBOT
-
-    def cancelTask(self) -> None:
+    def cancelTask(self):
         """Cancel pending task request of any type."""
         self.info('Canceling current task.')
         if self.result_future:
-            if self.goal_handle is not None:
-                future = self.goal_handle.cancel_goal_async()
-                rclpy.spin_until_future_complete(self, future)
-            else:
-                self.error('Cancel task failed, goal handle is None')
-                self.setTaskError(0, 'Cancel task failed, goal handle is None')
-                return
-        if self.route_result_future:
-            if self.route_goal_handle is not None:
-                future = self.route_goal_handle.cancel_goal_async()
-                rclpy.spin_until_future_complete(self, future)
-            else:
-                self.error('Cancel route task failed, goal handle is None')
-                self.setTaskError(0, 'Cancel route task failed, goal handle is None')
-                return
-        self.clearTaskError()
+            future = self.goal_handle.cancel_goal_async()
+            rclpy.spin_until_future_complete(self, future)
         return
 
-    def isTaskComplete(self, task: RunningTask = RunningTask.NONE) -> bool:
+    def isTaskComplete(self):
         """Check if the task request of any type is complete yet."""
-        # Find the result future to spin
-        if task is None:
-            self.error('Task is None, cannot check for completion')
-            return False
-
-        result_future = None
-        if task != RunningTask.COMPUTE_AND_TRACK_ROUTE:
-            result_future = self.result_future
-        else:
-            result_future = self.route_result_future
-        if not result_future:
+        if not self.result_future:
             # task was cancelled or completed
             return True
-
-        # Get the result of the future, if complete
-        rclpy.spin_until_future_complete(self, result_future, timeout_sec=0.10)
-        result_response = result_future.result()
-
-        if result_response:
-            self.status = result_response.status
+        rclpy.spin_until_future_complete(self, self.result_future, timeout_sec=0.10)
+        if self.result_future.result():
+            self.status = self.result_future.result().status
             if self.status != GoalStatus.STATUS_SUCCEEDED:
-                result = result_response.result
-                if result is not None:
-                    self.setTaskError(result.error_code, result.error_msg)
-                    self.debug(
-                        'Task with failed with'
-                        f' status code:{self.status}'
-                        f' error code:{result.error_code}'
-                        f' error msg:{result.error_msg}')
-                    return True
-                else:
-                    self.setTaskError(0, 'No result received')
-                    self.debug('Task failed with no result received')
-                    return True
+                self.debug(f'Task with failed with status code: {self.status}')
+                return True
         else:
             # Timed out, still processing, not complete yet
             return False
@@ -598,15 +293,11 @@ class BasicNavigator(Node):
         self.debug('Task succeeded!')
         return True
 
-    def getFeedback(self, task: RunningTask = RunningTask.NONE) -> Any:
+    def getFeedback(self):
         """Get the pending action feedback message."""
-        if task != RunningTask.COMPUTE_AND_TRACK_ROUTE:
-            return self.feedback
-        if len(self.route_feedback) > 0:
-            return self.route_feedback.pop(0)
-        return None
+        return self.feedback
 
-    def getResult(self) -> TaskResult:
+    def getResult(self):
         """Get the pending action result message."""
         if self.status == GoalStatus.STATUS_SUCCEEDED:
             return TaskResult.SUCCEEDED
@@ -617,32 +308,16 @@ class BasicNavigator(Node):
         else:
             return TaskResult.UNKNOWN
 
-    def clearTaskError(self) -> None:
-        self.last_action_error_code = 0
-        self.last_action_error_msg = ''
-
-    def setTaskError(self, error_code: int, error_msg: str) -> None:
-        self.last_action_error_code = error_code
-        self.last_action_error_msg = error_msg
-
-    def getTaskError(self) -> tuple[int, str]:
-        return (self.last_action_error_code, self.last_action_error_msg)
-
-    def waitUntilNav2Active(self, navigator: str = 'bt_navigator',
-                            localizer: str = 'amcl') -> None:
+    def waitUntilNav2Active(self, navigator='bt_navigator', localizer='amcl'):
         """Block until the full navigation system is up and running."""
-        if localizer != 'robot_localization':  # non-lifecycle node
-            self._waitForNodeToActivate(localizer)
+        self._waitForNodeToActivate(localizer)
         if localizer == 'amcl':
             self._waitForInitialPose()
         self._waitForNodeToActivate(navigator)
         self.info('Nav2 is ready for use!')
         return
 
-    def _getPathImpl(
-        self, start: PoseStamped, goal: PoseStamped,
-        planner_id: str = '', use_start: bool = False
-    ) -> ComputePathToPose.Result:
+    def _getPathImpl(self, start, goal, planner_id='', use_start=False):
         """
         Send a `ComputePathToPose` action request.
 
@@ -663,214 +338,58 @@ class BasicNavigator(Node):
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
+        if not self.goal_handle.accepted:
             self.error('Get path was rejected!')
-            self.status = GoalStatus.UNKNOWN
-            result = ComputePathToPose.Result()
-            result.error_code = ComputePathToPose.UNKNOWN
-            result.error_msg = 'Get path was rejected'
-            return result
+            return None
 
         self.result_future = self.goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, self.result_future)
-        self.status = self.result_future.result().status  # type: ignore[union-attr]
-
-        return self.result_future.result().result  # type: ignore[union-attr]
-
-    def getPath(
-        self, start: PoseStamped, goal: PoseStamped,
-            planner_id: str = '', use_start: bool = False) -> Path:
-        """Send a `ComputePathToPose` action request."""
-        self.clearTaskError()
-        rtn = self._getPathImpl(start, goal, planner_id, use_start)
-
-        if self.status == GoalStatus.STATUS_SUCCEEDED:
-            return rtn.path
-        else:
-            self.setTaskError(rtn.error_code, rtn.error_msg)
-            self.warn('Getting path failed with'
-                      f' status code:{self.status}'
-                      f' error code:{rtn.error_code}'
-                      f' error msg:{rtn.error_msg}')
+        self.status = self.result_future.result().status
+        if self.status != GoalStatus.STATUS_SUCCEEDED:
+            self.warn(f'Getting path failed with status code: {self.status}')
             return None
 
-    def _getPathThroughPosesImpl(
-        self, start: PoseStamped, goals: Goals,
-            planner_id: str = '', use_start: bool = False
-    ) -> ComputePathThroughPoses.Result:
-        """
-        Send a `ComputePathThroughPoses` action request.
+        return self.result_future.result().result
 
-        Internal implementation to get the full result, not just the path.
-        """
+    def getPath(self, start, goal, planner_id='', use_start=False):
+        """Send a `ComputePathToPose` action request."""
+        rtn = self._getPathImpl(start, goal, planner_id, use_start)
+        if not rtn:
+            return None
+        else:
+            return rtn.path
+
+    def getPathThroughPoses(self, start, goals, planner_id='', use_start=False):
+        """Send a `ComputePathThroughPoses` action request."""
         self.debug("Waiting for 'ComputePathThroughPoses' action server")
-        while not self.compute_path_through_poses_client.wait_for_server(
-            timeout_sec=1.0
-        ):
-            self.info(
-                "'ComputePathThroughPoses' action server not available, waiting..."
-            )
+        while not self.compute_path_through_poses_client.wait_for_server(timeout_sec=1.0):
+            self.info("'ComputePathThroughPoses' action server not available, waiting...")
 
         goal_msg = ComputePathThroughPoses.Goal()
         goal_msg.start = start
-        goal_msg.goals.header.frame_id = 'map'
-        goal_msg.goals.header.stamp = self.get_clock().now().to_msg()
-        goal_msg.goals.goals = goals
+        goal_msg.goals = goals
         goal_msg.planner_id = planner_id
         goal_msg.use_start = use_start
 
         self.info('Getting path...')
-        send_goal_future = self.compute_path_through_poses_client.send_goal_async(
-            goal_msg
-        )
+        send_goal_future = self.compute_path_through_poses_client.send_goal_async(goal_msg)
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
+        if not self.goal_handle.accepted:
             self.error('Get path was rejected!')
-            result = ComputePathThroughPoses.Result()
-            result.error_code = ComputePathThroughPoses.UNKNOWN
-            result.error_msg = 'Get path was rejected!'
-            return result
-
-        self.result_future = self.goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, self.result_future)
-        self.status = self.result_future.result().status  # type: ignore[union-attr]
-
-        return self.result_future.result().result  # type: ignore[union-attr]
-
-    def getPathThroughPoses(
-        self, start: PoseStamped, goals: Goals,
-            planner_id: str = '', use_start: bool = False) -> Path:
-        """Send a `ComputePathThroughPoses` action request."""
-        self.clearTaskError()
-        rtn = self._getPathThroughPosesImpl(start, goals, planner_id, use_start)
-
-        if self.status == GoalStatus.STATUS_SUCCEEDED:
-            return rtn.path
-        else:
-            self.setTaskError(rtn.error_code, rtn.error_msg)
-            self.warn('Getting path failed with'
-                      f' status code:{self.status}'
-                      f' error code:{rtn.error_code}'
-                      f' error msg:{rtn.error_msg}')
             return None
 
-    def _getRouteImpl(
-        self, start: Union[int, PoseStamped],
-        goal: Union[int, PoseStamped], use_start: bool = False
-    ) -> ComputeRoute.Result:
-        """
-        Send a `ComputeRoute` action request.
-
-        Internal implementation to get the full result, not just the sparse route and dense path.
-        """
-        self.debug("Waiting for 'ComputeRoute' action server")
-        while not self.compute_route_client.wait_for_server(timeout_sec=1.0):
-            self.info("'ComputeRoute' action server not available, waiting...")
-
-        goal_msg = ComputeRoute.Goal()
-        goal_msg.use_start = use_start
-
-        # Support both ID based requests and PoseStamped based requests
-        if isinstance(start, int) and isinstance(goal, int):
-            goal_msg.start_id = start
-            goal_msg.goal_id = goal
-            goal_msg.use_poses = False
-        elif isinstance(start, PoseStamped) and isinstance(goal, PoseStamped):
-            goal_msg.start = start
-            goal_msg.goal = goal
-            goal_msg.use_poses = True
-        else:
-            self.error('Invalid start and goal types. Must be PoseStamped for pose or int for ID')
-            result = ComputeRoute.Result()
-            result.error_code = ComputeRoute.UNKNOWN
-            result.error_msg = 'Request type fields were invalid!'
-            return result
-
-        self.info('Getting route...')
-        send_goal_future = self.compute_route_client.send_goal_async(goal_msg)
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.goal_handle = send_goal_future.result()
-
-        if not self.goal_handle or not self.goal_handle.accepted:
-            self.error('Get route was rejected!')
-            result = ComputeRoute.Result()
-            result.error_code = ComputeRoute.UNKNOWN
-            result.error_msg = 'Get route was rejected!'
-            return result
-
         self.result_future = self.goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, self.result_future)
-        self.status = self.result_future.result().status  # type: ignore[union-attr]
-
-        return self.result_future.result().result  # type: ignore[union-attr]
-
-    def getRoute(
-            self, start: Union[int, PoseStamped],
-            goal: Union[int, PoseStamped],
-            use_start: bool = False) -> Optional[list[Union[Path, Route]]]:
-        """Send a `ComputeRoute` action request."""
-        self.clearTaskError()
-        rtn = self._getRouteImpl(start, goal, use_start=False)
-
+        self.status = self.result_future.result().status
         if self.status != GoalStatus.STATUS_SUCCEEDED:
-            self.setTaskError(rtn.error_code, rtn.error_msg)
-            self.warn(
-                'Getting route failed with'
-                f' status code:{self.status}'
-                f' error code:{rtn.error_code}'
-                f' error msg:{rtn.error_msg}')
+            self.warn(f'Getting path failed with status code: {self.status}')
             return None
 
-        return [rtn.path, rtn.route]
+        return self.result_future.result().result.path
 
-    def getAndTrackRoute(
-        self, start: Union[int, PoseStamped],
-        goal: Union[int, PoseStamped], use_start: bool = False
-    ) -> Optional[RunningTask]:
-        """Send a `ComputeAndTrackRoute` action request."""
-        self.clearTaskError()
-        self.debug("Waiting for 'ComputeAndTrackRoute' action server")
-        while not self.compute_and_track_route_client.wait_for_server(timeout_sec=1.0):
-            self.info("'ComputeAndTrackRoute' action server not available, waiting...")
-
-        goal_msg = ComputeAndTrackRoute.Goal()
-        goal_msg.use_start = use_start
-
-        # Support both ID based requests and PoseStamped based requests
-        if isinstance(start, int) and isinstance(goal, int):
-            goal_msg.start_id = start
-            goal_msg.goal_id = goal
-            goal_msg.use_poses = False
-        elif isinstance(start, PoseStamped) and isinstance(goal, PoseStamped):
-            goal_msg.start = start
-            goal_msg.goal = goal
-            goal_msg.use_poses = True
-        else:
-            self.setTaskError(ComputeAndTrackRoute.UNKNOWN, 'Request type fields were invalid!')
-            self.error('Invalid start and goal types. Must be PoseStamped for pose or int for ID')
-            return None
-
-        self.info('Computing and tracking route...')
-        send_goal_future = self.compute_and_track_route_client.send_goal_async(goal_msg,
-            self._routeFeedbackCallback)  # noqa: E128
-        rclpy.spin_until_future_complete(self, send_goal_future)
-        self.route_goal_handle = send_goal_future.result()
-
-        if not self.route_goal_handle or not self.route_goal_handle.accepted:
-            msg = 'Compute and track route was rejected!'
-            self.setTaskError(ComputeAndTrackRoute.UNKNOWN, msg)
-            self.error(msg)
-            return None
-
-        self.route_result_future = self.route_goal_handle.get_result_async()
-        return RunningTask.COMPUTE_AND_TRACK_ROUTE
-
-    def _smoothPathImpl(
-        self, path: Path, smoother_id: str = '',
-        max_duration: float = 2.0, check_for_collision: bool = False
-    ) -> SmoothPath.Result:
+    def _smoothPathImpl(self, path, smoother_id='', max_duration=2.0, check_for_collision=False):
         """
         Send a `SmoothPath` action request.
 
@@ -891,37 +410,29 @@ class BasicNavigator(Node):
         rclpy.spin_until_future_complete(self, send_goal_future)
         self.goal_handle = send_goal_future.result()
 
-        if not self.goal_handle or not self.goal_handle.accepted:
+        if not self.goal_handle.accepted:
             self.error('Smooth path was rejected!')
-            result = SmoothPath.Result()
-            result.error_code = SmoothPath.UNKNOWN
-            result.error_msg = 'Smooth path was rejected'
-            return result
+            return None
 
         self.result_future = self.goal_handle.get_result_async()
         rclpy.spin_until_future_complete(self, self.result_future)
-        self.status = self.result_future.result().status  # type: ignore[union-attr]
-
-        return self.result_future.result().result  # type: ignore[union-attr]
-
-    def smoothPath(
-        self, path: Path, smoother_id: str = '',
-            max_duration: float = 2.0, check_for_collision: bool = False) -> Path:
-        """Send a `SmoothPath` action request."""
-        self.clearTaskError()
-        rtn = self._smoothPathImpl(path, smoother_id, max_duration, check_for_collision)
-
-        if self.status == GoalStatus.STATUS_SUCCEEDED:
-            return rtn.path
-        else:
-            self.setTaskError(rtn.error_code, rtn.error_msg)
-            self.warn('Getting path failed with'
-                      f' status code:{self.status}'
-                      f' error code:{rtn.error_code}'
-                      f' error msg:{rtn.error_msg}')
+        self.status = self.result_future.result().status
+        if self.status != GoalStatus.STATUS_SUCCEEDED:
+            self.warn(f'Getting path failed with status code: {self.status}')
             return None
 
-    def changeMap(self, map_filepath: str) -> bool:
+        return self.result_future.result().result
+
+    def smoothPath(self, path, smoother_id='', max_duration=2.0, check_for_collision=False):
+        """Send a `SmoothPath` action request."""
+        rtn = self._smoothPathImpl(
+            path, smoother_id, max_duration, check_for_collision)
+        if not rtn:
+            return None
+        else:
+            return rtn.path
+
+    def changeMap(self, map_filepath):
         """Change the current static map in the map server."""
         while not self.change_maps_srv.wait_for_service(timeout_sec=1.0):
             self.info('change map service not available, waiting...')
@@ -929,38 +440,20 @@ class BasicNavigator(Node):
         req.map_url = map_filepath
         future = self.change_maps_srv.call_async(req)
         rclpy.spin_until_future_complete(self, future)
-
-        future_result = future.result()
-        if future_result is None:
+        status = future.result().result
+        if status != LoadMap.Response().RESULT_SUCCESS:
             self.error('Change map request failed!')
-            return False
-
-        result = future_result.result
-        if result != LoadMap.Response().RESULT_SUCCESS:
-            if result == LoadMap.RESULT_MAP_DOES_NOT_EXIST:
-                reason = 'Map does not exist'
-            elif result == LoadMap.INVALID_MAP_DATA:
-                reason = 'Invalid map data'
-            elif result == LoadMap.INVALID_MAP_METADATA:
-                reason = 'Invalid map metadata'
-            elif result == LoadMap.UNDEFINED_FAILURE:
-                reason = 'Undefined failure'
-            else:
-                reason = 'Unknown'
-            self.setTaskError(result, reason)
-            self.error(f'Change map request failed:{reason}!')
-            return False
         else:
             self.info('Change map request was successful!')
-            return True
+        return
 
-    def clearAllCostmaps(self) -> None:
+    def clearAllCostmaps(self):
         """Clear all costmaps."""
         self.clearLocalCostmap()
         self.clearGlobalCostmap()
         return
 
-    def clearLocalCostmap(self) -> None:
+    def clearLocalCostmap(self):
         """Clear local costmap."""
         while not self.clear_costmap_local_srv.wait_for_service(timeout_sec=1.0):
             self.info('Clear local costmaps service not available, waiting...')
@@ -969,7 +462,7 @@ class BasicNavigator(Node):
         rclpy.spin_until_future_complete(self, future)
         return
 
-    def clearGlobalCostmap(self) -> None:
+    def clearGlobalCostmap(self):
         """Clear global costmap."""
         while not self.clear_costmap_global_srv.wait_for_service(timeout_sec=1.0):
             self.info('Clear global costmaps service not available, waiting...')
@@ -978,58 +471,25 @@ class BasicNavigator(Node):
         rclpy.spin_until_future_complete(self, future)
         return
 
-    def clearCostmapExceptRegion(self, reset_distance: float) -> None:
-        """Clear the costmap except for a specified region."""
-        while not self.clear_costmap_except_region_srv.wait_for_service(timeout_sec=1.0):
-            self.info('ClearCostmapExceptRegion service not available, waiting...')
-        req = ClearCostmapExceptRegion.Request()
-        req.reset_distance = reset_distance
-        future = self.clear_costmap_except_region_srv.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        return
-
-    def clearCostmapAroundRobot(self, reset_distance: float) -> None:
-        """Clear the costmap around the robot."""
-        while not self.clear_costmap_around_robot_srv.wait_for_service(timeout_sec=1.0):
-            self.info('ClearCostmapAroundRobot service not available, waiting...')
-        req = ClearCostmapAroundRobot.Request()
-        req.reset_distance = reset_distance
-        future = self.clear_costmap_around_robot_srv.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        return
-
-    def getGlobalCostmap(self) -> OccupancyGrid:
+    def getGlobalCostmap(self):
         """Get the global costmap."""
         while not self.get_costmap_global_srv.wait_for_service(timeout_sec=1.0):
             self.info('Get global costmaps service not available, waiting...')
         req = GetCostmap.Request()
         future = self.get_costmap_global_srv.call_async(req)
         rclpy.spin_until_future_complete(self, future)
+        return future.result().map
 
-        result = future.result()
-        if result is None:
-            self.error('Get global costmap request failed!')
-            return None
-
-        return result.map
-
-    def getLocalCostmap(self) -> OccupancyGrid:
+    def getLocalCostmap(self):
         """Get the local costmap."""
         while not self.get_costmap_local_srv.wait_for_service(timeout_sec=1.0):
             self.info('Get local costmaps service not available, waiting...')
         req = GetCostmap.Request()
         future = self.get_costmap_local_srv.call_async(req)
         rclpy.spin_until_future_complete(self, future)
+        return future.result().map
 
-        result = future.result()
-
-        if result is None:
-            self.error('Get local costmap request failed!')
-            return None
-
-        return result.map
-
-    def lifecycleStartup(self) -> None:
+    def lifecycleStartup(self):
         """Startup nav2 lifecycle system."""
         self.info('Starting up lifecycle nodes based on lifecycle_manager.')
         for srv_name, srv_type in self.get_service_names_and_types():
@@ -1053,7 +513,7 @@ class BasicNavigator(Node):
         self.info('Nav2 is ready for use!')
         return
 
-    def lifecycleShutdown(self) -> None:
+    def lifecycleShutdown(self):
         """Shutdown nav2 lifecycle system."""
         self.info('Shutting down lifecycle nodes based on lifecycle_manager.')
         for srv_name, srv_type in self.get_service_names_and_types():
@@ -1069,7 +529,7 @@ class BasicNavigator(Node):
                 future.result()
         return
 
-    def _waitForNodeToActivate(self, node_name: str) -> None:
+    def _waitForNodeToActivate(self, node_name):
         # Waits for the node within the tester namespace to become active
         self.debug(f'Waiting for {node_name} to become active..')
         node_service = f'{node_name}/get_state'
@@ -1083,15 +543,13 @@ class BasicNavigator(Node):
             self.debug(f'Getting {node_name} state...')
             future = state_client.call_async(req)
             rclpy.spin_until_future_complete(self, future)
-
-            result = future.result()
-            if result is not None:
-                state = result.current_state.label
+            if future.result() is not None:
+                state = future.result().current_state.label
                 self.debug(f'Result of get_state: {state}')
             time.sleep(2)
         return
 
-    def _waitForInitialPose(self) -> None:
+    def _waitForInitialPose(self):
         while not self.initial_pose_received:
             self.info('Setting initial pose')
             self._setInitialPose()
@@ -1099,22 +557,17 @@ class BasicNavigator(Node):
             rclpy.spin_once(self, timeout_sec=1.0)
         return
 
-    def _amclPoseCallback(self, msg: PoseWithCovarianceStamped) -> None:
+    def _amclPoseCallback(self, msg):
         self.debug('Received amcl pose')
         self.initial_pose_received = True
         return
 
-    def _feedbackCallback(self, msg: NavigateToPose.Feedback) -> None:
+    def _feedbackCallback(self, msg):
         self.debug('Received action feedback message')
         self.feedback = msg.feedback
         return
 
-    def _routeFeedbackCallback(self, msg: ComputeAndTrackRoute.Feedback) -> None:
-        self.debug('Received route action feedback message')
-        self.route_feedback.append(msg.feedback)
-        return
-
-    def _setInitialPose(self) -> None:
+    def _setInitialPose(self):
         msg = PoseWithCovarianceStamped()
         msg.pose.pose = self.initial_pose.pose
         msg.header.frame_id = self.initial_pose.header.frame_id
@@ -1123,18 +576,18 @@ class BasicNavigator(Node):
         self.initial_pose_pub.publish(msg)
         return
 
-    def info(self, msg: str) -> None:
+    def info(self, msg):
         self.get_logger().info(msg)
         return
 
-    def warn(self, msg: str) -> None:
+    def warn(self, msg):
         self.get_logger().warn(msg)
         return
 
-    def error(self, msg: str) -> None:
+    def error(self, msg):
         self.get_logger().error(msg)
         return
 
-    def debug(self, msg: str) -> None:
+    def debug(self, msg):
         self.get_logger().debug(msg)
         return

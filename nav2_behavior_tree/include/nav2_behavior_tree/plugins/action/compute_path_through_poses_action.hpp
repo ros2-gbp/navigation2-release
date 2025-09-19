@@ -28,15 +28,10 @@ namespace nav2_behavior_tree
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::ComputePathThroughPoses
- * @note This is an Asynchronous (long-running) node which may return a RUNNING state while executing.
- *       It will re-initialize when halted.
  */
 class ComputePathThroughPosesAction
   : public BtActionNode<nav2_msgs::action::ComputePathThroughPoses>
 {
-  using Action = nav2_msgs::action::ComputePathThroughPoses;
-  using ActionResult = Action::Result;
-
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::ComputePathThroughPosesAction
@@ -65,20 +60,9 @@ public:
   BT::NodeStatus on_aborted() override;
 
   /**
-   * @brief Function to perform some user-defined operation upon cancellation of the action
+   * @brief Function to perform some user-defined operation upon cancelation of the action
    */
   BT::NodeStatus on_cancelled() override;
-
-  /**
-   * @brief Function to perform work in a BT Node when the action server times out
-   * Such as setting the error code ID status to timed out for action clients.
-   */
-  void on_timeout() override;
-
-  /**
-   * \brief Override required by the a BT action. Cancel the action and set the path output
-   */
-  void halt() override;
 
   /**
    * @brief Creates list of BT ports
@@ -86,13 +70,10 @@ public:
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<nav_msgs::msg::Path>();
-    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-
     return providedBasicPorts(
       {
-        BT::InputPort<nav_msgs::msg::Goals>(
+        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathThroughPoses node"),
+        BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
           "goals",
           "Destinations to plan through"),
         BT::InputPort<geometry_msgs::msg::PoseStamped>(
@@ -100,11 +81,6 @@ public:
         BT::InputPort<std::string>(
           "planner_id", "",
           "Mapped name to the planner plugin type to use"),
-        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathThroughPoses node"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The compute path through poses error code"),
-        BT::OutputPort<std::string>(
-          "error_msg", "The compute path through poses error msg"),
       });
   }
 };

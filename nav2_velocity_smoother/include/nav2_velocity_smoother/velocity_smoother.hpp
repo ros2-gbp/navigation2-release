@@ -26,10 +26,6 @@
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/odometry_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_util/twist_publisher.hpp"
-#include "nav2_util/twist_subscriber.hpp"
-#include "geometry_msgs/msg/twist.hpp"
-#include "geometry_msgs/msg/twist_stamped.hpp"
 
 namespace nav2_velocity_smoother
 {
@@ -118,7 +114,6 @@ protected:
    * @param msg Twist message
    */
   void inputCommandCallback(const geometry_msgs::msg::Twist::SharedPtr msg);
-  void inputCommandStampedCallback(const geometry_msgs::msg::TwistStamped::SharedPtr msg);
 
   /**
    * @brief Main worker timer function
@@ -134,13 +129,14 @@ protected:
 
   // Network interfaces
   std::unique_ptr<nav2_util::OdomSmoother> odom_smoother_;
-  std::unique_ptr<nav2_util::TwistPublisher> smoothed_cmd_pub_;
-  std::unique_ptr<nav2_util::TwistSubscriber> cmd_sub_;
+  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::Twist>::SharedPtr
+    smoothed_cmd_pub_;
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
 
   rclcpp::Clock::SharedPtr clock_;
-  geometry_msgs::msg::TwistStamped last_cmd_;
-  geometry_msgs::msg::TwistStamped::SharedPtr command_;
+  geometry_msgs::msg::Twist last_cmd_;
+  geometry_msgs::msg::Twist::SharedPtr command_;
 
   // Parameters
   double smoothing_frequency_;

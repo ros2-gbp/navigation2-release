@@ -19,8 +19,7 @@
 #include <string>
 #include <vector>
 
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "nav2_route/types.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"

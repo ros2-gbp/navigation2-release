@@ -12,25 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from cmath import sqrt
 import unittest
-
+from cmath import sqrt
 from nav2_simple_commander.line_iterator import LineIterator
 
 
 class TestLineIterator(unittest.TestCase):
 
-    def test_type_error(self) -> None:
-        # Test if a type error raised when passing invalid arguments types
+    def test_type_error(self):
+        # Test if a type error raised when passing invalid arguements types
         self.assertRaises(TypeError, LineIterator, 0, 0, '10', 10, '1')
 
-    def test_value_error(self) -> None:
+    def test_value_error(self):
         # Test if a value error raised when passing negative or zero step_size
         self.assertRaises(ValueError, LineIterator, 0, 0, 10, 10, -2)
         # Test if a value error raised when passing zero length line
         self.assertRaises(ValueError, LineIterator, 2, 2, 2, 2, 1)
 
-    def test_get_xy(self) -> None:
+    def test_get_xy(self):
         # Test if the initial and final coordinates are returned correctly
         lt = LineIterator(0, 0, 5, 5, 1)
         self.assertEqual(lt.getX0(), 0)
@@ -38,12 +37,12 @@ class TestLineIterator(unittest.TestCase):
         self.assertEqual(lt.getX1(), 5)
         self.assertEqual(lt.getY1(), 5)
 
-    def test_line_length(self) -> None:
+    def test_line_length(self):
         # Test if the line length is calculated correctly
         lt = LineIterator(0, 0, 5, 5, 1)
         self.assertEqual(lt.get_line_length(), sqrt(pow(5, 2) + pow(5, 2)))
 
-    def test_straight_line(self) -> None:
+    def test_straight_line(self):
         # Test if the calculations are correct for y = x
         lt = LineIterator(0, 0, 5, 5, 1)
         i = 0
@@ -58,7 +57,7 @@ class TestLineIterator(unittest.TestCase):
         i = 0
         while lt.isValid():
             self.assertEqual(lt.getX(), lt.getX0() + i)
-            self.assertEqual(lt.getY(), lt.getY0() + (i * 2))
+            self.assertEqual(lt.getY(), lt.getY0() + (i*2))
             lt.advance()
             i += 1
 
@@ -67,11 +66,11 @@ class TestLineIterator(unittest.TestCase):
         i = 0
         while lt.isValid():
             self.assertEqual(lt.getX(), lt.getX0() + i)
-            self.assertEqual(lt.getY(), lt.getY0() + (-i * 2))
+            self.assertEqual(lt.getY(), lt.getY0() + (-i*2))
             lt.advance()
             i += 1
 
-    def test_hor_line(self) -> None:
+    def test_hor_line(self):
         # Test if the calculations are correct for y = 0x+b (horizontal line)
         lt = LineIterator(0, 10, 5, 10, 1)
         i = 0
@@ -81,7 +80,7 @@ class TestLineIterator(unittest.TestCase):
             lt.advance()
             i += 1
 
-    def test_ver_line(self) -> None:
+    def test_ver_line(self):
         # Test if the calculations are correct for x = n (vertical line)
         lt = LineIterator(5, 0, 5, 10, 1)
         i = 0
@@ -91,7 +90,7 @@ class TestLineIterator(unittest.TestCase):
             lt.advance()
             i += 1
 
-    def test_clamp(self) -> None:
+    def test_clamp(self):
         # Test if the increments are clamped to avoid crossing the final points
         # when step_size is large with respect to line length
         lt = LineIterator(0, 0, 5, 5, 10)

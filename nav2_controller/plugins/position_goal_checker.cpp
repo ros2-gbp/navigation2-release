@@ -124,19 +124,16 @@ PositionGoalChecker::dynamicParametersCallback(std::vector<rclcpp::Parameter> pa
 {
   rcl_interfaces::msg::SetParametersResult result;
   for (auto & parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if (param_name.find(plugin_name_ + ".") != 0) {
-      continue;
-    }
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
 
-    if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == plugin_name_ + ".xy_goal_tolerance") {
+    if (type == ParameterType::PARAMETER_DOUBLE) {
+      if (name == plugin_name_ + ".xy_goal_tolerance") {
         xy_goal_tolerance_ = parameter.as_double();
         xy_goal_tolerance_sq_ = xy_goal_tolerance_ * xy_goal_tolerance_;
       }
-    } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == plugin_name_ + ".stateful") {
+    } else if (type == ParameterType::PARAMETER_BOOL) {
+      if (name == plugin_name_ + ".stateful") {
         stateful_ = parameter.as_bool();
       }
     }

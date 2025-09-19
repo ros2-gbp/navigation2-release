@@ -23,9 +23,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 #include "nav2_behavior_tree/bt_action_node.hpp"
-#include "nav2_behavior_tree/utils/loop_rate.hpp"
 
 #include "test_msgs/action/fibonacci.hpp"
 
@@ -141,14 +140,14 @@ public:
 
   BT::NodeStatus on_success() override
   {
-    config().blackboard->set("sequence", result_.result->sequence);
+    config().blackboard->set<std::vector<int>>("sequence", result_.result->sequence);
     return BT::NodeStatus::SUCCESS;
   }
 
   BT::NodeStatus on_cancelled() override
   {
-    config().blackboard->set("sequence", result_.result->sequence);
-    config().blackboard->set("on_cancelled_triggered", true);
+    config().blackboard->set<std::vector<int>>("sequence", result_.result->sequence);
+    config().blackboard->set<bool>("on_cancelled_triggered", true);
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -171,12 +170,12 @@ public:
     // Create the blackboard that will be shared by all of the nodes in the tree
     config_->blackboard = BT::Blackboard::create();
     // Put items on the blackboard
-    config_->blackboard->set("node", node_);
+    config_->blackboard->set<rclcpp::Node::SharedPtr>("node", node_);
     config_->blackboard->set<std::chrono::milliseconds>("server_timeout", 20ms);
     config_->blackboard->set<std::chrono::milliseconds>("bt_loop_duration", 10ms);
     config_->blackboard->set<std::chrono::milliseconds>("wait_for_service_timeout", 1000ms);
-    config_->blackboard->set("initial_pose_received", false);
-    config_->blackboard->set("on_cancelled_triggered", false);
+    config_->blackboard->set<bool>("initial_pose_received", false);
+    config_->blackboard->set<bool>("on_cancelled_triggered", false);
 
     BT::NodeBuilder builder =
       [](const std::string & name, const BT::NodeConfiguration & config)
@@ -239,7 +238,7 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_success)
   // create tree
   std::string xml_txt =
     R"(
-      <root BTCPP_format="4">
+      <root main_tree_to_execute = "MainTree" >
         <BehaviorTree ID="MainTree">
             <Fibonacci order="5" />
         </BehaviorTree>
@@ -261,11 +260,11 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_success)
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   // BT loop execution rate
-  nav2_behavior_tree::LoopRate loopRate(10ms, tree_.get());
+  rclcpp::WallRate loopRate(10ms);
 
   // main BT execution loop
   while (rclcpp::ok() && result == BT::NodeStatus::RUNNING) {
-    result = tree_->tickOnce();
+    result = tree_->tickRoot();
     ticks++;
     loopRate.sleep();
   }
@@ -304,11 +303,11 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_success)
   // reset state variables
   ticks = 0;
   result = BT::NodeStatus::RUNNING;
-  config_->blackboard->set("on_cancelled_triggered", false);
+  config_->blackboard->set<bool>("on_cancelled_triggered", false);
 
   // main BT execution loop
   while (rclcpp::ok() && result == BT::NodeStatus::RUNNING) {
-    result = tree_->tickOnce();
+    result = tree_->tickRoot();
     ticks++;
     loopRate.sleep();
   }
@@ -328,7 +327,7 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_failure)
   // create tree
   std::string xml_txt =
     R"(
-      <root BTCPP_format="4">
+      <root main_tree_to_execute = "MainTree" >
         <BehaviorTree ID="MainTree">
             <Fibonacci order="2" />
         </BehaviorTree>
@@ -355,7 +354,7 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_failure)
 
   // main BT execution loop
   while (rclcpp::ok() && result == BT::NodeStatus::RUNNING) {
-    result = tree_->tickOnce();
+    result = tree_->tickRoot();
     ticks++;
     loopRate.sleep();
   }
@@ -385,11 +384,11 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_failure)
   // reset state variables
   ticks = 0;
   result = BT::NodeStatus::RUNNING;
-  config_->blackboard->set("on_cancelled_triggered", false);
+  config_->blackboard->set<bool>("on_cancelled_triggered", false);
 
   // main BT execution loop
   while (rclcpp::ok() && result == BT::NodeStatus::RUNNING) {
-    result = tree_->tickOnce();
+    result = tree_->tickRoot();
     ticks++;
     loopRate.sleep();
   }
@@ -404,7 +403,7 @@ TEST_F(BTActionNodeTestFixture, test_server_cancel)
   // create tree
   std::string xml_txt =
     R"(
-      <root BTCPP_format="4">
+      <root main_tree_to_execute = "MainTree" >
         <BehaviorTree ID="MainTree">
             <Fibonacci order="1000000" />
         </BehaviorTree>
@@ -432,7 +431,7 @@ TEST_F(BTActionNodeTestFixture, test_server_cancel)
 
   // main BT execution loop
   while (rclcpp::ok() && result == BT::NodeStatus::RUNNING && ticks < 5) {
-    result = tree_->tickOnce();
+    result = tree_->tickRoot();
     ticks++;
     loopRate.sleep();
   }
@@ -459,12 +458,12 @@ TEST_F(BTActionNodeTestFixture, test_server_cancel)
 
   // reset state variable
   ticks = 0;
-  config_->blackboard->set("on_cancelled_triggered", false);
+  config_->blackboard->set<bool>("on_cancelled_triggered", false);
   result = BT::NodeStatus::RUNNING;
 
   // main BT execution loop
   while (rclcpp::ok() && result == BT::NodeStatus::RUNNING && ticks < 7) {
-    result = tree_->tickOnce();
+    result = tree_->tickRoot();
     ticks++;
     loopRate.sleep();
   }

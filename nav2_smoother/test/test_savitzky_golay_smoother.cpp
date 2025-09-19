@@ -22,7 +22,6 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_core/smoother_exceptions.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/costmap_subscriber.hpp"
 #include "nav2_msgs/msg/costmap.hpp"
@@ -33,6 +32,14 @@
 using namespace smoother_utils;  // NOLINT
 using namespace nav2_smoother;  // NOLINT
 using namespace std::chrono_literals;  // NOLINT
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 TEST(SmootherTest, test_sg_smoother_basics)
 {
@@ -102,7 +109,7 @@ TEST(SmootherTest, test_sg_smoother_basics)
 
   // Attempt smoothing with no time given, should fail
   rclcpp::Duration no_time = rclcpp::Duration::from_seconds(-1.0);  // 0 seconds
-  EXPECT_THROW(smoother->smooth(straight_regular_path, no_time), nav2_core::SmootherTimedOut);
+  EXPECT_FALSE(smoother->smooth(straight_regular_path, no_time));
 
   smoother->deactivate();
   smoother->cleanup();
@@ -204,6 +211,9 @@ TEST(SmootherTest, test_sg_smoother_noisey_path)
       noisey_path_refined.poses[i].pose.position.x,
       noisey_path_refined.poses[i + 1].pose.position.y -
       noisey_path_refined.poses[i].pose.position.y);
+    // std::hypot(
+    //   noisey_path.poses[i + 1].pose.position.x - noisey_path_baseline.poses[i].pose.position.x,
+    //   noisey_path.poses[i + 1].pose.position.y - noisey_path_baseline.poses[i].pose.position.y);
   }
 
   EXPECT_LT(length, base_length);
@@ -318,17 +328,4 @@ TEST(SmootherTest, test_sg_smoother_reversing)
   }
 
   EXPECT_LT(length, base_length);
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

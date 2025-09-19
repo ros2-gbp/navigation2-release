@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License. Reserved.
 
-#ifndef REGRESSION__ORDER_LAYER_HPP_
-#define REGRESSION__ORDER_LAYER_HPP_
+#ifndef NAV2_COSTMAP_2D__ORDER_LAYER_HPP_
+#define NAV2_COSTMAP_2D__ORDER_LAYER_HPP_
 
 #include "nav2_costmap_2d/layer.hpp"
 
@@ -43,4 +43,4 @@ private:
 
 }  // namespace nav2_costmap_2d
 
-#endif  // REGRESSION__ORDER_LAYER_HPP_
+#endif  // NAV2_COSTMAP_2D__ORDER_LAYER_HPP_

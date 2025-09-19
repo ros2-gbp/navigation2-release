@@ -13,11 +13,6 @@
 # limitations under the License.
 
 from .has_node_params import HasNodeParams
-from .replace_string import ReplaceString
 from .rewritten_yaml import RewrittenYaml
-
-__all__ = [
-    'HasNodeParams',
-    'RewrittenYaml',
-    'ReplaceString',
-]
+from .replace_string import ReplaceString
+from .parse_multirobot_pose import ParseMultiRobotPose

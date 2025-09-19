@@ -43,11 +43,9 @@
 #include <string>
 
 #include "pluginlib/class_list_macros.hpp"
-#include "tf2/convert.hpp"
+#include "tf2/convert.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "nav2_util/validate_messages.hpp"
-
-#define EPSILON 1e-5
 
 PLUGINLIB_EXPORT_CLASS(nav2_costmap_2d::StaticLayer, nav2_costmap_2d::Layer)
 
@@ -114,10 +112,6 @@ StaticLayer::activate()
 void
 StaticLayer::deactivate()
 {
-  auto node = node_.lock();
-  if (dyn_params_handler_ && node) {
-    node->remove_on_set_parameters_callback(dyn_params_handler_.get());
-  }
   dyn_params_handler_.reset();
 }
 
@@ -138,9 +132,8 @@ StaticLayer::getParameters()
   declareParameter("subscribe_to_updates", rclcpp::ParameterValue(false));
   declareParameter("map_subscribe_transient_local", rclcpp::ParameterValue(true));
   declareParameter("transform_tolerance", rclcpp::ParameterValue(0.0));
-  declareParameter("map_topic", rclcpp::ParameterValue("map"));
+  declareParameter("map_topic", rclcpp::ParameterValue(""));
   declareParameter("footprint_clearing_enabled", rclcpp::ParameterValue(false));
-  declareParameter("restore_cleared_footprint", rclcpp::ParameterValue(true));
 
   auto node = node_.lock();
   if (!node) {
@@ -150,9 +143,14 @@ StaticLayer::getParameters()
   node->get_parameter(name_ + "." + "enabled", enabled_);
   node->get_parameter(name_ + "." + "subscribe_to_updates", subscribe_to_updates_);
   node->get_parameter(name_ + "." + "footprint_clearing_enabled", footprint_clearing_enabled_);
-  node->get_parameter(name_ + "." + "restore_cleared_footprint", restore_cleared_footprint_);
-  node->get_parameter(name_ + "." + "map_topic", map_topic_);
-  map_topic_ = joinWithParentNamespace(map_topic_);
+  std::string private_map_topic, global_map_topic;
+  node->get_parameter(name_ + "." + "map_topic", private_map_topic);
+  node->get_parameter("map_topic", global_map_topic);
+  if (!private_map_topic.empty()) {
+    map_topic_ = private_map_topic;
+  } else {
+    map_topic_ = global_map_topic;
+  }
   node->get_parameter(
     name_ + "." + "map_subscribe_transient_local",
     map_subscribe_transient_local_);
@@ -194,9 +192,9 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
   Costmap2D * master = layered_costmap_->getCostmap();
   if (!layered_costmap_->isRolling() && (master->getSizeInCellsX() != size_x ||
     master->getSizeInCellsY() != size_y ||
-    !isEqual(master->getResolution(), new_map.info.resolution, EPSILON) ||
-    !isEqual(master->getOriginX(), new_map.info.origin.position.x, EPSILON) ||
-    !isEqual(master->getOriginY(), new_map.info.origin.position.y, EPSILON) ||
+    master->getResolution() != new_map.info.resolution ||
+    master->getOriginX() != new_map.info.origin.position.x ||
+    master->getOriginY() != new_map.info.origin.position.y ||
     !layered_costmap_->isSizeLocked()))
   {
     // Update the size of the layered costmap (and all layers, including this one)
@@ -210,9 +208,9 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
       new_map.info.origin.position.y,
       true);
   } else if (size_x_ != size_x || size_y_ != size_y ||  // NOLINT
-    !isEqual(resolution_, new_map.info.resolution, EPSILON) ||
-    !isEqual(origin_x_, new_map.info.origin.position.x, EPSILON) ||
-    !isEqual(origin_y_, new_map.info.origin.position.y, EPSILON))
+    resolution_ != new_map.info.resolution ||
+    origin_x_ != new_map.info.origin.position.x ||
+    origin_y_ != new_map.info.origin.position.y)
   {
     // only update the size of the costmap stored locally in this layer
     RCLCPP_INFO(
@@ -415,11 +413,8 @@ StaticLayer::updateCosts(
     return;
   }
 
-  std::vector<MapLocation> map_region_to_restore;
   if (footprint_clearing_enabled_) {
-    map_region_to_restore.reserve(100);
-    getMapRegionOccupiedByPolygon(transformed_footprint_, map_region_to_restore);
-    setMapRegionOccupiedByPolygon(map_region_to_restore, nav2_costmap_2d::FREE_SPACE);
+    setConvexPolygonCost(transformed_footprint_, nav2_costmap_2d::FREE_SPACE);
   }
 
   if (!layered_costmap_->isRolling()) {
@@ -465,24 +460,7 @@ StaticLayer::updateCosts(
       }
     }
   }
-
-  if (footprint_clearing_enabled_ && restore_cleared_footprint_) {
-    // restore the map region occupied by the polygon using cached data
-    restoreMapRegionOccupiedByPolygon(map_region_to_restore);
-  }
   current_ = true;
-}
-
-/**
-  * @brief Check if two floating point numbers are equal within a given epsilon
-  * @param a First number
-  * @param b Second number
-  * @param epsilon Tolerance for equality check
-  * @return True if numbers are equal within the tolerance, false otherwise
-  */
-bool StaticLayer::isEqual(double a, double b, double epsilon)
-{
-  return std::abs(a - b) < epsilon;
 }
 
 /**
@@ -499,9 +477,6 @@ StaticLayer::dynamicParametersCallback(
   for (auto parameter : parameters) {
     const auto & param_type = parameter.get_type();
     const auto & param_name = parameter.get_name();
-    if (param_name.find(name_ + ".") != 0) {
-      continue;
-    }
 
     if (param_name == name_ + "." + "map_subscribe_transient_local" ||
       param_name == name_ + "." + "map_topic" ||
@@ -523,15 +498,10 @@ StaticLayer::dynamicParametersCallback(
         height_ = size_y_;
         has_updated_data_ = true;
         current_ = false;
-      } else if (param_name == name_ + "." + "footprint_clearing_enabled") {
+      }
+    } else if (param_type == ParameterType::PARAMETER_BOOL) {
+      if (param_name == name_ + "." + "footprint_clearing_enabled") {
         footprint_clearing_enabled_ = parameter.as_bool();
-      } else if (param_name == name_ + "." + "restore_cleared_footprint") {
-        if (footprint_clearing_enabled_) {
-          restore_cleared_footprint_ = parameter.as_bool();
-        } else {
-          RCLCPP_WARN(logger_, "restore_cleared_footprint cannot be used "
-                      "when footprint_clearing_enabled is False. Rejecting parameter update.");
-        }
       }
     }
   }

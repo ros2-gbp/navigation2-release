@@ -17,8 +17,10 @@ from copy import deepcopy
 
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
+
 import rclpy
 from rclpy.duration import Duration
+
 
 """
 Basic security route patrol demo. In this demonstration, the expectation
@@ -27,7 +29,7 @@ watched live by security staff.
 """
 
 
-def main() -> None:
+def main():
     rclpy.init()
 
     navigator = BasicNavigator()
@@ -35,28 +37,29 @@ def main() -> None:
     # Security route, probably read in from a file for a real application
     # from either a map or drive and repeat.
     security_route = [
-        [10.15, -0.77],
-        [17.86, -0.77],
-        [21.58, -3.5],
-        [19.4, -6.4],
-        [-6.0, 5.0],
-    ]
+        [1.792, 2.144],
+        [1.792, -5.44],
+        [1.792, -9.427],
+        [-3.665, -9.427],
+        [-3.665, -4.303],
+        [-3.665, 2.330],
+        [-3.665, 9.283]]
 
     # Set our demo's initial pose
     initial_pose = PoseStamped()
     initial_pose.header.frame_id = 'map'
     initial_pose.header.stamp = navigator.get_clock().now().to_msg()
-    initial_pose.pose.position.x = 0.0
-    initial_pose.pose.position.y = 0.0
-    initial_pose.pose.orientation.z = 0.0
-    initial_pose.pose.orientation.w = 1.0
+    initial_pose.pose.position.x = 3.45
+    initial_pose.pose.position.y = 2.15
+    initial_pose.pose.orientation.z = 1.0
+    initial_pose.pose.orientation.w = 0.0
     navigator.setInitialPose(initial_pose)
 
     # Wait for navigation to fully activate
     navigator.waitUntilNav2Active()
 
     # Do security route until dead
-    while rclpy.ok():  # type: ignore[attr-defined]
+    while rclpy.ok():
         # Send our route
         route_poses = []
         pose = PoseStamped()
@@ -67,28 +70,21 @@ def main() -> None:
             pose.pose.position.x = pt[0]
             pose.pose.position.y = pt[1]
             route_poses.append(deepcopy(pose))
-        go_through_poses_task = navigator.goThroughPoses(route_poses)
+        navigator.goThroughPoses(route_poses)
 
         # Do something during our route (e.x. AI detection on camera images for anomalies)
-        # Simply print ETA for the demonstration
+        # Simply print ETA for the demonstation
         i = 0
-        while not navigator.isTaskComplete(task=go_through_poses_task):
+        while not navigator.isTaskComplete():
             i += 1
-            feedback = navigator.getFeedback(task=go_through_poses_task)
+            feedback = navigator.getFeedback()
             if feedback and i % 5 == 0:
-                print(
-                    'Estimated time to complete current route: '
-                    + '{:.0f}'.format(
-                        Duration.from_msg(feedback.estimated_time_remaining).nanoseconds
-                        / 1e9
-                    )
-                    + ' seconds.'
-                )
+                print('Estimated time to complete current route: ' + '{0:.0f}'.format(
+                      Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9)
+                      + ' seconds.')
 
                 # Some failure mode, must stop since the robot is clearly stuck
-                if Duration.from_msg(feedback.navigation_time) > Duration(
-                    seconds=180.0
-                ):
+                if Duration.from_msg(feedback.navigation_time) > Duration(seconds=180.0):
                     print('Navigation has exceeded timeout of 180s, canceling request.')
                     navigator.cancelTask()
 
@@ -102,9 +98,7 @@ def main() -> None:
             print('Security route was canceled, exiting.')
             exit(1)
         elif result == TaskResult.FAILED:
-            (error_code, error_msg) = navigator.getTaskError()
-            print(f'Security route failed!:{error_code}:{error_msg}')
-            print('Restarting from other side...')
+            print('Security route failed! Restarting from other side...')
 
     exit(0)
 

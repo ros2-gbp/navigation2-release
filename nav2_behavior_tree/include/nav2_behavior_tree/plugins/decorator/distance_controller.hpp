@@ -22,8 +22,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "tf2_ros/buffer.h"
 
-#include "behaviortree_cpp/decorator_node.h"
-#include "nav2_behavior_tree/bt_utils.hpp"
+#include "behaviortree_cpp_v3/decorator_node.h"
 
 namespace nav2_behavior_tree
 {
@@ -31,8 +30,6 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::DecoratorNode that ticks its child every time the robot
  * travels a specified distance
- * @note This is an Asynchronous (long-running) node which may return a RUNNING state while executing.
- *       It will re-initialize when halted.
  */
 class DistanceController : public BT::DecoratorNode
 {
@@ -54,8 +51,8 @@ public:
   {
     return {
       BT::InputPort<double>("distance", 1.0, "Distance"),
-      BT::InputPort<std::string>("global_frame", "Global frame"),
-      BT::InputPort<std::string>("robot_base_frame", "Robot base frame")
+      BT::InputPort<std::string>("global_frame", std::string("map"), "Global frame"),
+      BT::InputPort<std::string>("robot_base_frame", std::string("base_link"), "Robot base frame")
     };
   }
 
@@ -73,7 +70,9 @@ private:
 
   geometry_msgs::msg::PoseStamped start_pose_;
   double distance_;
-  std::string global_frame_, robot_base_frame_;
+
+  std::string global_frame_;
+  std::string robot_base_frame_;
 
   bool first_time_;
 };

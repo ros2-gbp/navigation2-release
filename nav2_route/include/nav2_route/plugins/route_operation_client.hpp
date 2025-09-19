@@ -24,6 +24,7 @@
 #include "nav2_route/interfaces/route_operation.hpp"
 #include "nav2_core/route_exceptions.hpp"
 #include "nav2_util/node_utils.hpp"
+#include "nav2_util/service_client.hpp"
 #include "std_srvs/srv/trigger.hpp"
 
 namespace nav2_route
@@ -121,7 +122,7 @@ protected:
     // indicate the endpoint for the particular service call.
     if (!main_srv_name_.empty()) {
       main_client_ = node->create_client<SrvT>(
-        main_srv_name_, rclcpp::SystemDefaultsQoS(), callback_group_);
+        main_srv_name_, rclcpp::SystemDefaultsQoS().get_rmw_qos_profile(), callback_group_);
     }
   }
 
@@ -156,14 +157,24 @@ protected:
               "set in the param file or in the operation's metadata!");
     }
 
-    if (srv_name.empty()) {
-      srv_name = main_srv_name_;
-      response = callService(main_client_, req);
-    } else {
-      auto node = node_.lock();
-      auto client = node->create_client<SrvT>(
-        srv_name, rclcpp::SystemDefaultsQoS(), callback_group_);
-      response = callService(client, req);
+    try {
+      if (srv_name.empty()) {
+        srv_name = main_srv_name_;
+        response = callService(main_client_, req);
+      } else {
+        auto node = node_.lock();
+        if (!node) {
+          throw nav2_core::OperationFailed(
+                  "Route operation service (" + getName() + ") failed to lock node.");
+        }
+        auto client = node->create_client<SrvT>(
+          srv_name, rclcpp::SystemDefaultsQoS().get_rmw_qos_profile(), callback_group_);
+        response = callService(client, req);
+      }
+    } catch (const std::exception & e) {
+      throw nav2_core::OperationFailed(
+              "Route operation service (" + getName() + ") failed to call service: " +
+              srv_name + " at Node " + std::to_string(node_achieved->nodeid));
     }
 
     RCLCPP_INFO(
@@ -182,7 +193,7 @@ protected:
     if (!client->wait_for_service(1s)) {
       throw nav2_core::OperationFailed(
               "Route operation service " +
-              std::string(client->get_service_name()) + " is not available!");
+              std::string(client->get_service_name()) + "is not available!");
     }
 
     auto result = client->async_send_request(req);
@@ -191,7 +202,7 @@ protected:
     {
       throw nav2_core::OperationFailed(
               "Route operation service " +
-              std::string(client->get_service_name()) + " failed to call!");
+              std::string(client->get_service_name()) + "failed to call!");
     }
 
     return result.get();

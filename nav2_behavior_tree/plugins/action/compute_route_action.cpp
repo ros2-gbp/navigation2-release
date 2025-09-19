@@ -55,9 +55,6 @@ BT::NodeStatus ComputeRouteAction::on_success()
   setOutput("path", result_.result->path);
   setOutput("route", result_.result->route);
   setOutput("planning_time", result_.result->planning_time);
-  // Set empty error code, action was successful
-  setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -73,37 +70,24 @@ void ComputeRouteAction::resetPorts()
 BT::NodeStatus ComputeRouteAction::on_aborted()
 {
   resetPorts();
-  setOutput("error_code_id", result_.result->error_code);
-  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
 BT::NodeStatus ComputeRouteAction::on_cancelled()
 {
   resetPorts();
-  // Set empty error code, action was cancelled
-  setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
-}
-
-void ComputeRouteAction::on_timeout()
-{
-  setOutput("error_code_id", ActionResult::TIMEOUT);
-  setOutput("error_msg", "Behavior Tree action client timed out waiting.");
 }
 
 void ComputeRouteAction::halt()
 {
   resetPorts();
-  // DO NOT reset "error_code_id" output port, we want to read it later
-  // DO NOT reset "error_msg" output port, we want to read it later
   BtActionNode::halt();
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

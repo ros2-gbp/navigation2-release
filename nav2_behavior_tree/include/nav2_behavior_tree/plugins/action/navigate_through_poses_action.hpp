@@ -18,7 +18,8 @@
 #include <string>
 #include <vector>
 
-#include "nav_msgs/msg/goals.hpp"
+#include "geometry_msgs/msg/point.hpp"
+#include "geometry_msgs/msg/quaternion.hpp"
 #include "nav2_msgs/action/navigate_through_poses.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
 
@@ -27,14 +28,9 @@ namespace nav2_behavior_tree
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::NavigateThroughPoses
- * @note This is an Asynchronous (long-running) node which may return a RUNNING state while executing.
- *       It will re-initialize when halted.
  */
 class NavigateThroughPosesAction : public BtActionNode<nav2_msgs::action::NavigateThroughPoses>
 {
-  using Action = nav2_msgs::action::NavigateThroughPoses;
-  using ActionResult = Action::Result;
-
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::NavigateThroughPosesAction
@@ -53,44 +49,16 @@ public:
   void on_tick() override;
 
   /**
-   * @brief Function to perform some user-defined operation upon successful completion of the action
-   */
-  BT::NodeStatus on_success() override;
-
-  /**
-   * @brief Function to perform some user-defined operation upon abortion of the action
-   */
-  BT::NodeStatus on_aborted() override;
-
-  /**
-   * @brief Function to perform some user-defined operation upon cancellation of the action
-   */
-  BT::NodeStatus on_cancelled() override;
-
-  /**
-   * @brief Function to perform work in a BT Node when the action server times out
-   * Such as setting the error code ID status to timed out for action clients.
-   */
-  void on_timeout() override;
-
-  /**
    * @brief Creates list of BT ports
    * @return BT::PortsList Containing basic ports along with node-specific ports
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<nav_msgs::msg::Goals>();
-
     return providedBasicPorts(
       {
-        BT::InputPort<nav_msgs::msg::Goals>(
+        BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
           "goals", "Destinations to plan through"),
         BT::InputPort<std::string>("behavior_tree", "Behavior tree to run"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The navigate through poses error code"),
-        BT::OutputPort<std::string>(
-          "error_msg", "The navigate through poses error msg"),
       });
   }
 };

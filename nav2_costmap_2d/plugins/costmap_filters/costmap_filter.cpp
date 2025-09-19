@@ -45,9 +45,6 @@
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "geometry_msgs/msg/point_stamped.hpp"
 
-#include "nav2_costmap_2d/cost_values.hpp"
-#include "nav2_util/occ_grid_values.hpp"
-
 namespace nav2_costmap_2d
 {
 
@@ -83,12 +80,11 @@ void CostmapFilter::onInitialize()
     transform_tolerance_ = tf2::durationFromSec(transform_tolerance);
 
     // Costmap Filter enabling service
-    enable_service_ = std::make_shared<nav2_util::ServiceServer<std_srvs::srv::SetBool,
-        std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>>(
+    enable_service_ = node->create_service<std_srvs::srv::SetBool>(
       name_ + "/toggle_filter",
-      node,
-      std::bind(&CostmapFilter::enableCallback, this, std::placeholders::_1,
-        std::placeholders::_2, std::placeholders::_3));
+      std::bind(
+        &CostmapFilter::enableCallback, this,
+        std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
   } catch (const std::exception & ex) {
     RCLCPP_ERROR(logger_, "Parameter problem: %s", ex.what());
     throw ex;
@@ -211,24 +207,6 @@ bool CostmapFilter::worldToMask(
   }
 
   return true;
-}
-
-unsigned char CostmapFilter::getMaskCost(
-  nav_msgs::msg::OccupancyGrid::ConstSharedPtr filter_mask,
-  const unsigned int mx, const unsigned int & my) const
-{
-  const unsigned int index = my * filter_mask->info.width + mx;
-
-  const signed char data = filter_mask->data[index];
-  if (data == nav2_util::OCC_GRID_UNKNOWN) {
-    return NO_INFORMATION;
-  } else {
-    // Linear conversion from OccupancyGrid data range [OCC_GRID_FREE..OCC_GRID_OCCUPIED]
-    // to costmap data range [FREE_SPACE..LETHAL_OBSTACLE]
-    return std::round(
-      static_cast<double>(data) * (LETHAL_OBSTACLE - FREE_SPACE) /
-      (nav2_util::OCC_GRID_OCCUPIED - nav2_util::OCC_GRID_FREE));
-  }
 }
 
 }  // namespace nav2_costmap_2d

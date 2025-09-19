@@ -20,7 +20,7 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
-#include "behaviortree_cpp/condition_node.h"
+#include "behaviortree_cpp_v3/condition_node.h"
 #include "tf2_ros/buffer.h"
 
 namespace nav2_behavior_tree
@@ -29,8 +29,6 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::ConditionNode that returns SUCCESS if there is a valid transform
  * between two specified frames and FAILURE otherwise
- * @note This is an Asynchronous (long-running) node which may return a RUNNING state while executing.
- *       It will re-initialize when halted.
  */
 class TransformAvailableCondition : public BT::ConditionNode
 {
@@ -56,11 +54,6 @@ public:
    * @return BT::NodeStatus Status of tick execution
    */
   BT::NodeStatus tick() override;
-
-  /**
-   * @brief Function to read parameters and initialize class variables
-   */
-  void initialize();
 
   /**
    * @brief Creates list of BT ports

@@ -55,7 +55,6 @@ void CostmapLayer::touch(
 
 void CostmapLayer::matchSize()
 {
-  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
   Costmap2D * master = layered_costmap_->getCostmap();
   resizeMap(
     master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(),
@@ -66,19 +65,10 @@ void CostmapLayer::clearArea(int start_x, int start_y, int end_x, int end_y, boo
 {
   current_ = false;
   unsigned char * grid = getCharMap();
-
-  int size_x = getSizeInCellsX();
-  int size_y = getSizeInCellsY();
-
-  start_x = std::clamp(start_x, 0, size_x);
-  start_y = std::clamp(start_y, 0, size_y);
-  end_x = std::clamp(end_x, 0, size_x);
-  end_y = std::clamp(end_y, 0, size_y);
-
-  for (int x = 0; x < size_x; x++) {
+  for (int x = 0; x < static_cast<int>(getSizeInCellsX()); x++) {
     bool xrange = x > start_x && x < end_x;
 
-    for (int y = 0; y < size_y; y++) {
+    for (int y = 0; y < static_cast<int>(getSizeInCellsY()); y++) {
       if ((xrange && y > start_y && y < end_y) == invert) {
         continue;
       }
@@ -138,35 +128,6 @@ void CostmapLayer::updateWithMax(
 
       unsigned char old_cost = master_array[it];
       if (old_cost == NO_INFORMATION || old_cost < costmap_[it]) {
-        master_array[it] = costmap_[it];
-      }
-      it++;
-    }
-  }
-}
-
-void CostmapLayer::updateWithMaxWithoutUnknownOverwrite(
-  nav2_costmap_2d::Costmap2D & master_grid, int min_i, int min_j,
-  int max_i,
-  int max_j)
-{
-  if (!enabled_) {
-    return;
-  }
-
-  unsigned char * master_array = master_grid.getCharMap();
-  unsigned int span = master_grid.getSizeInCellsX();
-
-  for (int j = min_j; j < max_j; j++) {
-    unsigned int it = j * span + min_i;
-    for (int i = min_i; i < max_i; i++) {
-      if (costmap_[it] == NO_INFORMATION) {
-        it++;
-        continue;
-      }
-
-      unsigned char old_cost = master_array[it];
-      if (old_cost != NO_INFORMATION && old_cost < costmap_[it]) {
         master_array[it] = costmap_[it];
       }
       it++;
@@ -252,25 +213,6 @@ void CostmapLayer::updateWithAddition(
       }
       it++;
     }
-  }
-}
-
-CombinationMethod CostmapLayer::combination_method_from_int(const int value)
-{
-  switch (value) {
-    case 0:
-      return CombinationMethod::Overwrite;
-    case 1:
-      return CombinationMethod::Max;
-    case 2:
-      return CombinationMethod::MaxWithoutUnknownOverwrite;
-    default:
-      RCLCPP_WARN(
-        logger_,
-        "Param combination_method: %i. Possible values are  0 (Overwrite) or 1 (Maximum) or "
-        "2 (Maximum without overwriting the master's NO_INFORMATION values)."
-        "The default value 1 will be used", value);
-      return CombinationMethod::Max;
   }
 }
 }  // namespace nav2_costmap_2d

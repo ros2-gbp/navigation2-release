@@ -44,9 +44,7 @@
 #include <math.h>
 #include <limits.h>
 #include <algorithm>
-
-#include <rclcpp/logger.hpp>
-#include <rclcpp/logging.hpp>
+#include "rclcpp/rclcpp.hpp"
 
 /**
  * @class VoxelGrid

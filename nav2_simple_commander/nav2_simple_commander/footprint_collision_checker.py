@@ -26,7 +26,6 @@ from math import cos, sin
 from geometry_msgs.msg import Point32, Polygon
 from nav2_simple_commander.costmap_2d import PyCostmap2D
 from nav2_simple_commander.line_iterator import LineIterator
-import numpy as np
 
 NO_INFORMATION = 255
 LETHAL_OBSTACLE = 254
@@ -43,12 +42,12 @@ class FootprintCollisionChecker:
     and checking the collisions of a Footprint
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         """Initialize the FootprintCollisionChecker Object."""
         self.costmap_ = None
         pass
 
-    def footprintCost(self, footprint: Polygon) -> float:
+    def footprintCost(self, footprint: Polygon):
         """
         Iterate over all the points in a footprint and check for collision.
 
@@ -91,8 +90,7 @@ class FootprintCollisionChecker:
 
         return max(float(self.lineCost(xstart, x1, ystart, y1)), footprint_cost)
 
-    def lineCost(self, x0: float, x1: float,
-                 y0: float, y1: float, step_size: float = 0.5) -> float:
+    def lineCost(self, x0, x1, y0, y1, step_size=0.5):
         """
         Iterate over all the points along a line and check for collision.
 
@@ -115,9 +113,9 @@ class FootprintCollisionChecker:
         line_iterator = LineIterator(x0, y0, x1, y1, step_size)
 
         while line_iterator.isValid():
-            point_cost = float(self.pointCost(
+            point_cost = self.pointCost(
                 int(line_iterator.getX()), int(line_iterator.getY())
-            ))
+            )
 
             if point_cost == LETHAL_OBSTACLE:
                 return point_cost
@@ -129,7 +127,7 @@ class FootprintCollisionChecker:
 
         return line_cost
 
-    def worldToMapValidated(self, wx: float, wy: float) -> tuple[int, int]:
+    def worldToMapValidated(self, wx: float, wy: float):
         """
         Get the map coordinate XY using world coordinate XY.
 
@@ -150,9 +148,9 @@ class FootprintCollisionChecker:
             raise ValueError(
                 'Costmap not specified, use setCostmap to specify the costmap first'
             )
-        return self.costmap_.worldToMapValidated(wx, wy)
+        return self.costmap_.worldToMap(wx, wy)
 
-    def pointCost(self, x: int, y: int) -> np.uint8:
+    def pointCost(self, x: int, y: int):
         """
         Get the cost of a point in the costmap using map coordinates XY.
 
@@ -172,7 +170,7 @@ class FootprintCollisionChecker:
             )
         return self.costmap_.getCostXY(x, y)
 
-    def setCostmap(self, costmap: PyCostmap2D) -> None:
+    def setCostmap(self, costmap: PyCostmap2D):
         """
         Specify which costmap to use.
 
@@ -188,8 +186,7 @@ class FootprintCollisionChecker:
         self.costmap_ = costmap
         return None
 
-    def footprintCostAtPose(self, x: float, y: float,
-                            theta: float, footprint: Polygon) -> float:
+    def footprintCostAtPose(self, x: float, y: float, theta: float, footprint: Polygon):
         """
         Get the cost of a footprint at a specific Pose in map coordinates.
 

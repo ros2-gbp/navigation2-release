@@ -102,9 +102,9 @@ private:
   nav2_costmap_2d::DenoiseLayer denoise_;
 };
 
-}  // namespace nav2_costmap_2d
+}
 
-using namespace nav2_costmap_2d;  // NOLINT
+using namespace nav2_costmap_2d;
 
 TEST_F(DenoiseLayerTester, removeSinglePixels4way) {
   const auto in = imageFromString<uint8_t>(
@@ -407,6 +407,7 @@ TEST_F(DenoiseLayerTester, denoiseNothing) {
 
 TEST_F(DenoiseLayerTester, constructorAndDestructor) {
   ASSERT_NO_THROW(
+    // []()
   {
     nav2_costmap_2d::DenoiseLayer layer;
   });
@@ -451,6 +452,15 @@ TEST_F(DenoiseLayerTester, updateCosts) {
 
   ASSERT_EQ(costmap.getCost(0), FREE_SPACE);
 }
+
+// Copy paste from declare_parameter_test.cpp
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture rcl_cpp_fixture;
 
 std::shared_ptr<nav2_costmap_2d::DenoiseLayer> constructLayer(
   std::shared_ptr<nav2_util::LifecycleNode> node =
@@ -507,17 +517,4 @@ TEST_F(DenoiseLayerTester, initializeInvalid) {
   ASSERT_EQ(
     DenoiseLayerTester::getParameters(*layer),
     std::make_tuple(true, ConnectivityType::Way8, 1));
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

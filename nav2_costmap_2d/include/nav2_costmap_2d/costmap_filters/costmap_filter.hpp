@@ -43,13 +43,11 @@
 
 #include <string>
 #include <mutex>
-#include <memory>
 
 #include "geometry_msgs/msg/pose2_d.hpp"
 #include "std_srvs/srv/set_bool.hpp"
 #include "nav2_costmap_2d/layer.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
-#include "nav2_util/service_server.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -214,17 +212,6 @@ protected:
   }
 
   /**
-   * @brief  Get the cost of a cell in the filter mask
-   * @param  filter_mask Filter mask to get the cost from
-   * @param  mx The x coordinate of the cell
-   * @param  my The y coordinate of the cell
-   * @return The cost to set the cell to
-   */
-  unsigned char getMaskCost(
-    nav_msgs::msg::OccupancyGrid::ConstSharedPtr filter_mask,
-    const unsigned int mx, const unsigned int & my) const;
-
-  /**
    * @brief: Name of costmap filter info topic
    */
   std::string filter_info_topic_;
@@ -235,15 +222,14 @@ protected:
   std::string mask_topic_;
 
   /**
-   * @brief: mask_frame->global_frame_ transform tolerance
+   * @brief: mask_frame_->global_frame_ transform tolerance
    */
   tf2::Duration transform_tolerance_;
 
   /**
    * @brief: A service to enable/disable costmap filter
    */
-  nav2_util::ServiceServer<std_srvs::srv::SetBool,
-    std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>::SharedPtr enable_service_;
+  rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr enable_service_;
 
 private:
   /**

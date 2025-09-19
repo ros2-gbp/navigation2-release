@@ -52,6 +52,14 @@ using std::none_of;
 using std::pair;
 using std::string;
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
+
 class TestLifecycleNode : public nav2_util::LifecycleNode
 {
 public:
@@ -188,7 +196,7 @@ TEST_F(TestNode, testRaytracing2) {
   ASSERT_EQ(obs_before, 20);
 
   // The sensor origin will be <0,0>. So if we add an obstacle at 9,9,
-  // we would expect cells <0, 0> through <8, 8> to be traced through
+  // we would expect cells <0, 0> thru <8, 8> to be traced through
   // however the static map is not cleared by obstacle layer
   addObservation(olayer, 9.5, 9.5, MAX_Z / 2, 0.5, 0.5, MAX_Z / 2);
   layers.updateMap(0, 0, 0);
@@ -545,88 +553,4 @@ TEST_F(TestNode, testDynParamsSetStatic)
   costmap->on_deactivate(rclcpp_lifecycle::State());
   costmap->on_cleanup(rclcpp_lifecycle::State());
   costmap->on_shutdown(rclcpp_lifecycle::State());
-}
-
-
-/**
- * Test CombinationMethod::Max overwrites unknown value in ObstacleLayer.
- */
-TEST_F(TestNode, testMaxCombinationMethod) {
-  tf2_ros::Buffer tf(node_->get_clock());
-
-  // Create a costmap with full unknown space
-  nav2_costmap_2d::LayeredCostmap layers("frame", false, true);
-  layers.resizeMap(10, 10, 1, 0, 0);
-
-  std::shared_ptr<nav2_costmap_2d::ObstacleLayer> olayer = nullptr;
-  addObstacleLayer(layers, tf, node_, olayer);
-
-  addObservation(olayer, 0.0, 0.0, MAX_Z / 2, 0, 0, MAX_Z / 2);
-
-  // The observation sets the cost of the cell to 254
-  layers.updateMap(0, 0, 0);  // 0, 0, 0 is robot pose
-  // printMap(*(layers.getCostmap()));
-
-  int unknown_count = countValues(*(layers.getCostmap()), nav2_costmap_2d::NO_INFORMATION);
-
-  ASSERT_EQ(unknown_count, 99);
-}
-
-class TestNodeWithoutUnknownOverwrite : public ::testing::Test
-{
-public:
-  TestNodeWithoutUnknownOverwrite()
-  {
-    node_ = std::make_shared<TestLifecycleNode>("obstacle_test_node");
-    node_->declare_parameter("track_unknown_space", rclcpp::ParameterValue(true));
-    node_->declare_parameter("lethal_cost_threshold", rclcpp::ParameterValue(100));
-    node_->declare_parameter("trinary_costmap", rclcpp::ParameterValue(true));
-    node_->declare_parameter("transform_tolerance", rclcpp::ParameterValue(0.3));
-    node_->declare_parameter("observation_sources", rclcpp::ParameterValue(std::string("")));
-    // MaxWithoutUnknownOverwrite
-    node_->declare_parameter("obstacles.combination_method", rclcpp::ParameterValue(2));
-  }
-
-  ~TestNodeWithoutUnknownOverwrite() {}
-
-protected:
-  std::shared_ptr<TestLifecycleNode> node_;
-};
-
-/**
- * Test CombinationMethod::MaxWithoutUnknownOverwrite in ObstacleLayer.
- */
-TEST_F(TestNodeWithoutUnknownOverwrite, testMaxWithoutUnknownOverwriteCombinationMethod) {
-  tf2_ros::Buffer tf(node_->get_clock());
-
-  // Create a costmap with full unknown space
-  nav2_costmap_2d::LayeredCostmap layers("frame", false, true);
-  layers.resizeMap(10, 10, 1, 0, 0);
-
-  std::shared_ptr<nav2_costmap_2d::ObstacleLayer> olayer = nullptr;
-  addObstacleLayer(layers, tf, node_, olayer);
-
-  addObservation(olayer, 0.0, 0.0, MAX_Z / 2, 0, 0, MAX_Z / 2);
-
-  // The observation tries to set the cost of the cell to 254, but since it is unknown, it should
-  // remain unknown.
-  layers.updateMap(0, 0, 0);  // 0, 0, 0 is robot pose
-  // printMap(*(layers.getCostmap()));
-
-  int unknown_count = countValues(*(layers.getCostmap()), nav2_costmap_2d::NO_INFORMATION);
-
-  ASSERT_EQ(unknown_count, 100);
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

@@ -49,7 +49,7 @@ namespace nav2_costmap_2d
 
 SpeedFilter::SpeedFilter()
 : filter_info_sub_(nullptr), mask_sub_(nullptr),
-  speed_limit_pub_(nullptr), filter_mask_(nullptr), global_frame_(""),
+  speed_limit_pub_(nullptr), filter_mask_(nullptr), mask_frame_(""), global_frame_(""),
   speed_limit_(NO_SPEED_LIMIT), speed_limit_prev_(NO_SPEED_LIMIT)
 {
 }
@@ -68,9 +68,8 @@ void SpeedFilter::initializeFilter(
   std::string speed_limit_topic;
   declareParameter("speed_limit_topic", rclcpp::ParameterValue("speed_limit"));
   node->get_parameter(name_ + "." + "speed_limit_topic", speed_limit_topic);
-  speed_limit_topic = joinWithParentNamespace(speed_limit_topic);
 
-  filter_info_topic_ = joinWithParentNamespace(filter_info_topic);
+  filter_info_topic_ = filter_info_topic;
   // Setting new costmap filter info subscriber
   RCLCPP_INFO(
     logger_,
@@ -140,7 +139,7 @@ void SpeedFilter::filterInfoCallback(
     return;
   }
 
-  mask_topic_ = joinWithParentNamespace(msg->filter_mask_topic);
+  mask_topic_ = msg->filter_mask_topic;
 
   // Setting new filter mask subscriber
   RCLCPP_INFO(
@@ -170,6 +169,7 @@ void SpeedFilter::maskCallback(
   }
 
   filter_mask_ = msg;
+  mask_frame_ = msg->header.frame_id;
 }
 
 void SpeedFilter::process(
@@ -190,7 +190,7 @@ void SpeedFilter::process(
   geometry_msgs::msg::Pose2D mask_pose;  // robot coordinates in mask frame
 
   // Transforming robot pose from current layer frame to mask frame
-  if (!transformPose(global_frame_, pose, filter_mask_->header.frame_id, mask_pose)) {
+  if (!transformPose(global_frame_, pose, mask_frame_, mask_pose)) {
     return;
   }
 

@@ -103,7 +103,8 @@ private:
 
   nav_msgs::msg::OccupancyGrid::SharedPtr filter_mask_;
 
-  std::string global_frame_;  // Frame of current layer (master_grid)
+  std::string mask_frame_;  // Frame where mask located in
+  std::string global_frame_;  // Frame of currnet layer (master_grid)
 
   double base_, multiplier_;
   bool percentage_;

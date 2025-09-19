@@ -25,7 +25,6 @@
 
 #include "nav2_util/lifecycle_service_client.hpp"
 #include "nav2_util/node_thread.hpp"
-#include "nav2_util/service_server.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/empty.hpp"
 #include "nav2_msgs/srv/manage_lifecycle_nodes.hpp"
@@ -39,17 +38,6 @@ namespace nav2_lifecycle_manager
 using namespace std::chrono_literals;  // NOLINT
 
 using nav2_msgs::srv::ManageLifecycleNodes;
-
-/// @brief Enum to for keeping track of the state of managed nodes
-enum NodeState
-{
-  UNCONFIGURED,
-  ACTIVE,
-  INACTIVE,
-  FINALIZED,
-  UNKNOWN,
-};
-
 /**
  * @class nav2_lifecycle_manager::LifecycleManager
  * @brief Implements service interface to transition the lifecycle nodes of
@@ -75,13 +63,13 @@ protected:
   std::unique_ptr<nav2_util::NodeThread> service_thread_;
 
   // The services provided by this node
-  nav2_util::ServiceServer<ManageLifecycleNodes>::SharedPtr manager_srv_;
-  nav2_util::ServiceServer<std_srvs::srv::Trigger>::SharedPtr is_active_srv_;
+  rclcpp::Service<ManageLifecycleNodes>::SharedPtr manager_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr is_active_srv_;
   /**
    * @brief Lifecycle node manager callback function
    * @param request_header Header of the service request
    * @param request Service request
-   * @param response Service response
+   * @param reponse Service response
    */
   void managerCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
@@ -92,7 +80,7 @@ protected:
    * state.
    * @param request_header Header of the request
    * @param request Service request
-   * @param response Service response
+   * @param reponse Service response
    */
   void isActiveCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
@@ -105,16 +93,6 @@ protected:
    * @return true or false
    */
   bool startup();
-  /**
-   * @brief Configures the managed nodes.
-   * @return true or false
-   */
-  bool configure();
-  /**
-   * @brief Cleanups the managed nodes
-   * @return true or false
-   */
-  bool cleanup();
   /**
    * @brief Deactivate, clean up and shut down all the managed nodes.
    * @return true or false
@@ -148,12 +126,6 @@ protected:
    * @brief Support function for creating service clients
    */
   void createLifecycleServiceClients();
-
-  // Support function for creating service servers
-  /**
-   * @brief Support function for creating service servers
-   */
-  void createLifecycleServiceServers();
 
   // Support functions for shutdown
   /**
@@ -217,9 +189,9 @@ protected:
 
   // Diagnostics functions
   /**
-   * @brief function to check the state of Nav2 nodes
+   * @brief function to check if the Nav2 system is active
    */
-  void CreateDiagnostic(diagnostic_updater::DiagnosticStatusWrapper & stat);
+  void CreateActiveDiagnostic(diagnostic_updater::DiagnosticStatusWrapper & stat);
 
   /**
    * Register our preshutdown callback for this Node's rcl Context.
@@ -229,17 +201,11 @@ protected:
    */
   void registerRclPreshutdownCallback();
 
-  /**
-   * @brief function to check if managed nodes are active
-   */
-  bool isActive();
-
   // Timer thread to look at bond connections
   rclcpp::TimerBase::SharedPtr init_timer_;
   rclcpp::TimerBase::SharedPtr bond_timer_;
   rclcpp::TimerBase::SharedPtr bond_respawn_timer_;
   std::chrono::milliseconds bond_timeout_;
-  std::chrono::milliseconds service_timeout_;
 
   // A map of all nodes to check bond connection
   std::map<std::string, std::shared_ptr<bond::Bond>> bond_map_;
@@ -259,7 +225,7 @@ protected:
   bool autostart_;
   bool attempt_respawn_reconnection_;
 
-  NodeState managed_nodes_state_{NodeState::UNCONFIGURED};
+  bool system_active_{false};
   diagnostic_updater::Updater diagnostics_updater_;
 
   rclcpp::Time bond_respawn_start_time_{0};

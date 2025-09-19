@@ -17,32 +17,31 @@
 namespace nav2_behaviors
 {
 
-ResultStatus BackUp::onRun(const std::shared_ptr<const BackUpAction::Goal> command)
+Status BackUp::onRun(const std::shared_ptr<const BackUpAction::Goal> command)
 {
   if (command->target.y != 0.0 || command->target.z != 0.0) {
-    std::string error_msg = "Backing up in Y and Z not supported, will only move in X.";
-    RCLCPP_INFO(logger_, error_msg.c_str());
-    return ResultStatus{Status::FAILED, BackUpActionResult::INVALID_INPUT, error_msg};
+    RCLCPP_INFO(
+      logger_,
+      "Backing up in Y and Z not supported, will only move in X.");
+    return Status::FAILED;
   }
 
   // Silently ensure that both the speed and direction are negative.
   command_x_ = -std::fabs(command->target.x);
   command_speed_ = -std::fabs(command->speed);
   command_time_allowance_ = command->time_allowance;
-  command_disable_collision_checks_ = command->disable_collision_checks;
 
   end_time_ = this->clock_->now() + command_time_allowance_;
 
   if (!nav2_util::getCurrentPose(
-      initial_pose_, *tf_, local_frame_, robot_base_frame_,
+      initial_pose_, *tf_, global_frame_, robot_base_frame_,
       transform_tolerance_))
   {
-    std::string error_msg = "Initial robot pose is not available.";
-    RCLCPP_ERROR(logger_, error_msg.c_str());
-    return ResultStatus{Status::FAILED, BackUpActionResult::TF_ERROR, error_msg};
+    RCLCPP_ERROR(logger_, "Initial robot pose is not available.");
+    return Status::FAILED;
   }
 
-  return ResultStatus{Status::SUCCEEDED, BackUpActionResult::NONE, ""};
+  return Status::SUCCEEDED;
 }
 
 }  // namespace nav2_behaviors

@@ -28,7 +28,6 @@
 #include "nav2_util/simple_action_server.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_util/service_server.hpp"
 #include "nav2_msgs/action/compute_route.hpp"
 #include "nav2_msgs/action/compute_and_track_route.hpp"
 #include "nav2_msgs/msg/route.hpp"
@@ -212,8 +211,7 @@ protected:
     graph_vis_publisher_;
 
   // Set or modify graph
-  nav2_util::ServiceServer<nav2_msgs::srv::SetRouteGraph,
-    std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>::SharedPtr set_graph_service_;
+  rclcpp::Service<nav2_msgs::srv::SetRouteGraph>::SharedPtr set_graph_service_;
 
   // Internal tools
   std::shared_ptr<GraphLoader> graph_loader_;
@@ -227,7 +225,7 @@ protected:
   // State Data
   Graph graph_;
   GraphToIDMap id_to_graph_map_;
-  std::string route_frame_, base_frame_;
+  std::string route_frame_, global_frame_, base_frame_;
   double max_planning_time_;
 };
 

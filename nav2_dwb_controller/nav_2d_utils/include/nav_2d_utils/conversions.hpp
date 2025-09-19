@@ -44,7 +44,7 @@
 #include "nav_2d_msgs/msg/pose2_d_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "tf2/convert.hpp"
+#include "tf2/convert.h"
 
 namespace nav_2d_utils
 {

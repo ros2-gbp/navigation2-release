@@ -20,11 +20,11 @@
 #include <unordered_map>
 #include <set>
 
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_route/interfaces/edge_cost_function.hpp"
 #include "nav2_msgs/srv/dynamic_edges.hpp"
 #include "nav2_util/node_utils.hpp"
+#include "std_srvs/srv/trigger.hpp"
 
 namespace nav2_route
 {
@@ -79,6 +79,7 @@ public:
    * @param response Response to service (empty)
    */
   void closedEdgesCb(
+    const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<nav2_msgs::srv::DynamicEdges::Request> request,
     std::shared_ptr<nav2_msgs::srv::DynamicEdges::Response> response);
 

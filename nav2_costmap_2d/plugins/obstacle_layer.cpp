@@ -46,8 +46,6 @@
 #include "pluginlib/class_list_macros.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "nav2_costmap_2d/costmap_math.hpp"
-#include "nav2_util/node_utils.hpp"
-#include "rclcpp/version.h"
 
 PLUGINLIB_EXPORT_CLASS(nav2_costmap_2d::ObstacleLayer, nav2_costmap_2d::Layer)
 
@@ -64,10 +62,6 @@ namespace nav2_costmap_2d
 
 ObstacleLayer::~ObstacleLayer()
 {
-  auto node = node_.lock();
-  if (dyn_params_handler_ && node) {
-    node->remove_on_set_parameters_callback(dyn_params_handler_.get());
-  }
   dyn_params_handler_.reset();
   for (auto & notifier : observation_notifiers_) {
     notifier.reset();
@@ -98,15 +92,10 @@ void ObstacleLayer::onInitialize()
   node->get_parameter(name_ + "." + "footprint_clearing_enabled", footprint_clearing_enabled_);
   node->get_parameter(name_ + "." + "min_obstacle_height", min_obstacle_height_);
   node->get_parameter(name_ + "." + "max_obstacle_height", max_obstacle_height_);
+  node->get_parameter(name_ + "." + "combination_method", combination_method_);
   node->get_parameter("track_unknown_space", track_unknown_space);
   node->get_parameter("transform_tolerance", transform_tolerance);
   node->get_parameter(name_ + "." + "observation_sources", topics_string);
-  double tf_filter_tolerance = nav2_util::declare_or_get_parameter(node, name_ + "." +
-      "tf_filter_tolerance", 0.05);
-
-  int combination_method_param{};
-  node->get_parameter(name_ + "." + "combination_method", combination_method_param);
-  combination_method_ = combination_method_from_int(combination_method_param);
 
   dyn_params_handler_ = node->add_on_set_parameters_callback(
     std::bind(
@@ -193,7 +182,6 @@ void ObstacleLayer::onInitialize()
     node->get_parameter(name_ + "." + source + "." + "raytrace_min_range", raytrace_min_range);
     node->get_parameter(name_ + "." + source + "." + "raytrace_max_range", raytrace_max_range);
 
-    topic = joinWithParentNamespace(topic);
 
     RCLCPP_DEBUG(
       logger_,
@@ -230,23 +218,13 @@ void ObstacleLayer::onInitialize()
       source.c_str(), topic.c_str(),
       global_frame_.c_str(), expected_update_rate, observation_keep_time);
 
-    const auto custom_qos_profile = rclcpp::SensorDataQoS().keep_last(50);
+    rmw_qos_profile_t custom_qos_profile = rmw_qos_profile_sensor_data;
+    custom_qos_profile.depth = 50;
 
     // create a callback for the topic
     if (data_type == "LaserScan") {
-      std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
-        rclcpp_lifecycle::LifecycleNode>> sub;
-
-      // For Jazzy compatibility
-      #if RCLCPP_VERSION_GTE(29, 0, 0)
-      sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
+      auto sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
           rclcpp_lifecycle::LifecycleNode>>(node, topic, custom_qos_profile, sub_opt);
-      #else
-      sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
-          rclcpp_lifecycle::LifecycleNode>>(
-          node, topic, custom_qos_profile.get_rmw_qos_profile(), sub_opt);
-      #endif
-
       sub->unsubscribe();
 
       auto filter = std::make_shared<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>>(
@@ -271,23 +249,11 @@ void ObstacleLayer::onInitialize()
       observation_subscribers_.push_back(sub);
 
       observation_notifiers_.push_back(filter);
-      observation_notifiers_.back()->setTolerance(rclcpp::Duration::from_seconds(
-          tf_filter_tolerance));
+      observation_notifiers_.back()->setTolerance(rclcpp::Duration::from_seconds(0.05));
 
     } else {
-      std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2,
-        rclcpp_lifecycle::LifecycleNode>> sub;
-
-      // For Jazzy compatibility
-      #if RCLCPP_VERSION_GTE(29, 0, 0)
-      sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2,
+      auto sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2,
           rclcpp_lifecycle::LifecycleNode>>(node, topic, custom_qos_profile, sub_opt);
-      #else
-      sub = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2,
-          rclcpp_lifecycle::LifecycleNode>>(
-          node, topic, custom_qos_profile.get_rmw_qos_profile(), sub_opt);
-      #endif
-
       sub->unsubscribe();
 
       if (inf_is_valid) {
@@ -330,9 +296,6 @@ ObstacleLayer::dynamicParametersCallback(
   for (auto parameter : parameters) {
     const auto & param_type = parameter.get_type();
     const auto & param_name = parameter.get_name();
-    if (param_name.find(name_ + ".") != 0) {
-      continue;
-    }
 
     if (param_type == ParameterType::PARAMETER_DOUBLE) {
       if (param_name == name_ + "." + "min_obstacle_height") {
@@ -351,7 +314,7 @@ ObstacleLayer::dynamicParametersCallback(
       }
     } else if (param_type == ParameterType::PARAMETER_INTEGER) {
       if (param_name == name_ + "." + "combination_method") {
-        combination_method_ = combination_method_from_int(parameter.as_int());
+        combination_method_ = parameter.as_int();
       }
     }
   }
@@ -580,14 +543,11 @@ ObstacleLayer::updateCosts(
   }
 
   switch (combination_method_) {
-    case CombinationMethod::Overwrite:
+    case 0:  // Overwrite
       updateWithOverwrite(master_grid, min_i, min_j, max_i, max_j);
       break;
-    case CombinationMethod::Max:
+    case 1:  // Maximum
       updateWithMax(master_grid, min_i, min_j, max_i, max_j);
-      break;
-    case CombinationMethod::MaxWithoutUnknownOverwrite:
-      updateWithMaxWithoutUnknownOverwrite(master_grid, min_i, min_j, max_i, max_j);
       break;
     default:  // Nothing
       break;
@@ -676,7 +636,7 @@ ObstacleLayer::raytraceFreespace(
     return;
   }
 
-  // we can pre-compute the endpoints of the map outside of the inner loop... we'll need these later
+  // we can pre-compute the enpoints of the map outside of the inner loop... we'll need these later
   double origin_x = origin_x_, origin_y = origin_y_;
   double map_end_x = origin_x + size_x_ * resolution_;
   double map_end_y = origin_y + size_y_ * resolution_;
@@ -693,7 +653,7 @@ ObstacleLayer::raytraceFreespace(
     double wx = *iter_x;
     double wy = *iter_y;
 
-    // now we also need to make sure that the endpoint we're raytracing
+    // now we also need to make sure that the enpoint we're raytracing
     // to isn't off the costmap and scale if necessary
     double a = wx - ox;
     double b = wy - oy;

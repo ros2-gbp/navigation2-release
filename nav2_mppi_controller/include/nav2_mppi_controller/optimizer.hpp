@@ -15,16 +15,16 @@
 #ifndef NAV2_MPPI_CONTROLLER__OPTIMIZER_HPP_
 #define NAV2_MPPI_CONTROLLER__OPTIMIZER_HPP_
 
-#include <Eigen/Dense>
-
 #include <string>
 #include <memory>
+
+#include <xtensor/xtensor.hpp>
+#include <xtensor/xview.hpp>
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_core/goal_checker.hpp"
-#include "nav2_core/controller_exceptions.hpp"
 
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -84,14 +84,13 @@ public:
    * @param robot_pose Pose of the robot at given time
    * @param robot_speed Speed of the robot at given time
    * @param plan Path plan to track
-   * @param goal Given Goal pose to reach.
    * @param goal_checker Object to check if goal is completed
    * @return TwistStamped of the MPPI control
    */
   geometry_msgs::msg::TwistStamped evalControl(
     const geometry_msgs::msg::PoseStamped & robot_pose,
     const geometry_msgs::msg::Twist & robot_speed, const nav_msgs::msg::Path & plan,
-    const geometry_msgs::msg::Pose & goal, nav2_core::GoalChecker * goal_checker);
+    nav2_core::GoalChecker * goal_checker);
 
   /**
    * @brief Get the trajectories generated in a cycle for visualization
@@ -103,13 +102,7 @@ public:
    * @brief Get the optimal trajectory for a cycle for visualization
    * @return Optimal trajectory
    */
-  Eigen::ArrayXXf getOptimizedTrajectory();
-
-  /**
-   * @brief Get the optimal control sequence for a cycle for visualization
-   * @return Optimal control sequence
-   */
-  const models::ControlSequence & getOptimalControlSequence();
+  xt::xtensor<float, 2> getOptimizedTrajectory();
 
   /**
    * @brief Set the maximum speed based on the speed limits callback
@@ -120,18 +113,8 @@ public:
 
   /**
    * @brief Reset the optimization problem to initial conditions
-   * @param Whether to reset the constraints to its base values
    */
-  void reset(bool reset_dynamic_speed_limits = true);
-
-  /**
-   * @brief Get the motion model time step
-   * @return Time step of the model
-   */
-  const models::OptimizerSettings & getSettings() const
-  {
-    return settings_;
-  }
+  void reset();
 
 protected:
   /**
@@ -149,8 +132,7 @@ protected:
   void prepare(
     const geometry_msgs::msg::PoseStamped & robot_pose,
     const geometry_msgs::msg::Twist & robot_speed,
-    const nav_msgs::msg::Path & plan,
-    const geometry_msgs::msg::Pose & goal, nav2_core::GoalChecker * goal_checker);
+    const nav_msgs::msg::Path & plan, nav2_core::GoalChecker * goal_checker);
 
   /**
    * @brief Obtain the main controller's parameters
@@ -214,8 +196,8 @@ protected:
    * @param state fill state
    */
   void integrateStateVelocities(
-    Eigen::Array<float, Eigen::Dynamic, 3> & trajectories,
-    const Eigen::ArrayXXf & state) const;
+    xt::xtensor<float, 2> & trajectories,
+    const xt::xtensor<float, 2> & state) const;
 
   /**
    * @brief Update control sequence with state controls weighted by costs
@@ -224,7 +206,7 @@ protected:
   void updateControlSequence();
 
   /**
-   * @brief Convert control sequence to a twist command
+   * @brief Convert control sequence to a twist commant
    * @param stamp Timestamp to use
    * @return TwistStamped of command to send to robot base
    */
@@ -238,7 +220,7 @@ protected:
   bool isHolonomic() const;
 
   /**
-   * @brief Using control frequencies and time step size, determine if trajectory
+   * @brief Using control frequence and time step size, determine if trajectory
    * offset should be used to populate initial state of the next cycle
    */
   void setOffset(double controller_frequency);
@@ -268,12 +250,10 @@ protected:
   std::array<mppi::models::Control, 4> control_history_;
   models::Trajectories generated_trajectories_;
   models::Path path_;
-  geometry_msgs::msg::Pose goal_;
-  Eigen::ArrayXf costs_;
+  xt::xtensor<float, 1> costs_;
 
-  CriticData critics_data_ = {
-    state_, generated_trajectories_, path_, goal_,
-    costs_, settings_.model_dt, false, nullptr, nullptr,
+  CriticData critics_data_ =
+  {state_, generated_trajectories_, path_, costs_, settings_.model_dt, false, nullptr, nullptr,
     std::nullopt, std::nullopt};  /// Caution, keep references
 
   rclcpp::Logger logger_{rclcpp::get_logger("MPPIController")};

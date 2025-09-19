@@ -65,12 +65,13 @@ public:
    * @param base_frame Robot reference frame
    */
   void configure(
-    nav2_util::LifecycleNode::SharedPtr node,
+    rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     Graph & graph,
     GraphToIDMap * id_to_graph_map,
     std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & route_frame,
+    const std::string & global_frame,
     const std::string & base_frame);
 
   /**
@@ -132,6 +133,7 @@ protected:
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber_;
   std::string route_frame_;
+  std::string global_frame_;
   std::string base_frame_;
   geometry_msgs::msg::PoseStamped start_, goal_;
   bool prune_goal_, enable_search_;

@@ -18,7 +18,7 @@
 #include <memory>
 #include <set>
 
-#include "utils/test_behavior_tree_fixture.hpp"
+#include "../../test_behavior_tree_fixture.hpp"
 #include "nav2_behavior_tree/plugins/decorator/goal_updated_controller.hpp"
 
 using namespace std::chrono;  // NOLINT
@@ -32,10 +32,11 @@ public:
     // Setting fake goals on blackboard
     geometry_msgs::msg::PoseStamped goal1;
     goal1.header.stamp = node_->now();
-    nav_msgs::msg::Goals poses1;
-    poses1.goals.push_back(goal1);
+    std::vector<geometry_msgs::msg::PoseStamped> poses1;
+    poses1.push_back(goal1);
     config_->blackboard->set("goal", goal1);
-    config_->blackboard->set("goals", poses1);
+    config_->blackboard->set<std::vector<geometry_msgs::msg::PoseStamped>>("goals", poses1);
+
     bt_node_ = std::make_shared<nav2_behavior_tree::GoalUpdatedController>(
       "goal_updated_controller", *config_);
     dummy_node_ = std::make_shared<nav2_behavior_tree::DummyNode>();
@@ -63,8 +64,8 @@ TEST_F(GoalUpdatedControllerTestFixture, test_behavior)
   // Creating updated fake-goals
   geometry_msgs::msg::PoseStamped goal2;
   goal2.header.stamp = node_->now();
-  nav_msgs::msg::Goals poses2;
-  poses2.goals.push_back(goal2);
+  std::vector<geometry_msgs::msg::PoseStamped> poses2;
+  poses2.push_back(goal2);
 
   // starting in idle
   EXPECT_EQ(bt_node_->status(), BT::NodeStatus::IDLE);
@@ -85,7 +86,7 @@ TEST_F(GoalUpdatedControllerTestFixture, test_behavior)
   EXPECT_EQ(dummy_node_->status(), BT::NodeStatus::IDLE);
 
   // tick again with updated goals, dummy node should be ticked
-  config_->blackboard->set("goals", poses2);
+  config_->blackboard->set<std::vector<geometry_msgs::msg::PoseStamped>>("goals", poses2);
   dummy_node_->changeStatus(BT::NodeStatus::SUCCESS);
   EXPECT_EQ(bt_node_->executeTick(), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(dummy_node_->status(), BT::NodeStatus::IDLE);

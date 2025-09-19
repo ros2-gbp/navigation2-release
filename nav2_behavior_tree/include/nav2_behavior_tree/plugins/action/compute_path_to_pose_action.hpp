@@ -26,14 +26,9 @@ namespace nav2_behavior_tree
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::ComputePathToPose
- * @note This is an Asynchronous (long-running) node which may return a RUNNING state while executing.
- *       It will re-initialize when halted.
  */
 class ComputePathToPoseAction : public BtActionNode<nav2_msgs::action::ComputePathToPose>
 {
-  using Action = nav2_msgs::action::ComputePathToPose;
-  using ActionResult = Action::Result;
-
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::ComputePathToPoseAction
@@ -62,15 +57,9 @@ public:
   BT::NodeStatus on_aborted() override;
 
   /**
-   * @brief Function to perform some user-defined operation upon cancellation of the action
+   * @brief Function to perform some user-defined operation upon cancelation of the action
    */
   BT::NodeStatus on_cancelled() override;
-
-  /**
-   * @brief Function to perform work in a BT Node when the action server times out
-   * Such as setting the error code ID status to timed out for action clients.
-   */
-  void on_timeout() override;
 
   /**
    * \brief Override required by the a BT action. Cancel the action and set the path output
@@ -83,27 +72,15 @@ public:
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<nav_msgs::msg::Path>();
-    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-
     return providedBasicPorts(
       {
+        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathToPose node"),
         BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination to plan to"),
         BT::InputPort<geometry_msgs::msg::PoseStamped>(
-          "start",
-          "Used as the planner start pose instead of the current robot pose, if use_start is"
-                   " not false (i.e. not provided or set to true)"),
-        BT::InputPort<bool>(
-          "use_start", "For using or not using (i.e. ignoring) the provided start pose"),
+          "start", "Start pose of the path if overriding current robot pose"),
         BT::InputPort<std::string>(
           "planner_id", "",
           "Mapped name to the planner plugin type to use"),
-        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathToPose node"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The compute path to pose error code"),
-        BT::OutputPort<std::string>(
-          "error_msg", "The compute path to pose error msg"),
       });
   }
 };

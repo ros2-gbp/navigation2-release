@@ -51,6 +51,14 @@
 using geometry_msgs::msg::Point;
 using nav2_costmap_2d::CellData;
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
+
 class TestNode : public ::testing::Test
 {
 public:
@@ -117,16 +125,15 @@ void TestNode::validatePointInflation(
   bool * seen = new bool[costmap->getSizeInCellsX() * costmap->getSizeInCellsY()];
   memset(seen, false, costmap->getSizeInCellsX() * costmap->getSizeInCellsY() * sizeof(bool));
   std::map<double, std::vector<CellData>> m;
-  CellData initial(mx, my, mx, my);
+  CellData initial(costmap->getIndex(mx, my), mx, my, mx, my);
   m[0].push_back(initial);
   for (std::map<double, std::vector<CellData>>::iterator bin = m.begin();
     bin != m.end(); ++bin)
   {
     for (unsigned int i = 0; i < bin->second.size(); ++i) {
       const CellData cell = bin->second[i];
-      const auto index = costmap->getIndex(cell.x_, cell.y_);
-      if (!seen[index]) {
-        seen[index] = true;
+      if (!seen[cell.index_]) {
+        seen[cell.index_] = true;
         unsigned int dx = (cell.x_ > cell.src_x_) ? cell.x_ - cell.src_x_ : cell.src_x_ - cell.x_;
         unsigned int dy = (cell.y_ > cell.src_y_) ? cell.y_ - cell.src_y_ : cell.src_y_ - cell.y_;
         double dist = std::hypot(dx, dy);
@@ -145,19 +152,23 @@ void TestNode::validatePointInflation(
         }
 
         if (cell.x_ > 0) {
-          CellData data(cell.x_ - 1, cell.y_, cell.src_x_, cell.src_y_);
+          CellData data(costmap->getIndex(cell.x_ - 1, cell.y_),
+            cell.x_ - 1, cell.y_, cell.src_x_, cell.src_y_);
           m[dist].push_back(data);
         }
         if (cell.y_ > 0) {
-          CellData data(cell.x_, cell.y_ - 1, cell.src_x_, cell.src_y_);
+          CellData data(costmap->getIndex(cell.x_, cell.y_ - 1),
+            cell.x_, cell.y_ - 1, cell.src_x_, cell.src_y_);
           m[dist].push_back(data);
         }
         if (cell.x_ < costmap->getSizeInCellsX() - 1) {
-          CellData data(cell.x_ + 1, cell.y_, cell.src_x_, cell.src_y_);
+          CellData data(costmap->getIndex(cell.x_ + 1, cell.y_),
+            cell.x_ + 1, cell.y_, cell.src_x_, cell.src_y_);
           m[dist].push_back(data);
         }
         if (cell.y_ < costmap->getSizeInCellsY() - 1) {
-          CellData data(cell.x_, cell.y_ + 1, cell.src_x_, cell.src_y_);
+          CellData data(costmap->getIndex(cell.x_, cell.y_ + 1),
+            cell.x_, cell.y_ + 1, cell.src_x_, cell.src_y_);
           m[dist].push_back(data);
         }
       }
@@ -256,7 +267,7 @@ TEST_F(TestNode, testInflationShouldNotCreateUnknowns)
   EXPECT_EQ(countValues(*costmap, nav2_costmap_2d::NO_INFORMATION), 0u);
 }
 
-TEST_F(TestNode, testInflationInUnknown)
+TEST_F(TestNode, testInflationInUnkown)
 {
   std::vector<rclcpp::Parameter> parameters;
   // Set cost_scaling_factor parameter to 1.0 for inflation layer
@@ -291,7 +302,7 @@ TEST_F(TestNode, testInflationInUnknown)
   EXPECT_EQ(countValues(*costmap, nav2_costmap_2d::NO_INFORMATION), 4u);
 }
 
-TEST_F(TestNode, testInflationAroundUnknown)
+TEST_F(TestNode, testInflationAroundUnkown)
 {
   auto inflation_radius = 4.1;
   std::vector<rclcpp::Parameter> parameters;
@@ -535,7 +546,7 @@ TEST_F(TestNode, testInflation2)
 
   waitForMap(slayer);
 
-  // Create a small L-Shape all at once
+  // Creat a small L-Shape all at once
   addObservation(olayer, 1, 1, MAX_Z);
   addObservation(olayer, 2, 1, MAX_Z);
   addObservation(olayer, 2, 2, MAX_Z);
@@ -630,17 +641,4 @@ TEST_F(TestNode, testDynParamsSet)
   costmap->on_deactivate(rclcpp_lifecycle::State());
   costmap->on_cleanup(rclcpp_lifecycle::State());
   costmap->on_shutdown(rclcpp_lifecycle::State());
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

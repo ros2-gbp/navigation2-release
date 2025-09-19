@@ -43,7 +43,7 @@
 #include "nav2_util/geometry_utils.hpp"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-#include "tf2/utils.hpp"
+#include "tf2/utils.h"
 #pragma GCC diagnostic pop
 
 using rcl_interfaces::msg::ParameterType;
@@ -114,7 +114,7 @@ bool SimpleGoalChecker::isGoalReached(
   double dyaw = angles::shortest_angular_distance(
     tf2::getYaw(query_pose.orientation),
     tf2::getYaw(goal_pose.orientation));
-  return fabs(dyaw) <= yaw_goal_tolerance_;
+  return fabs(dyaw) < yaw_goal_tolerance_;
 }
 
 bool SimpleGoalChecker::getTolerances(
@@ -145,20 +145,18 @@ SimpleGoalChecker::dynamicParametersCallback(std::vector<rclcpp::Parameter> para
 {
   rcl_interfaces::msg::SetParametersResult result;
   for (auto & parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if (param_name.find(plugin_name_ + ".") != 0) {
-      continue;
-    }
-    if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == plugin_name_ + ".xy_goal_tolerance") {
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
+
+    if (type == ParameterType::PARAMETER_DOUBLE) {
+      if (name == plugin_name_ + ".xy_goal_tolerance") {
         xy_goal_tolerance_ = parameter.as_double();
         xy_goal_tolerance_sq_ = xy_goal_tolerance_ * xy_goal_tolerance_;
-      } else if (param_name == plugin_name_ + ".yaw_goal_tolerance") {
+      } else if (name == plugin_name_ + ".yaw_goal_tolerance") {
         yaw_goal_tolerance_ = parameter.as_double();
       }
-    } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == plugin_name_ + ".stateful") {
+    } else if (type == ParameterType::PARAMETER_BOOL) {
+      if (name == plugin_name_ + ".stateful") {
         stateful_ = parameter.as_bool();
       }
     }

@@ -48,9 +48,7 @@
 #pragma GCC diagnostic ignored "-Wreorder"
 #include "tf2_ros/message_filter.h"
 #pragma GCC diagnostic pop
-
-#include "message_filters/subscriber.hpp"
-
+#include "message_filters/subscriber.h"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "sensor_msgs/msg/point_cloud.hpp"
@@ -254,7 +252,7 @@ protected:
 
   bool rolling_window_;
   bool was_reset_;
-  nav2_costmap_2d::CombinationMethod combination_method_;
+  int combination_method_;
 };
 
 }  // namespace nav2_costmap_2d

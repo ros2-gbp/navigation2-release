@@ -20,7 +20,7 @@
 
 
 #include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_route/types.hpp"
 
 namespace nav2_route

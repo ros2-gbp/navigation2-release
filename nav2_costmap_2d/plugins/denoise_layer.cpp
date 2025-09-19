@@ -171,12 +171,12 @@ DenoiseLayer::removeSinglePixels(Image<uint8_t> & image) const
         return v == NO_INFORMATION ? FREE_SPACE : v;
       };
     auto max = [&](const std::initializer_list<uint8_t> lst) {
-        std::array<uint8_t, 3> rbuf = {
+        std::array<uint8_t, 3> buf = {
           replace_to_free(*lst.begin()),
           replace_to_free(*(lst.begin() + 1)),
           replace_to_free(*(lst.begin() + 2))
         };
-        return *std::max_element(rbuf.begin(), rbuf.end());
+        return *std::max_element(buf.begin(), buf.end());
       };
     dilate(image, max_neighbors_image, group_connectivity_type_, max);
   } else {

@@ -24,7 +24,15 @@
 
 #include "utils/utils.hpp"
 
-// Tests basic transition from configure->active->process->deactivate->cleanup
+class RosLockGuard
+{
+public:
+  RosLockGuard() {rclcpp::init(0, nullptr);}
+  ~RosLockGuard() {rclcpp::shutdown();}
+};
+RosLockGuard g_rclcpp;
+
+// Tests basic transition from configure->active->process->deactive->cleanup
 
 TEST(ControllerStateTransitionTest, ControllerNotFail)
 {
@@ -38,7 +46,6 @@ TEST(ControllerStateTransitionTest, ControllerNotFail)
   options.parameter_overrides(params);
 
   auto node = getDummyNode(options);
-  node->declare_parameter("publish_optimal_trajectory", true);
   auto tf_buffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
   auto costmap_ros = getDummyCostmapRos(costmap_settings);
   costmap_ros->setRobotFootprint(getDummySquareFootprint(0.01));
@@ -53,8 +60,6 @@ TEST(ControllerStateTransitionTest, ControllerNotFail)
   auto pose = getDummyPointStamped(node, start_pose);
   auto velocity = getDummyTwist();
   auto path = getIncrementalDummyPath(node, path_settings);
-  path.header.frame_id = costmap_ros->getGlobalFrameID();
-  pose.header.frame_id = costmap_ros->getGlobalFrameID();
 
   controller->setPlan(path);
 
@@ -65,17 +70,4 @@ TEST(ControllerStateTransitionTest, ControllerNotFail)
   controller->setSpeedLimit(1.0, true);
   controller->deactivate();
   controller->cleanup();
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

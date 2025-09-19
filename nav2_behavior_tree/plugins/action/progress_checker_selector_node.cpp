@@ -31,37 +31,19 @@ ProgressCheckerSelector::ProgressCheckerSelector(
   const BT::NodeConfiguration & conf)
 : BT::SyncActionNode(name, conf)
 {
-  initialize();
-}
+  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 
-void ProgressCheckerSelector::initialize()
-{
-  createROSInterfaces();
-}
+  getInput("topic_name", topic_name_);
 
-void ProgressCheckerSelector::createROSInterfaces()
-{
-  std::string topic_new;
-  getInput("topic_name", topic_new);
-  if (topic_new != topic_name_ || !progress_checker_selector_sub_) {
-    topic_name_ = topic_new;
-    node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
+  rclcpp::QoS qos(rclcpp::KeepLast(1));
+  qos.transient_local().reliable();
 
-    rclcpp::QoS qos(rclcpp::KeepLast(1));
-    qos.transient_local().reliable();
-
-    progress_checker_selector_sub_ = node_->create_subscription<std_msgs::msg::String>(
-      topic_name_, qos,
-        std::bind(&ProgressCheckerSelector::callbackProgressCheckerSelect, this, _1));
-  }
+  progress_checker_selector_sub_ = node_->create_subscription<std_msgs::msg::String>(
+    topic_name_, qos, std::bind(&ProgressCheckerSelector::callbackProgressCheckerSelect, this, _1));
 }
 
 BT::NodeStatus ProgressCheckerSelector::tick()
 {
-  if (!BT::isStatusActive(status())) {
-    initialize();
-  }
-
   rclcpp::spin_some(node_);
 
   // This behavior always use the last selected progress checker received from the topic input.
@@ -92,7 +74,7 @@ ProgressCheckerSelector::callbackProgressCheckerSelect(const std_msgs::msg::Stri
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::ProgressCheckerSelector>("ProgressCheckerSelector");

@@ -41,9 +41,6 @@ void ComputePathThroughPosesAction::on_tick()
 BT::NodeStatus ComputePathThroughPosesAction::on_success()
 {
   setOutput("path", result_.result->path);
-  // Set empty error code, action was successful
-  setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -51,8 +48,6 @@ BT::NodeStatus ComputePathThroughPosesAction::on_aborted()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
-  setOutput("error_code_id", result_.result->error_code);
-  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
@@ -60,30 +55,12 @@ BT::NodeStatus ComputePathThroughPosesAction::on_cancelled()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
-  // Set empty error code, action was cancelled
-  setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
-}
-
-void ComputePathThroughPosesAction::on_timeout()
-{
-  setOutput("error_code_id", ActionResult::TIMEOUT);
-  setOutput("error_msg", "Behavior Tree action client timed out waiting.");
-}
-
-void ComputePathThroughPosesAction::halt()
-{
-  nav_msgs::msg::Path empty_path;
-  setOutput("path", empty_path);
-  // DO NOT reset "error_code_id" output port, we want to read it later
-  // DO NOT reset "error_msg" output port, we want to read it later
-  BtActionNode::halt();
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

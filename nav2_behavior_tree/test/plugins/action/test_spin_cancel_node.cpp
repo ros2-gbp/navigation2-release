@@ -17,9 +17,9 @@
 #include <set>
 #include <string>
 
-#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp_v3/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "../../test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/spin_cancel_node.hpp"
 #include "lifecycle_msgs/srv/change_state.hpp"
 
@@ -36,7 +36,7 @@ protected:
     goal_handle)
   {
     while (!goal_handle->is_canceling()) {
-      // Spinning here until goal cancels
+      // Spining here until goal cancels
       std::this_thread::sleep_for(std::chrono::milliseconds(15));
     }
   }
@@ -55,7 +55,7 @@ public:
     // Create the blackboard that will be shared by all of the nodes in the tree
     config_->blackboard = BT::Blackboard::create();
     // Put items on the blackboard
-    config_->blackboard->set(
+    config_->blackboard->set<rclcpp::Node::SharedPtr>(
       "node",
       node_);
     config_->blackboard->set<std::chrono::milliseconds>(
@@ -120,7 +120,7 @@ TEST_F(CancelSpinActionTestFixture, test_ports)
 {
   std::string xml_txt =
     R"(
-      <root BTCPP_format="4">
+      <root main_tree_to_execute = "MainTree" >
         <BehaviorTree ID="MainTree">
              <CancelSpin name="SpinCancel"/>
         </BehaviorTree>
@@ -135,7 +135,7 @@ TEST_F(CancelSpinActionTestFixture, test_ports)
   // Setting target yaw
   goal_msg.target_yaw = 1.57;
 
-  // Spinning for server and sending a goal
+  // Spining for server and sending a goal
   client_->wait_for_action_server();
   client_->async_send_goal(goal_msg, send_goal_options);
 
@@ -148,7 +148,7 @@ TEST_F(CancelSpinActionTestFixture, test_ports)
   // BT node should return success, once when the goal is cancelled
   EXPECT_EQ(tree_->rootNode()->status(), BT::NodeStatus::SUCCESS);
 
-  // Adding another test case to check if the goal is in fact cancelling
+  // Adding another test case to check if the goal is infact cancelling
   EXPECT_EQ(action_server_->isGoalCancelled(), true);
 }
 
