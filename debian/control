@@ -1,0 +1,12 @@
+Source: ros-kilted-nav2-rviz-plugins
+Section: misc
+Priority: optional
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), qtbase5-dev, ros-kilted-ament-cmake, ros-kilted-ament-index-cpp, ros-kilted-ament-lint-auto <!nocheck>, ros-kilted-ament-lint-common <!nocheck>, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-common, ros-kilted-nav2-lifecycle-manager, ros-kilted-nav2-msgs, ros-kilted-nav2-route, ros-kilted-nav2-util, ros-kilted-pluginlib, ros-kilted-rclcpp, ros-kilted-rclcpp-action, ros-kilted-rviz-common, ros-kilted-rviz-default-plugins, ros-kilted-rviz-ogre-vendor, ros-kilted-rviz-rendering, ros-kilted-std-msgs, ros-kilted-tf2-geometry-msgs, ros-kilted-visualization-msgs, ros-kilted-yaml-cpp-vendor, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-nav2-rviz-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libqt5core5t64, libqt5gui5t64, libqt5opengl5, libqt5widgets5t64, ros-kilted-ament-index-cpp, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-lifecycle-manager, ros-kilted-nav2-msgs, ros-kilted-nav2-route, ros-kilted-nav2-util, ros-kilted-pluginlib, ros-kilted-rclcpp, ros-kilted-rclcpp-action, ros-kilted-rviz-common, ros-kilted-rviz-default-plugins, ros-kilted-rviz-ogre-vendor, ros-kilted-rviz-rendering, ros-kilted-std-msgs, ros-kilted-tf2-geometry-msgs, ros-kilted-visualization-msgs, ros-kilted-yaml-cpp-vendor, ros-kilted-ros-workspace
+Description: Navigation 2 plugins for rviz
