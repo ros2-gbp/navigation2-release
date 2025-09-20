@@ -1,0 +1,12 @@
+Source: ros-kilted-opennav-docking-bt
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <steve@opennav.org>
+Build-Depends: debhelper (>= 9.0.0), ros-kilted-ament-cmake, ros-kilted-ament-lint-auto <!nocheck>, ros-kilted-ament-lint-common <!nocheck>, ros-kilted-behaviortree-cpp, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-behavior-tree, ros-kilted-nav2-common, ros-kilted-nav2-core, ros-kilted-nav2-msgs, ros-kilted-nav2-util, ros-kilted-rclcpp, ros-kilted-rclcpp-action, ros-kilted-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-kilted-opennav-docking-bt
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-kilted-behaviortree-cpp, ros-kilted-geometry-msgs, ros-kilted-nav-msgs, ros-kilted-nav2-behavior-tree, ros-kilted-nav2-core, ros-kilted-nav2-msgs, ros-kilted-nav2-util, ros-kilted-rclcpp, ros-kilted-rclcpp-action, ros-kilted-ros-workspace
+Description: A set of BT nodes and XMLs for docking
