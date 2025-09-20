@@ -375,8 +375,7 @@ TEST(GoalIntentExtractorTest, test_pruning)
   GoalIntentExtractorWrapper extractor2;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber2 = nullptr;
   extractor2.configure(
-    node, graph, &id_map, nullptr, costmap_subscriber2, "map", "map",
-    "base_link");
+    node, graph, &id_map, nullptr, costmap_subscriber2, "map", "map", "base_link");
   extractor2.setStartAndGoal(start, goal);
   rtn = extractor2.pruneStartandGoal(route, poses_goal, rerouting_info);
   EXPECT_EQ(rtn.edges.size(), 2u);

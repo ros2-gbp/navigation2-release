@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.8)
 project(nav2_route CXX)
 
 find_package(ament_cmake REQUIRED)
+find_package(backward_ros REQUIRED)
 find_package(nav2_common REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
@@ -13,6 +14,7 @@ find_package(pluginlib REQUIRED)
 find_package(nav2_core REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(tf2 REQUIRED)
 find_package(nav2_util REQUIRED)
 find_package(angles REQUIRED)
 find_package(visualization_msgs REQUIRED)
@@ -22,26 +24,30 @@ find_package(nlohmann_json REQUIRED)
 
 nav2_package()
 
+set(executable_name route_server)
+set(library_name ${executable_name}_core)
+
 include_directories(
   include
 )
 
-set(executable_name route_server)
-set(library_name ${executable_name}_core)
-
 set(dependencies
+  nav2_core
   rclcpp
-  rclcpp_lifecycle
+  rclcpp_action
   rclcpp_components
-  std_msgs
-  geometry_msgs
   nav2_costmap_2d
+  nav2_msgs
+  nav2_util
   pluginlib
+  rcl_interfaces
+  geometry_msgs
   visualization_msgs
+  std_msgs
   nav_msgs
   tf2_ros
-  nav2_core
-  nanoflann
+  tf2
+  angles
   nlohmann_json
 )
 
@@ -58,7 +64,6 @@ add_library(${library_name} SHARED
   src/graph_saver.cpp
   src/goal_intent_extractor.cpp
 )
-
 ament_target_dependencies(${library_name}
   ${dependencies}
 )
@@ -68,11 +73,7 @@ add_executable(${executable_name}
   src/main.cpp
 )
 
-target_link_libraries(${executable_name} ${library_name})
-
-ament_target_dependencies(${executable_name}
-  ${dependencies}
-)
+target_link_libraries(${executable_name} PRIVATE ${library_name})
 
 rclcpp_components_register_nodes(${library_name} "nav2_route::RouteServer")
 
@@ -87,7 +88,6 @@ add_library(edge_scorers SHARED
   src/plugins/edge_cost_functions/goal_orientation_scorer.cpp
   src/plugins/edge_cost_functions/start_pose_orientation_scorer.cpp
 )
-
 ament_target_dependencies(edge_scorers
   ${dependencies}
 )
@@ -100,7 +100,6 @@ add_library(route_operations SHARED
   src/plugins/route_operations/collision_monitor.cpp
   src/plugins/route_operations/time_marker.cpp
 )
-
 ament_target_dependencies(route_operations
   ${dependencies}
 )
@@ -109,17 +108,15 @@ ament_target_dependencies(route_operations
 add_library(graph_file_loaders SHARED
     src/plugins/graph_file_loaders/geojson_graph_file_loader.cpp
 )
-
 ament_target_dependencies(graph_file_loaders
-    ${dependencies}
+  ${dependencies}
 )
 
 add_library(graph_file_savers SHARED
     src/plugins/graph_file_savers/geojson_graph_file_saver.cpp
 )
-
 ament_target_dependencies(graph_file_savers
-    ${dependencies}
+  ${dependencies}
 )
 
 pluginlib_export_plugin_description_file(nav2_route plugins.xml)
@@ -133,6 +130,7 @@ install(TARGETS ${executable_name}
 )
 
 install(TARGETS ${library_name} edge_scorers route_operations graph_file_loaders graph_file_savers
+  EXPORT export_${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -150,7 +148,8 @@ if(BUILD_TESTING)
   add_subdirectory(test)
 endif()
 
-ament_export_include_directories(include)
+ament_export_include_directories(include/${PROJECT_NAME})
 ament_export_dependencies(${dependencies})
-ament_export_libraries(${library_name} edge_scorers route_operations graph_file_loaders)
+ament_export_libraries(${library_name} edge_scorers route_operations graph_file_loaders graph_file_savers)
+ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_package()

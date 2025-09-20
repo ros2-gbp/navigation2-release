@@ -62,6 +62,7 @@ BT::NodeStatus ComputeAndTrackRouteAction::on_success()
 {
   resetFeedbackAndOutputPorts();
   setOutput("execution_duration", result_.result->execution_duration);
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -69,6 +70,7 @@ BT::NodeStatus ComputeAndTrackRouteAction::on_aborted()
 {
   resetFeedbackAndOutputPorts();
   setOutput("execution_duration", builtin_interfaces::msg::Duration());
+  setOutput("error_code_id", result_.result->error_code);
   return BT::NodeStatus::FAILURE;
 }
 
@@ -77,6 +79,7 @@ BT::NodeStatus ComputeAndTrackRouteAction::on_cancelled()
   resetFeedbackAndOutputPorts();
   // Set empty error code, action was cancelled
   setOutput("execution_duration", builtin_interfaces::msg::Duration());
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -160,7 +163,7 @@ void ComputeAndTrackRouteAction::resetFeedbackAndOutputPorts()
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

@@ -31,6 +31,9 @@ namespace nav2_behavior_tree
  */
 class NavigateThroughPosesAction : public BtActionNode<nav2_msgs::action::NavigateThroughPoses>
 {
+  using Action = nav2_msgs::action::NavigateThroughPoses;
+  using ActionResult = Action::Result;
+
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::NavigateThroughPosesAction
@@ -49,6 +52,21 @@ public:
   void on_tick() override;
 
   /**
+   * @brief Function to perform some user-defined operation upon successful completion of the action
+   */
+  BT::NodeStatus on_success() override;
+
+  /**
+   * @brief Function to perform some user-defined operation upon abortion of the action
+   */
+  BT::NodeStatus on_aborted() override;
+
+  /**
+   * @brief Function to perform some user-defined operation upon cancellation of the action
+   */
+  BT::NodeStatus on_cancelled() override;
+
+  /**
    * @brief Creates list of BT ports
    * @return BT::PortsList Containing basic ports along with node-specific ports
    */
@@ -59,6 +77,8 @@ public:
         BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
           "goals", "Destinations to plan through"),
         BT::InputPort<std::string>("behavior_tree", "Behavior tree to run"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The navigate through poses error code"),
       });
   }
 };

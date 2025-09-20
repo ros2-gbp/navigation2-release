@@ -18,7 +18,7 @@
 #include <string>
 
 #include "nav2_msgs/action/compute_route.hpp"
-#include "nav_msgs/msg/path.h"
+#include "nav_msgs/msg/path.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 
@@ -97,10 +97,11 @@ public:
           "use_poses", false, "Whether to use poses or IDs for start and goal"),
         BT::OutputPort<ActionResult::_route_type>(
           "route", "The route computed by ComputeRoute node"),
-        BT::OutputPort<builtin_interfaces::msg::Duration>(
-          "planning_time",
+        BT::OutputPort<builtin_interfaces::msg::Duration>("planning_time",
           "Time taken to compute route"),
         BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputeRoute node"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The compute route error code"),
       });
   }
 };

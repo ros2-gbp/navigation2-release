@@ -25,6 +25,9 @@ AssistedTeleopAction::AssistedTeleopAction(
   const std::string & action_name,
   const BT::NodeConfiguration & conf)
 : BtActionNode<nav2_msgs::action::AssistedTeleop>(xml_tag_name, action_name, conf)
+{}
+
+void AssistedTeleopAction::initialize()
 {
   double time_allowance;
   getInput("time_allowance", time_allowance);
@@ -36,19 +39,36 @@ AssistedTeleopAction::AssistedTeleopAction(
 
 void AssistedTeleopAction::on_tick()
 {
+  if (!BT::isStatusActive(status())) {
+    initialize();
+  }
+
   if (is_recovery_) {
     increment_recovery_count();
   }
 }
 
+BT::NodeStatus AssistedTeleopAction::on_success()
+{
+  setOutput("error_code_id", ActionResult::NONE);
+  return BT::NodeStatus::SUCCESS;
+}
+
 BT::NodeStatus AssistedTeleopAction::on_aborted()
 {
+  setOutput("error_code_id", result_.result->error_code);
   return is_recovery_ ? BT::NodeStatus::FAILURE : BT::NodeStatus::SUCCESS;
+}
+
+BT::NodeStatus AssistedTeleopAction::on_cancelled()
+{
+  setOutput("error_code_id", ActionResult::NONE);
+  return BT::NodeStatus::SUCCESS;
 }
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

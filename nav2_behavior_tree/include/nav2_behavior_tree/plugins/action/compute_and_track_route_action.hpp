@@ -101,6 +101,8 @@ public:
         BT::OutputPort<builtin_interfaces::msg::Duration>(
           "execution_duration",
           "Time taken to compute and track route"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The compute route error code"),
         BT::OutputPort<uint16_t>(
           "last_node_id",
           "ID of the previous node"),

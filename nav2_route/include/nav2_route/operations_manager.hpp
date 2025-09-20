@@ -45,7 +45,7 @@ public:
    * @brief A constructor for nav2_route::OperationsManager
    */
   explicit OperationsManager(
-    rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+    nav2_util::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber);
 
   /**

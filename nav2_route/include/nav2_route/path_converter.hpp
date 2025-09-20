@@ -51,7 +51,7 @@ public:
    * @brief Configure the object
    * @param node Node to use to get params and create interfaces
    */
-  void configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node);
+  void configure(nav2_util::LifecycleNode::SharedPtr node);
 
   /**
    * @brief Convert a Route into a dense path

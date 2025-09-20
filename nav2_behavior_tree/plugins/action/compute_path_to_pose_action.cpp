@@ -24,7 +24,7 @@ ComputePathToPoseAction::ComputePathToPoseAction(
   const std::string & xml_tag_name,
   const std::string & action_name,
   const BT::NodeConfiguration & conf)
-: BtActionNode<nav2_msgs::action::ComputePathToPose>(xml_tag_name, action_name, conf)
+: BtActionNode<Action>(xml_tag_name, action_name, conf)
 {
 }
 
@@ -32,14 +32,33 @@ void ComputePathToPoseAction::on_tick()
 {
   getInput("goal", goal_.goal);
   getInput("planner_id", goal_.planner_id);
-  if (getInput("start", goal_.start)) {
-    goal_.use_start = true;
+
+  // if "use_start" is provided try to enforce it (true or false), but we cannot enforce true if
+  // start is not provided
+  goal_.use_start = false;
+  if (getInput("use_start", goal_.use_start)) {
+    if (goal_.use_start && !getInput("start", goal_.start)) {
+      // in case we don't have a "start" pose
+      goal_.use_start = false;
+      RCLCPP_ERROR(
+          node_->get_logger(),
+          "use_start is set to true but no start pose was provided, falling back to default "
+          "behavior, i.e. using the current robot pose");
+    }
+  } else {
+    // else if "use_start" is not provided, but "start" is, then use it in order to not change
+    // the legacy behavior
+    if (getInput("start", goal_.start)) {
+      goal_.use_start = true;
+    }
   }
 }
 
 BT::NodeStatus ComputePathToPoseAction::on_success()
 {
   setOutput("path", result_.result->path);
+  // Set empty error code, action was successful
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -47,6 +66,7 @@ BT::NodeStatus ComputePathToPoseAction::on_aborted()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
+  setOutput("error_code_id", result_.result->error_code);
   return BT::NodeStatus::FAILURE;
 }
 
@@ -54,6 +74,8 @@ BT::NodeStatus ComputePathToPoseAction::on_cancelled()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
+  // Set empty error code, action was cancelled
+  setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -66,7 +88,7 @@ void ComputePathToPoseAction::halt()
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   BT::NodeBuilder builder =

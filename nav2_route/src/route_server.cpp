@@ -35,22 +35,35 @@ RouteServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
     get_node_base_interface(),
     get_node_timers_interface());
   tf_->setCreateTimerInterface(timer_interface);
-  transform_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_);
+  transform_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_, this, true);
 
   auto node = shared_from_this();
   graph_vis_publisher_ =
     node->create_publisher<visualization_msgs::msg::MarkerArray>(
     "route_graph", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
 
-  compute_route_server_ = std::make_shared<ComputeRouteServer>(
-    node, "compute_route",
-    std::bind(&RouteServer::computeRoute, this),
-    nullptr, std::chrono::milliseconds(500), true);
+  declare_parameter_if_not_declared(
+    node, "action_server_result_timeout", rclcpp::ParameterValue(10.0));
+  double action_server_result_timeout = 10.0;
+  get_parameter("action_server_result_timeout", action_server_result_timeout);
+  rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
+  server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
 
-  compute_and_track_route_server_ = std::make_shared<ComputeAndTrackRouteServer>(
-    node, "compute_and_track_route",
+  compute_route_server_ = std::make_unique<ComputeRouteServer>(
+    shared_from_this(),
+    "compute_route",
+    std::bind(&RouteServer::computeRoute, this),
+    nullptr,
+    std::chrono::milliseconds(500),
+    true, server_options);
+
+  compute_and_track_route_server_ = std::make_unique<ComputeAndTrackRouteServer>(
+    shared_from_this(),
+    "compute_and_track_route",
     std::bind(&RouteServer::computeAndTrackRoute, this),
-    nullptr, std::chrono::milliseconds(500), true);
+    nullptr,
+    std::chrono::milliseconds(500),
+    true, server_options);
 
   set_graph_service_ = node->create_service<nav2_msgs::srv::SetRouteGraph>(
     std::string(node->get_name()) + "/set_route_graph",
@@ -61,15 +74,15 @@ RouteServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
   declare_parameter_if_not_declared(
     node, "route_frame", rclcpp::ParameterValue(std::string("map")));
   declare_parameter_if_not_declared(
-    node, "global_frame", rclcpp::ParameterValue(std::string("map")));
-  declare_parameter_if_not_declared(
     node, "base_frame", rclcpp::ParameterValue(std::string("base_link")));
+  declare_parameter_if_not_declared(
+    node, "global_frame", rclcpp::ParameterValue(std::string("map")));
   declare_parameter_if_not_declared(
     node, "max_planning_time", rclcpp::ParameterValue(2.0));
 
   route_frame_ = node->get_parameter("route_frame").as_string();
-  global_frame_ = node->get_parameter("global_frame").as_string();
   base_frame_ = node->get_parameter("base_frame").as_string();
+  global_frame_ = node->get_parameter("global_frame").as_string();
   max_planning_time_ = node->get_parameter("max_planning_time").as_double();
 
   // Create costmap subscriber
@@ -87,8 +100,8 @@ RouteServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
 
     goal_intent_extractor_ = std::make_shared<GoalIntentExtractor>();
     goal_intent_extractor_->configure(
-      node, graph_, &id_to_graph_map_, tf_, costmap_subscriber_, route_frame_,
-      global_frame_, base_frame_);
+      node, graph_, &id_to_graph_map_, tf_, costmap_subscriber_,
+      route_frame_, global_frame_, base_frame_);
 
     route_planner_ = std::make_shared<RoutePlanner>();
     route_planner_->configure(node, tf_, costmap_subscriber_);
@@ -275,8 +288,7 @@ RouteServer::processRouteRequest(
 
       // Find the route
       Route route = findRoute(goal, rerouting_info);
-      RCLCPP_INFO(
-        get_logger(), "Route found with %zu nodes and %zu edges",
+      RCLCPP_INFO(get_logger(), "Route found with %zu nodes and %zu edges",
         route.edges.size() + 1u, route.edges.size());
       auto path = path_converter_->densify(route, rerouting_info, route_frame_, this->now());
 
@@ -303,32 +315,41 @@ RouteServer::processRouteRequest(
     }
   } catch (nav2_core::NoValidRouteCouldBeFound & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::NO_VALID_ROUTE;
     action_server->terminate_current(result);
   } catch (nav2_core::TimedOut & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::TIMEOUT;
     action_server->terminate_current(result);
   } catch (nav2_core::RouteTFError & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::TF_ERROR;
     action_server->terminate_current(result);
   } catch (nav2_core::NoValidGraph & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::NO_VALID_GRAPH;
     action_server->terminate_current(result);
   } catch (nav2_core::IndeterminantNodesOnGraph & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::INDETERMINANT_NODES_ON_GRAPH;
     action_server->terminate_current(result);
   } catch (nav2_core::InvalidEdgeScorerUse & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::INVALID_EDGE_SCORER_USE;
     action_server->terminate_current(result);
   } catch (nav2_core::OperationFailed & ex) {
     // A special case since Operation Failed is only in Compute & Track
     // actions, specifying it to allow otherwise fully shared code
     exceptionWarning(goal, ex);
+    result->error_code = ComputeAndTrackRoute::Result::OPERATION_FAILED;
     action_server->terminate_current(result);
   } catch (nav2_core::RouteException & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::UNKNOWN;
     action_server->terminate_current(result);
   } catch (std::exception & ex) {
     exceptionWarning(goal, ex);
+    result->error_code = ActionT::Result::UNKNOWN;
     action_server->terminate_current(result);
   }
 }

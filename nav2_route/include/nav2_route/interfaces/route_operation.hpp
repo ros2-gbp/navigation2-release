@@ -84,7 +84,7 @@ public:
    * to correlate an operation instance to the navigation graph operation calls
    */
   virtual void configure(
-    const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+    const nav2_util::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & name) = 0;
 

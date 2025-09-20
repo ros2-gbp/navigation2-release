@@ -36,7 +36,6 @@ using namespace nav2_route; //NOLINT
 
 TEST(GraphSaver, test_invalid_plugin)
 {
-  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   auto node = std::make_shared<nav2_util::LifecycleNode>("graph_saver_test");
   auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
   std::string frame = "map";
@@ -51,7 +50,7 @@ TEST(GraphSaver, test_invalid_plugin)
   nav2_util::declare_parameter_if_not_declared(
     node, "graph_file_saver", rclcpp::ParameterValue(default_plugin));
 
-  ASSERT_DEATH(GraphSaver graph_saver(node, tf, frame), "");
+  EXPECT_THROW(GraphSaver graph_saver(node, tf, frame), std::runtime_error);
 }
 
 TEST(GraphSaver, test_empty_filename)
@@ -144,7 +143,7 @@ TEST(GraphSaver, test_transformation_api)
   tf_broadcaster->sendTransform(transform);
   rclcpp::Rate(1).sleep();
   tf_broadcaster->sendTransform(transform);
-  rclcpp::spin_some(node->get_node_base_interface());
+  rclcpp::spin_all(node->get_node_base_interface(), std::chrono::milliseconds(50));
 
   GraphSaver graph_saver(node, tf, frame);
   std::string file_path = "test.geojson";

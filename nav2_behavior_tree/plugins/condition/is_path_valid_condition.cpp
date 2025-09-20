@@ -29,11 +29,19 @@ IsPathValidCondition::IsPathValidCondition(
   client_ = node_->create_client<nav2_msgs::srv::IsPathValid>("is_path_valid");
 
   server_timeout_ = config().blackboard->template get<std::chrono::milliseconds>("server_timeout");
+}
+
+void IsPathValidCondition::initialize()
+{
   getInput<std::chrono::milliseconds>("server_timeout", server_timeout_);
 }
 
 BT::NodeStatus IsPathValidCondition::tick()
 {
+  if (!BT::isStatusActive(status())) {
+    initialize();
+  }
+
   nav_msgs::msg::Path path;
   getInput("path", path);
 
@@ -54,7 +62,7 @@ BT::NodeStatus IsPathValidCondition::tick()
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::IsPathValidCondition>("IsPathValid");

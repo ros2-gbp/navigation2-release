@@ -17,7 +17,13 @@
 
 #include <memory>
 #include <string>
+
+// xtensor creates warnings that needs to be ignored as we are building with -Werror
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 #include <xtensor/xtensor.hpp>
+#pragma GCC diagnostic pop
 
 #include "nav_msgs/msg/path.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -73,7 +79,9 @@ public:
     * @brief Add an optimal trajectory to visualize
     * @param trajectory Optimal trajectory
     */
-  void add(const xt::xtensor<float, 2> & trajectory, const std::string & marker_namespace);
+  void add(
+    const xt::xtensor<float, 2> & trajectory, const std::string & marker_namespace,
+    const builtin_interfaces::msg::Time & cmd_stamp);
 
   /**
     * @brief Add candidate trajectories to visualize
@@ -97,7 +105,9 @@ protected:
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>>
   trajectories_publisher_;
   std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> transformed_path_pub_;
+  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> optimal_path_pub_;
 
+  std::unique_ptr<nav_msgs::msg::Path> optimal_path_;
   std::unique_ptr<visualization_msgs::msg::MarkerArray> points_;
   int marker_id_ = 0;
 

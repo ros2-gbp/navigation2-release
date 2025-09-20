@@ -17,7 +17,13 @@
 
 #include <memory>
 #include <vector>
+
+// xtensor creates warnings that needs to be ignored as we are building with -Werror
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 #include <xtensor/xtensor.hpp>
+#pragma GCC diagnostic pop
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_core/goal_checker.hpp"
@@ -32,14 +38,15 @@ namespace mppi
 
 /**
  * @struct mppi::CriticData
- * @brief Data to pass to critics for scoring, including state, trajectories, path, costs, and
- * important parameters to share
+ * @brief Data to pass to critics for scoring, including state, trajectories,
+ * pruned path, global goal, costs, and important parameters to share
  */
 struct CriticData
 {
   const models::State & state;
   const models::Trajectories & trajectories;
   const models::Path & path;
+  const geometry_msgs::msg::Pose & goal;
 
   xt::xtensor<float, 1> & costs;
   float & model_dt;
