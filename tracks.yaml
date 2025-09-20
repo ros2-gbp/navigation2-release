@@ -241,7 +241,7 @@ tracks:
     - git-bloom-generate -y rosrpm --prefix release/:{ros_distro} :{ros_distro} -i
       :{release_inc} --os-name rhel
     devel_branch: kilted
-    last_version: 1.4.1
+    last_version: 1.4.2
     name: navigation2
     patches: null
     release_inc: '1'
