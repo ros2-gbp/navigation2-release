@@ -14,13 +14,13 @@
 
 #include <gtest/gtest.h>
 
-#include <math.h>
 #include <chrono>
+#include <cmath>
+#include <limits>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
-#include <limits>
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_util/lifecycle_node.hpp"
@@ -434,13 +434,13 @@ TEST_F(Tester, testVelocityPolygonOutOfRangeVelocity)
   ASSERT_EQ(poly.size(), 0u);
 
 
-  // Publish out of range cmd_vel(linear) and check that polygon is still emtpy
+  // Publish out of range cmd_vel(linear) and check that polygon is still empty
   nav2_collision_monitor::Velocity vel{0.6, 0.0, 0.0};
   velocity_polygon_->updatePolygon(vel);
   ASSERT_FALSE(waitPolygon(500ms, poly));
   ASSERT_EQ(poly.size(), 0u);
 
-  // Publish out of range cmd_vel(rotation) and check that polygon is still emtpy
+  // Publish out of range cmd_vel(rotation) and check that polygon is still empty
   vel = {0.3, 0.0, 1.5};
   velocity_polygon_->updatePolygon(vel);
   ASSERT_FALSE(waitPolygon(500ms, poly));

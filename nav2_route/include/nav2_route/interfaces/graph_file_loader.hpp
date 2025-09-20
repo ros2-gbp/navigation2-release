@@ -20,7 +20,7 @@
 
 
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "nav2_route/types.hpp"
 
 namespace nav2_route
@@ -50,7 +50,7 @@ public:
    * @param parent pointer to user's node
    */
   virtual void configure(
-    const nav2_util::LifecycleNode::SharedPtr node) = 0;
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr node) = 0;
 
   /**
    * @brief Method to load the graph from the filepath

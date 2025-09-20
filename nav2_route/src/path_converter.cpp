@@ -37,7 +37,7 @@ void PathConverter::configure(nav2_util::LifecycleNode::SharedPtr node)
     node, "smooth_corners", rclcpp::ParameterValue(false));
   smooth_corners_ = node->get_parameter("smooth_corners").as_bool();
 
-  path_pub_ = node->create_publisher<nav_msgs::msg::Path>("plan", 10);
+  path_pub_ = node->create_publisher<nav_msgs::msg::Path>("plan", 1);
   path_pub_->on_activate();
   logger_ = node->get_logger();
 }

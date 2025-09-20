@@ -110,7 +110,7 @@ struct SmootherParams
  * @struct nav2_smac_planner::TurnDirection
  * @brief A struct with the motion primitive's direction embedded
  */
-enum struct TurnDirection
+enum class TurnDirection
 {
   UNKNOWN = 0,
   FORWARD = 1,
@@ -186,6 +186,17 @@ struct MotionPrimitive
   float straight_length;
   bool left_turn;
   MotionPoses poses;
+};
+
+/**
+ * @struct nav2_smac_planner::GoalState
+ * @brief A struct to store the goal state
+ */
+template<typename NodeT>
+struct GoalState
+{
+  NodeT * goal = nullptr;
+  bool is_valid = true;
 };
 
 typedef std::vector<MotionPrimitive> MotionPrimitives;

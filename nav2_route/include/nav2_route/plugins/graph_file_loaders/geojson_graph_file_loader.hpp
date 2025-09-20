@@ -19,7 +19,6 @@
 
 #include "nav2_core/route_exceptions.hpp"
 #include "nav2_route/interfaces/graph_file_loader.hpp"
-#include "nav2_util/lifecycle_node.hpp"
 
 #ifndef NAV2_ROUTE__PLUGINS__GRAPH_FILE_LOADERS__GEOJSON_GRAPH_FILE_LOADER_HPP_
 #define NAV2_ROUTE__PLUGINS__GRAPH_FILE_LOADERS__GEOJSON_GRAPH_FILE_LOADER_HPP_
@@ -51,7 +50,7 @@ public:
    * @param parent pointer to user's node
    */
   void configure(
-    const nav2_util::LifecycleNode::SharedPtr node) override;
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr node) override;
 
   /**
    * @brief Loads the geojson file into the graph

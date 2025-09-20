@@ -19,7 +19,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "utils/test_action_server.hpp"
+#include "nav2_behavior_tree/utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/compute_and_track_route_cancel_node.hpp"
 #include "lifecycle_msgs/srv/change_state.hpp"
 
@@ -49,9 +49,7 @@ class CancelComputeAndTrackRouteActionTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ =
-      std::make_shared<rclcpp::Node>(
-      "cancel_compute_and_track_route_action_test_fixture");
+    node_ = std::make_shared<rclcpp::Node>("cancel_compute_and_track_route_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -132,8 +130,8 @@ TEST_F(CancelComputeAndTrackRouteActionTestFixture, test_ports)
       </root>)";
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
-  auto send_goal_options =
-    rclcpp_action::Client<nav2_msgs::action::ComputeAndTrackRoute>::SendGoalOptions();
+  auto send_goal_options = rclcpp_action::Client<
+    nav2_msgs::action::ComputeAndTrackRoute>::SendGoalOptions();
 
   // Creating a dummy goal_msg
   auto goal_msg = nav2_msgs::action::ComputeAndTrackRoute::Goal();

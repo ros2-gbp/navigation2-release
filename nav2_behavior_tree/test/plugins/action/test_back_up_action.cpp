@@ -20,7 +20,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "utils/test_action_server.hpp"
+#include "nav2_behavior_tree/utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/back_up_action.hpp"
 
 class BackUpActionServer : public TestActionServer<nav2_msgs::action::BackUp>
@@ -131,18 +131,20 @@ TEST_F(BackUpActionTestFixture, test_ports)
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_dist"), 0.15);
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_speed"), 0.025);
+  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), false);
 
   xml_txt =
     R"(
       <root BTCPP_format="4">
         <BehaviorTree ID="MainTree">
-            <BackUp backup_dist="2" backup_speed="0.26" />
+            <BackUp backup_dist="2" backup_speed="0.26" disable_collision_checks="true" />
         </BehaviorTree>
       </root>)";
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_dist"), 2.0);
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_speed"), 0.26);
+  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), true);
 }
 
 TEST_F(BackUpActionTestFixture, test_tick)

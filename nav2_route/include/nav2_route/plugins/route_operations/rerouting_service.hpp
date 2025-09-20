@@ -48,7 +48,7 @@ public:
    * @brief Configure
    */
   void configure(
-    const nav2_util::LifecycleNode::SharedPtr node,
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & name) override;
 
@@ -90,7 +90,6 @@ public:
    * @param response, returns success
    */
   void serviceCb(
-    const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
     std::shared_ptr<std_srvs::srv::Trigger::Response> response);
 

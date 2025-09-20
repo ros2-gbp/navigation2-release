@@ -139,7 +139,7 @@ public:
 
   bool isRequestValidWrapper()
   {
-    return isRequestValid<ComputeAndTrackRoute>(compute_and_track_route_server_);
+    return isRequestValid(compute_and_track_route_server_);
   }
 
   void setNontrivialGraph()

@@ -26,14 +26,6 @@
 
 using json = nlohmann::json;
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
-
 TEST(NodeLatticeTest, parser_test)
 {
   std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("nav2_smac_planner");
@@ -53,8 +45,8 @@ TEST(NodeLatticeTest, parser_test)
   nav2_smac_planner::MotionPose pose;
 
   json jsonMetaData = j["lattice_metadata"];
-  json jsonPrimatives = j["primitives"];
-  json jsonPose = jsonPrimatives[0]["poses"][0];
+  json jsonPrimitives = j["primitives"];
+  json jsonPose = jsonPrimitives[0]["poses"][0];
 
   nav2_smac_planner::fromJsonToMetaData(jsonMetaData, metaData);
 
@@ -67,10 +59,10 @@ TEST(NodeLatticeTest, parser_test)
   EXPECT_EQ(metaData.motion_model, std::string("ackermann"));
 
   std::vector<nav2_smac_planner::MotionPrimitive> myPrimitives;
-  for (unsigned int i = 0; i < jsonPrimatives.size(); ++i) {
-    nav2_smac_planner::MotionPrimitive newPrimative;
-    nav2_smac_planner::fromJsonToMotionPrimitive(jsonPrimatives[i], newPrimative);
-    myPrimitives.push_back(newPrimative);
+  for (unsigned int i = 0; i < jsonPrimitives.size(); ++i) {
+    nav2_smac_planner::MotionPrimitive newPrimitive;
+    nav2_smac_planner::fromJsonToMotionPrimitive(jsonPrimitives[i], newPrimitive);
+    myPrimitives.push_back(newPrimitive);
   }
 
   // Checks for parsing primitives
@@ -303,10 +295,8 @@ TEST(NodeLatticeTest, test_get_neighbors)
     std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, lnode);
   checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
 
-  std::function<bool(const uint64_t &,
-    nav2_smac_planner::NodeLattice * &)> neighborGetter =
-    [&, this](const uint64_t & index,
-    nav2_smac_planner::NodeLattice * & neighbor_rtn) -> bool
+  std::function<bool(const uint64_t &, nav2_smac_planner::NodeLattice * &)> neighborGetter =
+    [](const uint64_t &, nav2_smac_planner::NodeLattice * &) -> bool
     {
       // because we don't return a real object
       return false;
@@ -396,4 +386,17 @@ TEST(NodeLatticeTest, test_node_lattice_custom_footprint)
   }
 
   delete costmap;
+}
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

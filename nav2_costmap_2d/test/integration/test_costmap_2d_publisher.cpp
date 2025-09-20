@@ -22,14 +22,6 @@
 #include "tf2_ros/transform_listener.h"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
-
 class CostmapRosLifecycleNode : public nav2_util::LifecycleNode
 {
 public:
@@ -45,7 +37,6 @@ public:
     costmap_ros_ = std::make_shared<nav2_costmap_2d::Costmap2DROS>(
       name_,
       std::string{get_namespace()},
-      name_,
       get_parameter("use_sim_time").as_bool());
     costmap_thread_ = std::make_unique<nav2_util::NodeThread>(costmap_ros_);
 
@@ -178,4 +169,17 @@ TEST_F(CostmapRosTestFixture, costmap_pub_test)
   }
 
   SUCCEED();
+}
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

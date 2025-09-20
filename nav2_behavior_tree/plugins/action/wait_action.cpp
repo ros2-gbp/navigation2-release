@@ -52,6 +52,33 @@ void WaitAction::on_tick()
   increment_recovery_count();
 }
 
+BT::NodeStatus WaitAction::on_success()
+{
+  setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
+  return BT::NodeStatus::SUCCESS;
+}
+
+BT::NodeStatus WaitAction::on_aborted()
+{
+  setOutput("error_code_id", result_.result->error_code);
+  setOutput("error_msg", result_.result->error_msg);
+  return BT::NodeStatus::FAILURE;
+}
+
+BT::NodeStatus WaitAction::on_cancelled()
+{
+  setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
+  return BT::NodeStatus::SUCCESS;
+}
+
+void WaitAction::on_timeout()
+{
+  setOutput("error_code_id", ActionResult::TIMEOUT);
+  setOutput("error_msg", "Behavior Tree action client timed out waiting.");
+}
+
 }  // namespace nav2_behavior_tree
 
 #include "behaviortree_cpp/bt_factory.h"

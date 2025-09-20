@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// C++
-#include <stdio.h>
-
 // QT
 #include <QLineEdit>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
+
+// C++
+#include <chrono>
+#include <memory>
+#include <sstream>
+#include <string>
+
+#include <rclcpp/rclcpp.hpp>
 #include <rviz_common/display_context.hpp>
 
 #include "nav2_util/geometry_utils.hpp"
@@ -147,7 +152,7 @@ DockingPanel::DockingPanel(QWidget * parent)
 
   // ROSAction Transitions: So when actions are updated remotely (failing, succeeding, etc)
   // the state of the application will also update. This means that if in the processing
-  // states and then goes inactive, move back to the idle state. Vise versa as well.
+  // states and then goes inactive, move back to the idle state. Vice versa as well.
   ROSActionQTransition * idleDockTransition = new ROSActionQTransition(QActionState::INACTIVE);
   idleDockTransition->setTargetState(docking_);
   idle_->addTransition(idleDockTransition);
@@ -247,19 +252,27 @@ DockingPanel::DockingPanel(QWidget * parent)
       if (!plugins_loaded_) {
         RCLCPP_INFO(client_node_->get_logger(), "Loading dock plugins");
         nav2_rviz_plugins::pluginLoader(
-        client_node_, server_failed_, "docking_server", "dock_plugins", dock_type_);
+          client_node_, server_failed_, "docking_server", "dock_plugins", dock_type_);
         plugins_loaded_ = true;
       }
     });
 
-  // Conect buttons with functions
+  // Connect buttons with functions
   QObject::connect(
     use_dock_id_checkbox_, &QCheckBox::stateChanged, this, &DockingPanel::dockIdCheckbox);
 }
 
 void DockingPanel::onInitialize()
 {
-  auto node = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
+  node_ptr_ = getDisplayContext()->getRosNodeAbstraction().lock();
+  if (node_ptr_ == nullptr) {
+    // The node no longer exists, so just don't initialize
+    RCLCPP_ERROR(
+      rclcpp::get_logger("docking_panel"),
+      "Underlying ROS node no longer exists, initialization failed");
+    return;
+  }
+  rclcpp::Node::SharedPtr node = node_ptr_->get_raw_node();
 
   // Create action feedback subscriber
   docking_feedback_sub_ = node->create_subscription<Dock::Impl::FeedbackMessage>(

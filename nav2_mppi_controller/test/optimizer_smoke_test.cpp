@@ -22,23 +22,11 @@
 #include <nav2_costmap_2d/costmap_2d_ros.hpp>
 #include <nav2_core/goal_checker.hpp>
 
-#include <xtensor/xarray.hpp>
-#include <xtensor/xio.hpp>
-#include <xtensor/xview.hpp>
-
 #include "nav2_mppi_controller/optimizer.hpp"
 #include "nav2_mppi_controller/tools/parameters_handler.hpp"
 #include "nav2_mppi_controller/motion_models.hpp"
 
 #include "utils/utils.hpp"
-
-class RosLockGuard
-{
-public:
-  RosLockGuard() {rclcpp::init(0, nullptr);}
-  ~RosLockGuard() {rclcpp::shutdown();}
-};
-RosLockGuard g_rclcpp;
 
 // Smoke tests the optimizer
 
@@ -78,7 +66,8 @@ TEST_P(OptimizerSuite, OptimizerTest) {
 
   printInfo(optimizer_settings, path_settings, critics);
   auto node = getDummyNode(optimizer_settings, critics);
-  auto parameters_handler = std::make_unique<mppi::ParametersHandler>(node);
+  std::string name = "test";
+  auto parameters_handler = std::make_unique<mppi::ParametersHandler>(node, name);
   auto optimizer = getDummyOptimizer(node, costmap_ros, parameters_handler.get());
 
   // evalControl args
@@ -114,3 +103,16 @@ INSTANTIATE_TEST_SUITE_P(
           {"PathAngleCritic"}, {"PathFollowCritic"}, {"PreferForwardCritic"}}),
       true))
 );
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
+}

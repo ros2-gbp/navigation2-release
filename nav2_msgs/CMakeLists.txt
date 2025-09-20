@@ -13,8 +13,10 @@ find_package(action_msgs REQUIRED)
 
 nav2_package()
 
-# TODO(jwallace42): This is a work around for https://github.com/ros2/rosidl_typesupport_fastrtps/issues/28
-add_compile_options(-Wno-error=deprecated)
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  # TODO(jwallace42): This is a work around for https://github.com/ros2/rosidl_typesupport_fastrtps/issues/28
+  add_compile_options(-Wno-error=deprecated)
+endif()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/CollisionMonitorState.msg"
@@ -27,19 +29,21 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/VoxelGrid.msg"
   "msg/BehaviorTreeStatusChange.msg"
   "msg/BehaviorTreeLog.msg"
+  "msg/CriticsStats.msg"
   "msg/Particle.msg"
   "msg/ParticleCloud.msg"
-  "msg/MissedWaypoint.msg"
+  "msg/WaypointStatus.msg"
   "msg/Route.msg"
   "msg/RouteNode.msg"
   "msg/RouteEdge.msg"
   "msg/EdgeCost.msg"
-  "srv/GetCost.srv"
+  "msg/Trajectory.msg"
+  "msg/TrajectoryPoint.msg"
+  "srv/GetCosts.srv"
   "srv/GetCostmap.srv"
   "srv/IsPathValid.srv"
   "srv/ClearCostmapExceptRegion.srv"
   "srv/ClearCostmapAroundRobot.srv"
-  "srv/ClearCostmapAroundPose.srv"
   "srv/ClearEntireCostmap.srv"
   "srv/ManageLifecycleNodes.srv"
   "srv/LoadMap.srv"
@@ -48,13 +52,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ReloadDockDatabase.srv"
   "srv/SetRouteGraph.srv"
   "srv/DynamicEdges.srv"
-  "srv/Toggle.srv"
   "action/AssistedTeleop.action"
   "action/BackUp.action"
   "action/ComputePathToPose.action"
   "action/ComputePathThroughPoses.action"
-  "action/ComputeRoute.action"
-  "action/ComputeAndTrackRoute.action"
   "action/DriveOnHeading.action"
   "action/SmoothPath.action"
   "action/FollowPath.action"
@@ -67,6 +68,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/FollowGPSWaypoints.action"
   "action/DockRobot.action"
   "action/UndockRobot.action"
+  "action/ComputeRoute.action"
+  "action/ComputeAndTrackRoute.action"
   DEPENDENCIES builtin_interfaces geometry_msgs std_msgs action_msgs nav_msgs geographic_msgs
 )
 

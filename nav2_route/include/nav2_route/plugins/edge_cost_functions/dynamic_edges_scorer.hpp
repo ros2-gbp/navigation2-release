@@ -20,7 +20,8 @@
 #include <unordered_map>
 #include <set>
 
-#include "nav2_util/lifecycle_node.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "nav2_route/interfaces/edge_cost_function.hpp"
 #include "nav2_msgs/srv/dynamic_edges.hpp"
 #include "nav2_util/node_utils.hpp"
@@ -50,7 +51,7 @@ public:
    * @brief Configure
    */
   void configure(
-    const nav2_util::LifecycleNode::SharedPtr node,
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & name) override;
@@ -78,7 +79,6 @@ public:
    * @param response Response to service (empty)
    */
   void closedEdgesCb(
-    const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<nav2_msgs::srv::DynamicEdges::Request> request,
     std::shared_ptr<nav2_msgs::srv::DynamicEdges::Response> response);
 

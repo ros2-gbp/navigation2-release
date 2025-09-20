@@ -20,7 +20,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "utils/test_action_server.hpp"
+#include "nav2_behavior_tree/utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/spin_action.hpp"
 
 class SpinActionServer : public TestActionServer<nav2_msgs::action::Spin>
@@ -130,17 +130,19 @@ TEST_F(SpinActionTestFixture, test_ports)
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("spin_dist"), 1.57);
+  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), false);
 
   xml_txt =
     R"(
       <root BTCPP_format="4">
         <BehaviorTree ID="MainTree">
-            <Spin spin_dist="3.14" />
+            <Spin spin_dist="3.14" disable_collision_checks="true" />
         </BehaviorTree>
       </root>)";
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("spin_dist"), 3.14);
+  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), true);
 }
 
 TEST_F(SpinActionTestFixture, test_tick)

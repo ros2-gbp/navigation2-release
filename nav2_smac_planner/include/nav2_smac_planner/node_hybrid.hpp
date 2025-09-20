@@ -15,15 +15,10 @@
 #ifndef NAV2_SMAC_PLANNER__NODE_HYBRID_HPP_
 #define NAV2_SMAC_PLANNER__NODE_HYBRID_HPP_
 
-#include <math.h>
-#include <vector>
-#include <cmath>
-#include <iostream>
 #include <functional>
-#include <queue>
 #include <memory>
 #include <utility>
-#include <limits>
+#include <vector>
 
 #include "ompl/base/StateSpace.h"
 
@@ -172,12 +167,12 @@ public:
     : x(x_in), y(y_in), theta(theta_in)
     {}
 
-    inline bool operator==(const Coordinates & rhs)
+    inline bool operator==(const Coordinates & rhs) const
     {
       return this->x == rhs.x && this->y == rhs.y && this->theta == rhs.theta;
     }
 
-    inline bool operator!=(const Coordinates & rhs)
+    inline bool operator!=(const Coordinates & rhs) const
     {
       return !(*this == rhs);
     }
@@ -201,7 +196,7 @@ public:
   /**
    * @brief operator== for comparisons
    * @param NodeHybrid right hand side node reference
-   * @return If cell indicies are equal
+   * @return If cell indices are equal
    */
   bool operator==(const NodeHybrid & rhs)
   {
@@ -379,7 +374,7 @@ public:
    */
   static float getHeuristicCost(
     const Coordinates & node_coords,
-    const Coordinates & goal_coordinates);
+    const CoordinateVector & goals_coords);
 
   /**
    * @brief Initialize motion models
@@ -460,7 +455,7 @@ public:
 
   /**
    * @brief Set the starting pose for planning, as a node index
-   * @param path Reference to a vector of indicies of generated path
+   * @param path Reference to a vector of indices of generated path
    * @return whether the path was able to be backtraced
    */
   bool backtracePath(CoordinateVector & path);

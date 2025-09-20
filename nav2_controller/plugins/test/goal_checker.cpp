@@ -342,7 +342,13 @@ TEST(StoppedGoalChecker, is_reached)
 
 int main(int argc, char ** argv)
 {
+  ::testing::InitGoogleTest(&argc, argv);
+
   rclcpp::init(argc, argv);
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

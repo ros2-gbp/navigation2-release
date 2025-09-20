@@ -20,6 +20,8 @@
 #include <utility>
 #include <vector>
 
+#include "geometry_msgs/msg/pose_stamped.hpp"
+
 #include "nav2_constrained_smoother/constrained_smoother.hpp"
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
@@ -28,7 +30,7 @@
 #include "pluginlib/class_loader.hpp"
 #include "pluginlib/class_list_macros.hpp"
 
-#include "tf2/utils.h"
+#include "tf2/utils.hpp"
 
 using nav2_util::declare_parameter_if_not_declared;
 using nav2_util::geometry_utils::euclidean_distance;

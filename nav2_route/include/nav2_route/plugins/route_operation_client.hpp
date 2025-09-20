@@ -24,7 +24,6 @@
 #include "nav2_route/interfaces/route_operation.hpp"
 #include "nav2_core/route_exceptions.hpp"
 #include "nav2_util/node_utils.hpp"
-#include "nav2_util/service_client.hpp"
 #include "std_srvs/srv/trigger.hpp"
 
 namespace nav2_route
@@ -78,7 +77,7 @@ public:
    * main service name and existence.
    */
   virtual void configureEvent(
-    const nav2_util::LifecycleNode::SharedPtr /*node*/,
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr /*node*/,
     const std::string & /*name*/) {}
 
   /**
@@ -98,7 +97,7 @@ protected:
    * @brief Configure
    */
   void configure(
-    const nav2_util::LifecycleNode::SharedPtr node,
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>,
     const std::string & name) final
   {
@@ -157,24 +156,14 @@ protected:
               "set in the param file or in the operation's metadata!");
     }
 
-    try {
-      if (srv_name.empty()) {
-        srv_name = main_srv_name_;
-        response = callService(main_client_, req);
-      } else {
-        auto node = node_.lock();
-        if (!node) {
-          throw nav2_core::OperationFailed(
-            "Route operation service (" + getName() + ") failed to lock node.");
-        }
-        auto client =
-          node->create_client<SrvT>(srv_name, true);
-        response = callService(client, req);
-      }
-    } catch (const std::exception & e) {
-      throw nav2_core::OperationFailed(
-        "Route operation service (" + getName() + ") failed to call service: " +
-        srv_name + " at Node " + std::to_string(node_achieved->nodeid));
+    if (srv_name.empty()) {
+      srv_name = main_srv_name_;
+      response = callService(main_client_, req);
+    } else {
+      auto node = node_.lock();
+      auto client = node->create_client<SrvT>(
+        srv_name, rclcpp::SystemDefaultsQoS(), callback_group_);
+      response = callService(client, req);
     }
 
     RCLCPP_INFO(
@@ -193,7 +182,7 @@ protected:
     if (!client->wait_for_service(1s)) {
       throw nav2_core::OperationFailed(
               "Route operation service " +
-              std::string(client->get_service_name()) + "is not available!");
+              std::string(client->get_service_name()) + " is not available!");
     }
 
     auto result = client->async_send_request(req);
@@ -202,7 +191,7 @@ protected:
     {
       throw nav2_core::OperationFailed(
               "Route operation service " +
-              std::string(client->get_service_name()) + "failed to call!");
+              std::string(client->get_service_name()) + " failed to call!");
     }
 
     return result.get();
@@ -225,7 +214,7 @@ protected:
   std::atomic_bool reroute_;
   rclcpp::Logger logger_{rclcpp::get_logger("RouteOperationClient")};
   typename rclcpp::Client<SrvT>::SharedPtr main_client_;
-  nav2_util::LifecycleNode::WeakPtr node_;
+  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
 };

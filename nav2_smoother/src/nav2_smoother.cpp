@@ -53,8 +53,6 @@ SmootherServer::SmootherServer(const rclcpp::NodeOptions & options)
     rclcpp::ParameterValue(std::string("base_link")));
   declare_parameter("transform_tolerance", rclcpp::ParameterValue(0.1));
   declare_parameter("smoother_plugins", default_ids_);
-
-  declare_parameter("action_server_result_timeout", 10.0);
 }
 
 SmootherServer::~SmootherServer()
@@ -85,7 +83,7 @@ SmootherServer::on_configure(const rclcpp_lifecycle::State & state)
   transform_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_, this, true);
 
   std::string costmap_topic, footprint_topic, robot_base_frame;
-  double transform_tolerance;
+  double transform_tolerance = 0.1;
   this->get_parameter("costmap_topic", costmap_topic);
   this->get_parameter("footprint_topic", footprint_topic);
   this->get_parameter("transform_tolerance", transform_tolerance);
@@ -107,11 +105,6 @@ SmootherServer::on_configure(const rclcpp_lifecycle::State & state)
   // Initialize pubs & subs
   plan_publisher_ = create_publisher<nav_msgs::msg::Path>("plan_smoothed", 1);
 
-  double action_server_result_timeout;
-  get_parameter("action_server_result_timeout", action_server_result_timeout);
-  rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
-  server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
-
   // Create the action server that we implement with our smoothPath method
   action_server_ = std::make_unique<ActionServer>(
     shared_from_this(),
@@ -119,7 +112,7 @@ SmootherServer::on_configure(const rclcpp_lifecycle::State & state)
     std::bind(&SmootherServer::smoothPlan, this),
     nullptr,
     std::chrono::milliseconds(500),
-    true, server_options);
+    true);
 
   return nav2_util::CallbackReturn::SUCCESS;
 }
@@ -268,7 +261,7 @@ void SmootherServer::smoothPlan()
   try {
     auto goal = action_server_->get_current_goal();
     if (!goal) {
-      return;  //  if action_server_ is inactivate, goal would be a nullptr
+      return;  //  if action_server_ is deactivate, goal would be a nullptr
     }
 
     std::string c_name = goal->smoother_id;
@@ -332,37 +325,44 @@ void SmootherServer::smoothPlan()
 
     action_server_->succeeded_current(result);
   } catch (nav2_core::InvalidSmoother & ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    result->error_msg = ex.what();
+    RCLCPP_ERROR(this->get_logger(), result->error_msg.c_str());
     result->error_code = ActionResult::INVALID_SMOOTHER;
     action_server_->terminate_current(result);
     return;
   } catch (nav2_core::SmootherTimedOut & ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    result->error_msg = ex.what();
+    RCLCPP_ERROR(this->get_logger(), result->error_msg.c_str());
     result->error_code = ActionResult::TIMEOUT;
     action_server_->terminate_current(result);
     return;
   } catch (nav2_core::SmoothedPathInCollision & ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    result->error_msg = ex.what();
+    RCLCPP_ERROR(this->get_logger(), result->error_msg.c_str());
     result->error_code = ActionResult::SMOOTHED_PATH_IN_COLLISION;
     action_server_->terminate_current(result);
     return;
   } catch (nav2_core::FailedToSmoothPath & ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    result->error_msg = ex.what();
+    RCLCPP_ERROR(this->get_logger(), result->error_msg.c_str());
     result->error_code = ActionResult::FAILED_TO_SMOOTH_PATH;
     action_server_->terminate_current(result);
     return;
   } catch (nav2_core::InvalidPath & ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    result->error_msg = ex.what();
+    RCLCPP_ERROR(this->get_logger(), result->error_msg.c_str());
     result->error_code = ActionResult::INVALID_PATH;
     action_server_->terminate_current(result);
     return;
   } catch (nav2_core::SmootherException & ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    result->error_msg = ex.what();
+    RCLCPP_ERROR(this->get_logger(), result->error_msg.c_str());
     result->error_code = ActionResult::UNKNOWN;
     action_server_->terminate_current(result);
     return;
   } catch (std::exception & ex) {
-    RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+    result->error_msg = ex.what();
+    RCLCPP_ERROR(this->get_logger(), result->error_msg.c_str());
     result->error_code = ActionResult::UNKNOWN;
     action_server_->terminate_current(result);
     return;

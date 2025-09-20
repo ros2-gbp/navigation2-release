@@ -177,12 +177,16 @@ protected:
    */
   void publishZeroVelocity();
   /**
+   * @brief Called on goal exit
+   */
+  void onGoalExit(bool force_stop);
+  /**
    * @brief Checks if goal is reached
    * @return true or false
    */
   bool isGoalReached();
   /**
-   * @brief Obtain current pose of the robot
+   * @brief Obtain current pose of the robot in costmap's frame
    * @param pose To store current pose of the robot
    * @return true if able to obtain current pose of the robot, else false
    */
@@ -267,6 +271,7 @@ protected:
 
   double failure_tolerance_;
   bool use_realtime_priority_;
+  bool publish_zero_velocity_;
   rclcpp::Duration costmap_update_timeout_;
 
   // Whether we've published the single controller warning yet

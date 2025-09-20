@@ -131,11 +131,6 @@ public:
     }
     return false;
   }
-
-  bool isEnabled() const
-  {
-    return enabled_;
-  }
 };  // CollisionMonitorWrapper
 
 class Tester : public ::testing::Test
@@ -185,9 +180,6 @@ public:
     const std::chrono::nanoseconds & timeout);
   bool waitActionState(const std::chrono::nanoseconds & timeout);
   bool waitCollisionPointsMarker(const std::chrono::nanoseconds & timeout);
-  bool waitToggle(
-    rclcpp::Client<nav2_msgs::srv::Toggle>::SharedFuture result_future,
-    const std::chrono::nanoseconds & timeout);
 
 protected:
   void cmdVelOutCallback(geometry_msgs::msg::Twist::SharedPtr msg);
@@ -223,14 +215,12 @@ protected:
 
   // Service client for setting CollisionMonitor parameters
   rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr parameters_client_;
-
-  // Service client for toggling collision monitor
-  rclcpp::Client<nav2_msgs::srv::Toggle>::SharedPtr toggle_client_;
 };  // Tester
 
 Tester::Tester()
 {
   cm_ = std::make_shared<CollisionMonitorWrapper>();
+  cm_->declare_parameter("enable_stamped_cmd_vel", rclcpp::ParameterValue(false));
 
   footprint_pub_ = cm_->create_publisher<geometry_msgs::msg::PolygonStamped>(
     FOOTPRINT_TOPIC, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
@@ -260,8 +250,6 @@ Tester::Tester()
     cm_->create_client<rcl_interfaces::srv::SetParameters>(
     std::string(
       cm_->get_name()) + "/set_parameters");
-
-  toggle_client_ = cm_->create_client<nav2_msgs::srv::Toggle>("~/toggle");
 }
 
 Tester::~Tester()
@@ -758,22 +746,6 @@ bool Tester::waitFuture(
   return false;
 }
 
-bool Tester::waitToggle(
-  rclcpp::Client<nav2_msgs::srv::Toggle>::SharedFuture result_future,
-  const std::chrono::nanoseconds & timeout)
-{
-  rclcpp::Time start_time = cm_->now();
-  while (rclcpp::ok() && cm_->now() - start_time <= rclcpp::Duration(timeout)) {
-    std::future_status status = result_future.wait_for(10ms);
-    if (status == std::future_status::ready) {
-      return true;
-    }
-    rclcpp::spin_some(cm_->get_node_base_interface());
-    std::this_thread::sleep_for(10ms);
-  }
-  return false;
-}
-
 bool Tester::waitActionState(const std::chrono::nanoseconds & timeout)
 {
   rclcpp::Time start_time = cm_->now();
@@ -813,39 +785,6 @@ void Tester::actionStateCallback(nav2_msgs::msg::CollisionMonitorState::SharedPt
 void Tester::collisionPointsMarkerCallback(visualization_msgs::msg::MarkerArray::SharedPtr msg)
 {
   collision_points_marker_msg_ = msg;
-}
-
-TEST_F(Tester, testToggleService)
-{
-  // Set parameters for collision monitor
-  setCommonParameters();
-  addPolygon("Stop", POLYGON, 1.0, "stop");
-  addSource(SCAN_NAME, SCAN);
-  setVectors({"Stop"}, {SCAN_NAME});
-
-  // Start collision monitor node
-  cm_->start();
-
-  auto request = std::make_shared<nav2_msgs::srv::Toggle::Request>();
-
-  // Disable test
-  request->enable = false;
-  {
-    auto result_future = toggle_client_->async_send_request(request);
-    ASSERT_TRUE(waitToggle(result_future.share(), 2s));
-  }
-  ASSERT_FALSE(cm_->isEnabled());
-
-  // Enable test
-  request->enable = true;
-  {
-    auto result_future = toggle_client_->async_send_request(request);
-    ASSERT_TRUE(waitToggle(result_future.share(), 2s));
-  }
-  ASSERT_TRUE(cm_->isEnabled());
-
-  // Stop the collision monitor
-  cm_->stop();
 }
 
 TEST_F(Tester, testProcessStopSlowdownLimit)
@@ -1296,7 +1235,7 @@ TEST_F(Tester, testSourceTimeoutOverride)
   // change_ratio = (1.5 m / 3.0 m/s) / TIME_BEFORE_COLLISION s
   double change_ratio = (1.5 / 3.0) / TIME_BEFORE_COLLISION;
   // Range configured but not published, range source should be considered invalid
-  // but as we set the source_timeout of the Range source to 0.0, its validity check is overidden
+  // but as we set the source_timeout of the Range source to 0.0, its validity check is overridden
   ASSERT_NEAR(
     cmd_vel_out_->linear.x, 3.0 * change_ratio, 3.0 * SIMULATION_TIME_STEP / TIME_BEFORE_COLLISION);
   ASSERT_NEAR(cmd_vel_out_->linear.y, 0.0, EPSILON);
@@ -1595,12 +1534,12 @@ TEST_F(Tester, testVelocityPolygonStop)
   // 1. Forward:  0 -> 0.5 m/s
   // 2. Backward: 0 -> -0.5 m/s
   setCommonParameters();
-  addPolygon("VelocityPoylgon", VELOCITY_POLYGON, 1.0, "stop");
-  addPolygonVelocitySubPolygon("VelocityPoylgon", "Forward", 0.0, 0.5, 0.0, 1.0, 4.0);
-  addPolygonVelocitySubPolygon("VelocityPoylgon", "Backward", -0.5, 0.0, 0.0, 1.0, 2.0);
-  setPolygonVelocityVectors("VelocityPoylgon", {"Forward", "Backward"});
+  addPolygon("VelocityPolygon", VELOCITY_POLYGON, 1.0, "stop");
+  addPolygonVelocitySubPolygon("VelocityPolygon", "Forward", 0.0, 0.5, 0.0, 1.0, 4.0);
+  addPolygonVelocitySubPolygon("VelocityPolygon", "Backward", -0.5, 0.0, 0.0, 1.0, 2.0);
+  setPolygonVelocityVectors("VelocityPolygon", {"Forward", "Backward"});
   addSource(POINTCLOUD_NAME, POINTCLOUD);
-  setVectors({"VelocityPoylgon"}, {POINTCLOUD_NAME});
+  setVectors({"VelocityPolygon"}, {POINTCLOUD_NAME});
 
   rclcpp::Time curr_time = cm_->now();
   // Start Collision Monitor node
@@ -1627,7 +1566,7 @@ TEST_F(Tester, testVelocityPolygonStop)
   ASSERT_NEAR(cmd_vel_out_->angular.z, 0.0, EPSILON);
   ASSERT_TRUE(waitActionState(500ms));
   ASSERT_EQ(action_state_->action_type, STOP);
-  ASSERT_EQ(action_state_->polygon_name, "VelocityPoylgon");
+  ASSERT_EQ(action_state_->polygon_name, "VelocityPolygon");
 
   // 3. Switch to Backward velocity polygon
   // Obstacle is far away from Backward velocity polygon
@@ -1650,7 +1589,7 @@ TEST_F(Tester, testVelocityPolygonStop)
   ASSERT_NEAR(cmd_vel_out_->angular.z, 0.0, EPSILON);
   ASSERT_TRUE(waitActionState(500ms));
   ASSERT_EQ(action_state_->action_type, STOP);
-  ASSERT_EQ(action_state_->polygon_name, "VelocityPoylgon");
+  ASSERT_EQ(action_state_->polygon_name, "VelocityPolygon");
 
   // Stop Collision Monitor node
   cm_->stop();

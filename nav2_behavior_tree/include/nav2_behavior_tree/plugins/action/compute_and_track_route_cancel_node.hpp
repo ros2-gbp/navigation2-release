@@ -21,7 +21,6 @@
 #include "nav2_msgs/action/compute_and_track_route.hpp"
 
 #include "nav2_behavior_tree/bt_cancel_action_node.hpp"
-#include "nav2_util/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {

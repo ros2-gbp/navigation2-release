@@ -15,6 +15,10 @@
 #include <vector>
 #include <memory>
 #include <string>
+
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "rclcpp/rclcpp.hpp"
+
 #include "nav2_theta_star_planner/theta_star_planner.hpp"
 #include "nav2_theta_star_planner/theta_star.hpp"
 
@@ -103,7 +107,7 @@ nav_msgs::msg::Path ThetaStarPlanner::createPlan(
 
   std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(planner_->costmap_->getMutex()));
 
-  // Corner case of start and goal beeing on the same cell
+  // Corner case of start and goal being on the same cell
   unsigned int mx_start, my_start, mx_goal, my_goal;
   if (!planner_->costmap_->worldToMap(
       start.pose.position.x, start.pose.position.y, mx_start, my_start))
@@ -234,26 +238,28 @@ ThetaStarPlanner::dynamicParametersCallback(std::vector<rclcpp::Parameter> param
 {
   rcl_interfaces::msg::SetParametersResult result;
   for (auto parameter : parameters) {
-    const auto & type = parameter.get_type();
-    const auto & name = parameter.get_name();
-
-    if (type == ParameterType::PARAMETER_INTEGER) {
-      if (name == name_ + ".how_many_corners") {
+    const auto & param_type = parameter.get_type();
+    const auto & param_name = parameter.get_name();
+    if(param_name.find(name_ + ".") != 0) {
+      continue;
+    }
+    if (param_type == ParameterType::PARAMETER_INTEGER) {
+      if (param_name == name_ + ".how_many_corners") {
         planner_->how_many_corners_ = parameter.as_int();
       }
-      if (name == name_ + ".terminal_checking_interval") {
+      if (param_name == name_ + ".terminal_checking_interval") {
         planner_->terminal_checking_interval_ = parameter.as_int();
       }
-    } else if (type == ParameterType::PARAMETER_DOUBLE) {
-      if (name == name_ + ".w_euc_cost") {
+    } else if (param_type == ParameterType::PARAMETER_DOUBLE) {
+      if (param_name == name_ + ".w_euc_cost") {
         planner_->w_euc_cost_ = parameter.as_double();
-      } else if (name == name_ + ".w_traversal_cost") {
+      } else if (param_name == name_ + ".w_traversal_cost") {
         planner_->w_traversal_cost_ = parameter.as_double();
       }
-    } else if (type == ParameterType::PARAMETER_BOOL) {
-      if (name == name_ + ".use_final_approach_orientation") {
+    } else if (param_type == ParameterType::PARAMETER_BOOL) {
+      if (param_name == name_ + ".use_final_approach_orientation") {
         use_final_approach_orientation_ = parameter.as_bool();
-      } else if (name == name_ + ".allow_unknown") {
+      } else if (param_name == name_ + ".allow_unknown") {
         planner_->allow_unknown_ = parameter.as_bool();
       }
     }

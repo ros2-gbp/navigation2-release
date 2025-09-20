@@ -42,31 +42,20 @@ RouteServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
     node->create_publisher<visualization_msgs::msg::MarkerArray>(
     "route_graph", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
 
-  declare_parameter_if_not_declared(
-    node, "action_server_result_timeout", rclcpp::ParameterValue(10.0));
-  double action_server_result_timeout = 10.0;
-  get_parameter("action_server_result_timeout", action_server_result_timeout);
-  rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
-  server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
-
-  compute_route_server_ = std::make_unique<ComputeRouteServer>(
-    shared_from_this(),
-    "compute_route",
+  compute_route_server_ = std::make_shared<ComputeRouteServer>(
+    node, "compute_route",
     std::bind(&RouteServer::computeRoute, this),
-    nullptr,
-    std::chrono::milliseconds(500),
-    true, server_options);
+    nullptr, std::chrono::milliseconds(500), true);
 
-  compute_and_track_route_server_ = std::make_unique<ComputeAndTrackRouteServer>(
-    shared_from_this(),
-    "compute_and_track_route",
+  compute_and_track_route_server_ = std::make_shared<ComputeAndTrackRouteServer>(
+    node, "compute_and_track_route",
     std::bind(&RouteServer::computeAndTrackRoute, this),
-    nullptr,
-    std::chrono::milliseconds(500),
-    true, server_options);
+    nullptr, std::chrono::milliseconds(500), true);
 
-  set_graph_service_ = node->create_service<nav2_msgs::srv::SetRouteGraph>(
+  set_graph_service_ = std::make_shared<nav2_util::ServiceServer<nav2_msgs::srv::SetRouteGraph,
+      std::shared_ptr<rclcpp_lifecycle::LifecycleNode>>>(
     std::string(node->get_name()) + "/set_route_graph",
+    node,
     std::bind(
       &RouteServer::setRouteGraph, this,
       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
@@ -76,13 +65,10 @@ RouteServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
   declare_parameter_if_not_declared(
     node, "base_frame", rclcpp::ParameterValue(std::string("base_link")));
   declare_parameter_if_not_declared(
-    node, "global_frame", rclcpp::ParameterValue(std::string("map")));
-  declare_parameter_if_not_declared(
     node, "max_planning_time", rclcpp::ParameterValue(2.0));
 
   route_frame_ = node->get_parameter("route_frame").as_string();
   base_frame_ = node->get_parameter("base_frame").as_string();
-  global_frame_ = node->get_parameter("global_frame").as_string();
   max_planning_time_ = node->get_parameter("max_planning_time").as_double();
 
   // Create costmap subscriber
@@ -100,8 +86,7 @@ RouteServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
 
     goal_intent_extractor_ = std::make_shared<GoalIntentExtractor>();
     goal_intent_extractor_->configure(
-      node, graph_, &id_to_graph_map_, tf_, costmap_subscriber_,
-      route_frame_, global_frame_, base_frame_);
+      node, graph_, &id_to_graph_map_, tf_, costmap_subscriber_, route_frame_, base_frame_);
 
     route_planner_ = std::make_shared<RoutePlanner>();
     route_planner_->configure(node, tf_, costmap_subscriber_);
@@ -276,7 +261,7 @@ RouteServer::processRouteRequest(
 
   try {
     while (rclcpp::ok()) {
-      if (!isRequestValid<ActionT>(action_server)) {
+      if (!isRequestValid(action_server)) {
         return;
       }
 
@@ -316,40 +301,49 @@ RouteServer::processRouteRequest(
   } catch (nav2_core::NoValidRouteCouldBeFound & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::NO_VALID_ROUTE;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (nav2_core::TimedOut & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::TIMEOUT;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (nav2_core::RouteTFError & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::TF_ERROR;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (nav2_core::NoValidGraph & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::NO_VALID_GRAPH;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (nav2_core::IndeterminantNodesOnGraph & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::INDETERMINANT_NODES_ON_GRAPH;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (nav2_core::InvalidEdgeScorerUse & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::INVALID_EDGE_SCORER_USE;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (nav2_core::OperationFailed & ex) {
     // A special case since Operation Failed is only in Compute & Track
     // actions, specifying it to allow otherwise fully shared code
     exceptionWarning(goal, ex);
     result->error_code = ComputeAndTrackRoute::Result::OPERATION_FAILED;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (nav2_core::RouteException & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::UNKNOWN;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   } catch (std::exception & ex) {
     exceptionWarning(goal, ex);
     result->error_code = ActionT::Result::UNKNOWN;
+    result->error_msg = ex.what();
     action_server->terminate_current(result);
   }
 }
@@ -358,14 +352,14 @@ void
 RouteServer::computeRoute()
 {
   RCLCPP_INFO(get_logger(), "Computing route to goal.");
-  processRouteRequest<ComputeRoute>(compute_route_server_);
+  processRouteRequest(compute_route_server_);
 }
 
 void
 RouteServer::computeAndTrackRoute()
 {
   RCLCPP_INFO(get_logger(), "Computing and tracking route to goal.");
-  processRouteRequest<ComputeAndTrackRoute>(compute_and_track_route_server_);
+  processRouteRequest(compute_and_track_route_server_);
 }
 
 void RouteServer::setRouteGraph(

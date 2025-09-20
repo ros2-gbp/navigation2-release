@@ -19,7 +19,8 @@
 #include <string>
 
 #include "tf2_ros/buffer.h"
-#include "nav2_util/lifecycle_node.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "nav2_route/types.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -55,7 +56,7 @@ public:
    * @param parent pointer to user's node
    */
   virtual void configure(
-    const nav2_util::LifecycleNode::SharedPtr node,
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & name) = 0;

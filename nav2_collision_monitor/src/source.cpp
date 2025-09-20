@@ -64,7 +64,7 @@ void Source::getCommonParameters(std::string & source_topic)
 
   nav2_util::declare_parameter_if_not_declared(
     node, source_name_ + ".topic",
-    rclcpp::ParameterValue("scan"));  // Set deafult topic for laser scanner
+    rclcpp::ParameterValue("scan"));  // Set default topic for laser scanner
   source_topic = node->get_parameter(source_name_ + ".topic").as_string();
 
   nav2_util::declare_parameter_if_not_declared(
@@ -121,7 +121,9 @@ Source::dynamicParametersCallback(
   for (auto parameter : parameters) {
     const auto & param_type = parameter.get_type();
     const auto & param_name = parameter.get_name();
-
+    if(param_name.find(source_name_ + ".") != 0) {
+      continue;
+    }
     if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_BOOL) {
       if (param_name == source_name_ + "." + "enabled") {
         enabled_ = parameter.as_bool();

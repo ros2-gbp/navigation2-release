@@ -26,14 +26,6 @@
 #include "nav2_rotation_shim_controller/nav2_rotation_shim_controller.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
-
 class RotationShimShim : public nav2_rotation_shim_controller::RotationShimController
 {
 public:
@@ -176,7 +168,7 @@ TEST(RotationShimControllerTest, rotationAndTransformTests)
   auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("ShimControllerTest");
   std::string name = "PathFollower";
   auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
-  auto costmap = std::make_shared<nav2_costmap_2d::Costmap2DROS>("fake_costmap");
+  auto costmap = std::make_shared<nav2_costmap_2d::Costmap2DROS>("fake_costmap", "/", false);
   costmap->configure();
 
   // set a valid primary controller so we can do lifecycle
@@ -645,4 +637,17 @@ TEST(RotationShimControllerTest, testDynamicParameter)
   EXPECT_EQ(node->get_parameter("test.rotate_to_heading_once").as_bool(), true);
   EXPECT_EQ(node->get_parameter("test.closed_loop").as_bool(), false);
   EXPECT_EQ(node->get_parameter("test.use_path_orientations").as_bool(), true);
+}
+
+int main(int argc, char **argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

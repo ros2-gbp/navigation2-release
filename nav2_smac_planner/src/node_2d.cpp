@@ -85,12 +85,12 @@ float Node2D::getTraversalCost(const NodePtr & child)
 
 float Node2D::getHeuristicCost(
   const Coordinates & node_coords,
-  const Coordinates & goal_coordinates)
+  const CoordinateVector & goals_coords)
 {
   // Using Moore distance as it more accurately represents the distances
   // even a Van Neumann neighborhood robot can navigate.
-  auto dx = goal_coordinates.x - node_coords.x;
-  auto dy = goal_coordinates.y - node_coords.y;
+  auto dx = goals_coords[0].x - node_coords.x;
+  auto dy = goals_coords[0].y - node_coords.y;
   return std::sqrt(dx * dx + dy * dy);
 }
 
@@ -132,7 +132,7 @@ void Node2D::getNeighbors(
   uint64_t index;
   NodePtr neighbor;
   uint64_t node_i = this->getIndex();
-  const Coordinates parent = getCoords(this->getIndex());
+  const Coordinates coord_parent = getCoords(this->getIndex());
   Coordinates child;
 
   for (unsigned int i = 0; i != _neighbors_grid_offsets.size(); ++i) {
@@ -140,7 +140,7 @@ void Node2D::getNeighbors(
 
     // Check for wrap around conditions
     child = getCoords(index);
-    if (fabs(parent.x - child.x) > 1 || fabs(parent.y - child.y) > 1) {
+    if (fabs(coord_parent.x - child.x) > 1 || fabs(coord_parent.y - child.y) > 1) {
       continue;
     }
 

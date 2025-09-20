@@ -48,8 +48,9 @@
 #include "nav2_util/geometry_utils.hpp"
 
 #include "yaml-cpp/yaml.h"
-#include "tf2/LinearMath/Matrix3x3.h"
-#include "tf2/LinearMath/Quaternion.h"
+
+#include "tf2/LinearMath/Matrix3x3.hpp"
+#include "tf2/LinearMath/Quaternion.hpp"
 #include "nav2_util/occ_grid_values.hpp"
 
 #ifdef _WIN32
@@ -500,7 +501,7 @@ void checkSaveParameters(SaveParameters & save_parameters)
  * @brief Tries to write map data into a file
  * @param map Occupancy grid data
  * @param save_parameters Map saving parameters
- * @throw std::expection in case of problem
+ * @throw std::exception in case of problem
  */
 void tryWriteMapToFile(
   const nav_msgs::msg::OccupancyGrid & map,

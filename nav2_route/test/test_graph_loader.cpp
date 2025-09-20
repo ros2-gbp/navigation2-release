@@ -48,7 +48,7 @@ TEST(GraphLoader, test_invalid_plugin)
   nav2_util::declare_parameter_if_not_declared(
     node, "graph_file_loader", rclcpp::ParameterValue(default_plugin));
 
-  EXPECT_THROW(GraphLoader graph_loader(node, tf, frame), std::runtime_error);
+  EXPECT_THROW(GraphLoader graph_loader(node, tf, frame), pluginlib::PluginlibException);
 }
 
 TEST(GraphLoader, test_api)
@@ -107,6 +107,7 @@ TEST(GraphLoader, test_transformation_api)
   tf_broadcaster->sendTransform(transform);
   rclcpp::Rate(1).sleep();
   tf_broadcaster->sendTransform(transform);
+  rclcpp::spin_all(node->get_node_base_interface(), std::chrono::milliseconds(1));
   rclcpp::spin_all(node->get_node_base_interface(), std::chrono::milliseconds(50));
 
   graph[0].coords.frame_id = "map_test";

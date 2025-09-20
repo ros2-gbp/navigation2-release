@@ -19,7 +19,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "utils/test_action_server.hpp"
+#include "nav2_behavior_tree/utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/drive_on_heading_cancel_node.hpp"
 #include "lifecycle_msgs/srv/change_state.hpp"
 
@@ -152,7 +152,7 @@ TEST_F(CancelDriveOnHeadingTestFixture, test_ports)
   // BT node should return success, once when the goal is cancelled
   EXPECT_EQ(tree_->rootNode()->status(), BT::NodeStatus::SUCCESS);
 
-  // Adding another test case to check if the goal is infact cancelling
+  // Adding another test case to check if the goal is in fact cancelling
   EXPECT_EQ(action_server_->isGoalCancelled(), true);
 }
 

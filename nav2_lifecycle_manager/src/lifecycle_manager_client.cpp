@@ -19,7 +19,6 @@
 #include <string>
 #include <utility>
 
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "nav2_util/geometry_utils.hpp"
 
 namespace nav2_lifecycle_manager
@@ -38,9 +37,9 @@ LifecycleManagerClient::LifecycleManagerClient(
 
   // Create the service clients
   manager_client_ = std::make_shared<nav2_util::ServiceClient<ManageLifecycleNodes>>(
-    manage_service_name_, node_);
+    manage_service_name_, node_, true /*creates and spins an internal executor*/);
   is_active_client_ = std::make_shared<nav2_util::ServiceClient<std_srvs::srv::Trigger>>(
-    active_service_name_, node_);
+    active_service_name_, node_, true /*creates and spins an internal executor*/);
 }
 
 bool

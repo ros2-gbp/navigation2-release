@@ -6,14 +6,14 @@
 #
 # Example build command:
 # export DOCKER_BUILDKIT=1
-# export FROM_IMAGE="ros:jazzy"
+# export FROM_IMAGE="ros:kilted"
 # export OVERLAY_MIXINS="release ccache lld"
-# docker build -t nav2:jazzy \
+# docker build -t nav2:kilted \
 #   --build-arg FROM_IMAGE \
 #   --build-arg OVERLAY_MIXINS \
 #   -f distro.Dockerfile ../
 
-ARG FROM_IMAGE=ros:jazzy
+ARG FROM_IMAGE=ros:kilted
 ARG OVERLAY_WS=/opt/overlay_ws
 
 # multi-stage for caching

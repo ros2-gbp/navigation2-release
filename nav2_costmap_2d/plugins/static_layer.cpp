@@ -43,7 +43,7 @@
 #include <string>
 
 #include "pluginlib/class_list_macros.hpp"
-#include "tf2/convert.h"
+#include "tf2/convert.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "nav2_util/validate_messages.hpp"
 
@@ -138,8 +138,9 @@ StaticLayer::getParameters()
   declareParameter("subscribe_to_updates", rclcpp::ParameterValue(false));
   declareParameter("map_subscribe_transient_local", rclcpp::ParameterValue(true));
   declareParameter("transform_tolerance", rclcpp::ParameterValue(0.0));
-  declareParameter("map_topic", rclcpp::ParameterValue(""));
+  declareParameter("map_topic", rclcpp::ParameterValue("map"));
   declareParameter("footprint_clearing_enabled", rclcpp::ParameterValue(false));
+  declareParameter("restore_cleared_footprint", rclcpp::ParameterValue(true));
 
   auto node = node_.lock();
   if (!node) {
@@ -149,14 +150,9 @@ StaticLayer::getParameters()
   node->get_parameter(name_ + "." + "enabled", enabled_);
   node->get_parameter(name_ + "." + "subscribe_to_updates", subscribe_to_updates_);
   node->get_parameter(name_ + "." + "footprint_clearing_enabled", footprint_clearing_enabled_);
-  std::string private_map_topic, global_map_topic;
-  node->get_parameter(name_ + "." + "map_topic", private_map_topic);
-  node->get_parameter("map_topic", global_map_topic);
-  if (!private_map_topic.empty()) {
-    map_topic_ = private_map_topic;
-  } else {
-    map_topic_ = global_map_topic;
-  }
+  node->get_parameter(name_ + "." + "restore_cleared_footprint", restore_cleared_footprint_);
+  node->get_parameter(name_ + "." + "map_topic", map_topic_);
+  map_topic_ = joinWithParentNamespace(map_topic_);
   node->get_parameter(
     name_ + "." + "map_subscribe_transient_local",
     map_subscribe_transient_local_);
@@ -419,8 +415,11 @@ StaticLayer::updateCosts(
     return;
   }
 
+  std::vector<MapLocation> map_region_to_restore;
   if (footprint_clearing_enabled_) {
-    setConvexPolygonCost(transformed_footprint_, nav2_costmap_2d::FREE_SPACE);
+    map_region_to_restore.reserve(100);
+    getMapRegionOccupiedByPolygon(transformed_footprint_, map_region_to_restore);
+    setMapRegionOccupiedByPolygon(map_region_to_restore, nav2_costmap_2d::FREE_SPACE);
   }
 
   if (!layered_costmap_->isRolling()) {
@@ -466,6 +465,11 @@ StaticLayer::updateCosts(
       }
     }
   }
+
+  if (footprint_clearing_enabled_ && restore_cleared_footprint_) {
+    // restore the map region occupied by the polygon using cached data
+    restoreMapRegionOccupiedByPolygon(map_region_to_restore);
+  }
   current_ = true;
 }
 
@@ -495,6 +499,9 @@ StaticLayer::dynamicParametersCallback(
   for (auto parameter : parameters) {
     const auto & param_type = parameter.get_type();
     const auto & param_name = parameter.get_name();
+    if (param_name.find(name_ + ".") != 0) {
+      continue;
+    }
 
     if (param_name == name_ + "." + "map_subscribe_transient_local" ||
       param_name == name_ + "." + "map_topic" ||
@@ -518,6 +525,13 @@ StaticLayer::dynamicParametersCallback(
         current_ = false;
       } else if (param_name == name_ + "." + "footprint_clearing_enabled") {
         footprint_clearing_enabled_ = parameter.as_bool();
+      } else if (param_name == name_ + "." + "restore_cleared_footprint") {
+        if (footprint_clearing_enabled_) {
+          restore_cleared_footprint_ = parameter.as_bool();
+        } else {
+          RCLCPP_WARN(logger_, "restore_cleared_footprint cannot be used "
+                      "when footprint_clearing_enabled is False. Rejecting parameter update.");
+        }
       }
     }
   }

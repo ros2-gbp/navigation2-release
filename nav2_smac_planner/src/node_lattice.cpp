@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License. Reserved.
 
-#include <math.h>
-#include <chrono>
-#include <vector>
-#include <memory>
 #include <algorithm>
-#include <queue>
-#include <limits>
-#include <string>
-#include <fstream>
+#include <chrono>
 #include <cmath>
+#include <fstream>
+#include <limits>
+#include <memory>
+#include <queue>
+#include <string>
+#include <vector>
+
+#include "angles/angles.h"
 
 #include "ompl/base/ScopedState.h"
 #include "ompl/base/spaces/DubinsStateSpace.h"
@@ -343,13 +344,18 @@ float NodeLattice::getTraversalCost(const NodePtr & child)
 
 float NodeLattice::getHeuristicCost(
   const Coordinates & node_coords,
-  const Coordinates & goal_coords)
+  const CoordinateVector & goals_coords)
 {
   // get obstacle heuristic value
+  // obstacle heuristic does not depend on goal heading
   const float obstacle_heuristic = getObstacleHeuristic(
-    node_coords, goal_coords, motion_table.cost_penalty);
-  const float distance_heuristic =
-    getDistanceHeuristic(node_coords, goal_coords, obstacle_heuristic);
+    node_coords, goals_coords[0], motion_table.cost_penalty);
+  float distance_heuristic = std::numeric_limits<float>::max();
+  for (unsigned int i = 0; i < goals_coords.size(); i++) {
+    distance_heuristic = std::min(
+      distance_heuristic,
+      getDistanceHeuristic(node_coords, goals_coords[i], obstacle_heuristic));
+  }
   return std::max(obstacle_heuristic, distance_heuristic);
 }
 
@@ -465,7 +471,7 @@ void NodeLattice::precomputeDistanceHeuristic(
   int dim_3_size_int = static_cast<int>(dim_3_size);
 
   // Create a lookup table of Dubin/Reeds-Shepp distances in a window around the goal
-  // to help drive the search towards admissible approaches. Deu to symmetries in the
+  // to help drive the search towards admissible approaches. Due to symmetries in the
   // Heuristic space, we need to only store 2 of the 4 quadrants and simply mirror
   // around the X axis any relative node lookup. This reduces memory overhead and increases
   // the size of a window a platform can store in memory.

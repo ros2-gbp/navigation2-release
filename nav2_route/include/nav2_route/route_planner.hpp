@@ -29,7 +29,6 @@
 #include "nav2_route/edge_scorer.hpp"
 #include "nav2_core/route_exceptions.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_util/lifecycle_node.hpp"
 
 namespace nav2_route
 {

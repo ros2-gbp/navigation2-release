@@ -39,12 +39,14 @@ void FollowPathAction::on_tick()
 BT::NodeStatus FollowPathAction::on_success()
 {
   setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
 BT::NodeStatus FollowPathAction::on_aborted()
 {
   setOutput("error_code_id", result_.result->error_code);
+  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
@@ -52,7 +54,14 @@ BT::NodeStatus FollowPathAction::on_cancelled()
 {
   // Set empty error code, action was cancelled
   setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
+}
+
+void FollowPathAction::on_timeout()
+{
+  setOutput("error_code_id", ActionResult::CONTROLLER_TIMED_OUT);
+  setOutput("error_msg", "Behavior Tree action client timed out waiting.");
 }
 
 void FollowPathAction::on_wait_for_result(
