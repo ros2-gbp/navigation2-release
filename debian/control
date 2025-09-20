@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-bringup
+Section: misc
+Priority: optional
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-cmake-pytest <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-launch <!nocheck>, ros-jazzy-launch-ros, ros-jazzy-launch-testing <!nocheck>, ros-jazzy-nav2-common, ros-jazzy-navigation2, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-bringup
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-diff-drive-controller, ros-jazzy-joint-state-broadcaster, ros-jazzy-launch-ros, ros-jazzy-nav2-common, ros-jazzy-nav2-minimal-tb3-sim, ros-jazzy-nav2-minimal-tb4-sim, ros-jazzy-navigation2, ros-jazzy-ros-gz-bridge, ros-jazzy-ros-gz-sim, ros-jazzy-slam-toolbox, ros-jazzy-xacro, ros-jazzy-ros-workspace
+Description: Bringup scripts and configurations for the Nav2 stack
