@@ -1,0 +1,13 @@
+Source: ros-jazzy-nav2-costmap-2d
+Section: misc
+Priority: optional
+Maintainer: Steve Macenski <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-angles, ros-jazzy-geometry-msgs, ros-jazzy-laser-geometry, ros-jazzy-launch <!nocheck>, ros-jazzy-launch-testing <!nocheck>, ros-jazzy-map-msgs, ros-jazzy-message-filters, ros-jazzy-nav-msgs, ros-jazzy-nav2-common, ros-jazzy-nav2-lifecycle-manager <!nocheck>, ros-jazzy-nav2-map-server <!nocheck>, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-nav2-voxel-grid, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-sensor-msgs, ros-jazzy-std-msgs, ros-jazzy-std-srvs, ros-jazzy-tf2, ros-jazzy-tf2-geometry-msgs, ros-jazzy-tf2-ros, ros-jazzy-tf2-sensor-msgs, ros-jazzy-visualization-msgs, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-costmap-2d
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-angles, ros-jazzy-geometry-msgs, ros-jazzy-laser-geometry, ros-jazzy-map-msgs, ros-jazzy-message-filters, ros-jazzy-nav-msgs, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-nav2-voxel-grid, ros-jazzy-pluginlib, ros-jazzy-rclcpp, ros-jazzy-rclcpp-lifecycle, ros-jazzy-sensor-msgs, ros-jazzy-std-msgs, ros-jazzy-std-srvs, ros-jazzy-tf2, ros-jazzy-tf2-geometry-msgs, ros-jazzy-tf2-ros, ros-jazzy-tf2-sensor-msgs, ros-jazzy-visualization-msgs, ros-jazzy-ros-workspace
+Description: This package provides an implementation of a 2D costmap that takes in sensor data from the world, builds a 2D or 3D occupancy grid of the data (depending on whether a voxel based implementation is used), and inflates costs in a 2D costmap based on the occupancy grid and a user specified inflation radius.
+ This package also provides support for map_server based initialization of a costmap, rolling window based costmaps, and parameter based subscription to and configuration of sensor topics.
