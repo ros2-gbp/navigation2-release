@@ -21,7 +21,7 @@ namespace nav2_route
 {
 
 void GoalOrientationScorer::configure(
-  const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+  const nav2_util::LifecycleNode::SharedPtr node,
   const std::shared_ptr<tf2_ros::Buffer>/* tf_buffer */,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>/* costmap_subscriber */,
   const std::string & name)

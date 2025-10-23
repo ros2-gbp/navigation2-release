@@ -19,21 +19,22 @@
  *
  */
 
-#include <cmath>
-#include <cstring>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
 #include <queue>
 #include "nav2_amcl/map/map.hpp"
 
 /*
- * @struct CellData
+ * @class CellData
  * @brief Data about map cells
  */
-struct CellData
+class CellData
 {
+public:
   map_t * map_;
   unsigned int i_, j_;
   unsigned int src_i_, src_j_;
-  float occ_dist;
 };
 
 /*
@@ -82,7 +83,9 @@ public:
  */
 bool operator<(const CellData & a, const CellData & b)
 {
-  return a.occ_dist > b.occ_dist;
+  return a.map_->cells[MAP_INDEX(
+             a.map_, a.i_,
+             a.j_)].occ_dist > a.map_->cells[MAP_INDEX(b.map_, b.i_, b.j_)].occ_dist;
 }
 
 /*
@@ -116,9 +119,7 @@ void enqueue(
   CachedDistanceMap * cdm,
   unsigned char * marked)
 {
-  const int map_index = MAP_INDEX(map, i, j);
-
-  if (marked[map_index]) {
+  if (marked[MAP_INDEX(map, i, j)]) {
     return;
   }
 
@@ -130,13 +131,18 @@ void enqueue(
     return;
   }
 
-  map->cells[map_index].occ_dist = distance * map->scale;
+  map->cells[MAP_INDEX(map, i, j)].occ_dist = distance * map->scale;
 
-  Q.emplace(CellData{map, static_cast<unsigned int>(i), static_cast<unsigned int>(j),
-      static_cast<unsigned int>(src_i), static_cast<unsigned int>(src_j),
-      map->cells[map_index].occ_dist});
+  CellData cell;
+  cell.map_ = map;
+  cell.i_ = i;
+  cell.j_ = j;
+  cell.src_i_ = src_i;
+  cell.src_j_ = src_j;
 
-  marked[map_index] = 1;
+  Q.push(cell);
+
+  marked[MAP_INDEX(map, i, j)] = 1;
 }
 
 /*
@@ -159,18 +165,16 @@ void map_update_cspace(map_t * map, double max_occ_dist)
   // Enqueue all the obstacle cells
   CellData cell;
   cell.map_ = map;
-  int loop_map_index;
   for (int i = 0; i < map->size_x; i++) {
     cell.src_i_ = cell.i_ = i;
     for (int j = 0; j < map->size_y; j++) {
-      loop_map_index = MAP_INDEX(map, i, j);
-      if (map->cells[loop_map_index].occ_state == +1) {
-        map->cells[loop_map_index].occ_dist = 0.0;
+      if (map->cells[MAP_INDEX(map, i, j)].occ_state == +1) {
+        map->cells[MAP_INDEX(map, i, j)].occ_dist = 0.0;
         cell.src_j_ = cell.j_ = j;
-        marked[loop_map_index] = 1;
+        marked[MAP_INDEX(map, i, j)] = 1;
         Q.push(cell);
       } else {
-        map->cells[loop_map_index].occ_dist = max_occ_dist;
+        map->cells[MAP_INDEX(map, i, j)].occ_dist = max_occ_dist;
       }
     }
   }
@@ -179,27 +183,27 @@ void map_update_cspace(map_t * map, double max_occ_dist)
     CellData current_cell = Q.top();
     if (current_cell.i_ > 0) {
       enqueue(
-          map, current_cell.i_ - 1, current_cell.j_,
-          current_cell.src_i_, current_cell.src_j_,
-          Q, cdm, marked);
+        map, current_cell.i_ - 1, current_cell.j_,
+        current_cell.src_i_, current_cell.src_j_,
+        Q, cdm, marked);
     }
     if (current_cell.j_ > 0) {
       enqueue(
-          map, current_cell.i_, current_cell.j_ - 1,
-          current_cell.src_i_, current_cell.src_j_,
-          Q, cdm, marked);
+        map, current_cell.i_, current_cell.j_ - 1,
+        current_cell.src_i_, current_cell.src_j_,
+        Q, cdm, marked);
     }
     if (static_cast<int>(current_cell.i_) < map->size_x - 1) {
       enqueue(
-          map, current_cell.i_ + 1, current_cell.j_,
-          current_cell.src_i_, current_cell.src_j_,
-          Q, cdm, marked);
+        map, current_cell.i_ + 1, current_cell.j_,
+        current_cell.src_i_, current_cell.src_j_,
+        Q, cdm, marked);
     }
     if (static_cast<int>(current_cell.j_) < map->size_y - 1) {
       enqueue(
-          map, current_cell.i_, current_cell.j_ + 1,
-          current_cell.src_i_, current_cell.src_j_,
-          Q, cdm, marked);
+        map, current_cell.i_, current_cell.j_ + 1,
+        current_cell.src_i_, current_cell.src_j_,
+        Q, cdm, marked);
     }
 
     Q.pop();

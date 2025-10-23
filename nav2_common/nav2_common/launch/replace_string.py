@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import tempfile
-from typing import Optional
+from typing import Dict, List, Optional, Text
 
 import launch
 
 
-class ReplaceString(launch.Substitution):  # type: ignore[misc]
+class ReplaceString(launch.Substitution):
     """
     Substitution that replaces strings on a given file.
 
@@ -28,17 +28,16 @@ class ReplaceString(launch.Substitution):  # type: ignore[misc]
     def __init__(
         self,
         source_file: launch.SomeSubstitutionsType,
-        replacements: dict[str, launch.SomeSubstitutionsType],
+        replacements: Dict,
         condition: Optional[launch.Condition] = None,
     ) -> None:
         super().__init__()
 
-        from launch.utilities import normalize_to_list_of_substitutions
+        from launch.utilities import (
+            normalize_to_list_of_substitutions,
+        )  # import here to avoid loop
 
-        # import here to avoid loop
-
-        self.__source_file: list[launch.Substitution] = \
-            normalize_to_list_of_substitutions(source_file)
+        self.__source_file = normalize_to_list_of_substitutions(source_file)
         self.__replacements = {}
         for key in replacements:
             self.__replacements[key] = normalize_to_list_of_substitutions(
@@ -47,7 +46,7 @@ class ReplaceString(launch.Substitution):  # type: ignore[misc]
         self.__condition = condition
 
     @property
-    def name(self) -> list[launch.Substitution]:
+    def name(self) -> List[launch.Substitution]:
         """Getter for name."""
         return self.__source_file
 
@@ -56,19 +55,17 @@ class ReplaceString(launch.Substitution):  # type: ignore[misc]
         """Getter for condition."""
         return self.__condition
 
-    def describe(self) -> str:
+    def describe(self) -> Text:
         """Return a description of this substitution as a string."""
         return ''
 
-    def perform(self, context: launch.LaunchContext) -> str:
-        yaml_filename: str = launch.utilities.perform_substitutions(
-            context, self.name
-        )
+    def perform(self, context: launch.LaunchContext) -> Text:
+        yaml_filename = launch.utilities.perform_substitutions(context, self.name)
         if self.__condition is None or self.__condition.evaluate(context):
             output_file = tempfile.NamedTemporaryFile(mode='w', delete=False)
             replacements = self.resolve_replacements(context)
             try:
-                input_file = open(yaml_filename)
+                input_file = open(yaml_filename, 'r')
                 self.replace(input_file, output_file, replacements)
             except Exception as err:  # noqa: B902
                 print('ReplaceString substitution error: ', err)
@@ -79,7 +76,7 @@ class ReplaceString(launch.Substitution):  # type: ignore[misc]
         else:
             return yaml_filename
 
-    def resolve_replacements(self, context: launch.LaunchContext) -> dict[str, str]:
+    def resolve_replacements(self, context):
         resolved_replacements = {}
         for key in self.__replacements:
             resolved_replacements[key] = launch.utilities.perform_substitutions(
@@ -87,8 +84,7 @@ class ReplaceString(launch.Substitution):  # type: ignore[misc]
             )
         return resolved_replacements
 
-    def replace(self, input_file: launch.SomeSubstitutionsType,
-                output_file: launch.SomeSubstitutionsType, replacements: dict[str, str]) -> None:
+    def replace(self, input_file, output_file, replacements):
         for line in input_file:
             for key, value in replacements.items():
                 if isinstance(key, str) and isinstance(value, str):

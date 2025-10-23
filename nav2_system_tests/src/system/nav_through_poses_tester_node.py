@@ -17,17 +17,23 @@
 import argparse
 import sys
 import time
+
 from typing import Optional
 
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import Pose, PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import NavigateThroughPoses
 from nav2_msgs.srv import ManageLifecycleNodes
+
 import rclpy
-from rclpy.action import ActionClient  # type: ignore[attr-defined]
+
+from rclpy.action import ActionClient
 from rclpy.node import Node
-from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
+from rclpy.qos import QoSProfile
 
 
 class NavTester(Node):
@@ -55,16 +61,16 @@ class NavTester(Node):
             self, NavigateThroughPoses, 'navigate_through_poses'
         )
 
-    def info_msg(self, msg: str) -> None:
+    def info_msg(self, msg: str):
         self.get_logger().info('\033[1;37;44m' + msg + '\033[0m')
 
-    def warn_msg(self, msg: str) -> None:
+    def warn_msg(self, msg: str):
         self.get_logger().warn('\033[1;37;43m' + msg + '\033[0m')
 
-    def error_msg(self, msg: str) -> None:
+    def error_msg(self, msg: str):
         self.get_logger().error('\033[1;37;41m' + msg + '\033[0m')
 
-    def setInitialPose(self) -> None:
+    def setInitialPose(self):
         msg = PoseWithCovarianceStamped()
         msg.pose.pose = self.initial_pose
         msg.header.frame_id = 'map'
@@ -72,13 +78,13 @@ class NavTester(Node):
         self.initial_pose_pub.publish(msg)
         self.currentPose = self.initial_pose
 
-    def getStampedPoseMsg(self, pose: Pose) -> PoseStamped:
+    def getStampedPoseMsg(self, pose: Pose):
         msg = PoseStamped()
         msg.header.frame_id = 'map'
         msg.pose = pose
         return msg
 
-    def runNavigateAction(self, goal_pose: Optional[Pose] = None) -> bool:
+    def runNavigateAction(self, goal_pose: Optional[Pose] = None):
         # Sends a `NavToPose` action request and waits for completion
         self.info_msg("Waiting for 'NavigateThroughPoses' action server")
         while not self.action_client.wait_for_server(timeout_sec=1.0):
@@ -88,9 +94,7 @@ class NavTester(Node):
 
         self.goal_pose = goal_pose if goal_pose is not None else self.goal_pose
         goal_msg = NavigateThroughPoses.Goal()
-        goal_msg.poses.header.frame_id = 'map'
-        goal_msg.poses.header.stamp = self.get_clock().now().to_msg()
-        goal_msg.poses.goals = [
+        goal_msg.poses = [
             self.getStampedPoseMsg(self.goal_pose),
             self.getStampedPoseMsg(self.goal_pose),
         ]
@@ -101,7 +105,7 @@ class NavTester(Node):
         rclpy.spin_until_future_complete(self, send_goal_future)
         goal_handle = send_goal_future.result()
 
-        if not goal_handle or not goal_handle.accepted:
+        if not goal_handle.accepted:
             self.error_msg('Goal rejected')
             return False
 
@@ -110,18 +114,15 @@ class NavTester(Node):
 
         self.info_msg("Waiting for 'NavigateToPose' action to complete")
         rclpy.spin_until_future_complete(self, get_result_future)
-        status = get_result_future.result().status  # type: ignore[union-attr]
+        status = get_result_future.result().status
         if status != GoalStatus.STATUS_SUCCEEDED:
-            result = get_result_future.result().result  # type: ignore[union-attr]
-            self.info_msg(f'Goal failed with status code: {status}'
-                          f' error code:{result.error_code}'
-                          f' error msg:{result.error_msg}')
+            self.info_msg(f'Goal failed with status code: {status}')
             return False
 
         self.info_msg('Goal succeeded!')
         return True
 
-    def runFakeNavigateAction(self) -> bool:
+    def runFakeNavigateAction(self):
         # Sends a `NavToPose` action request and waits for completion
         self.info_msg("Waiting for 'NavigateThroughPoses' action server")
         while not self.action_client.wait_for_server(timeout_sec=1.0):
@@ -137,7 +138,7 @@ class NavTester(Node):
         rclpy.spin_until_future_complete(self, send_goal_future)
         goal_handle = send_goal_future.result()
 
-        if not goal_handle or not goal_handle.accepted:
+        if not goal_handle.accepted:
             self.error_msg('Goal rejected')
             return False
 
@@ -146,18 +147,15 @@ class NavTester(Node):
 
         self.info_msg("Waiting for 'NavigateToPose' action to complete")
         rclpy.spin_until_future_complete(self, get_result_future)
-        status = get_result_future.result().status  # type: ignore[union-attr]
+        status = get_result_future.result().status
         if status != GoalStatus.STATUS_SUCCEEDED:
-            result = get_result_future.result().result  # type: ignore[union-attr]
-            self.info_msg(f'Goal failed with status code: {status}'
-                          f' error code:{result.error_code}'
-                          f' error msg:{result.error_msg}')
+            self.info_msg(f'Goal failed with status code: {status}')
             return False
 
         self.info_msg('Goal succeeded!')
         return True
 
-    def runNavigatePreemptionAction(self, block: bool) -> bool:
+    def runNavigatePreemptionAction(self, block):
         # Sends a `NavToPose` action request and waits for completion
         self.info_msg("Waiting for 'NavigateThroughPoses' action server")
         while not self.action_client.wait_for_server(timeout_sec=1.0):
@@ -166,7 +164,7 @@ class NavTester(Node):
             )
 
         goal_msg = NavigateThroughPoses.Goal()
-        goal_msg.poses.goals = [self.getStampedPoseMsg(self.initial_pose)]
+        goal_msg.poses = [self.getStampedPoseMsg(self.initial_pose)]
 
         self.info_msg('Sending goal request...')
         send_goal_future = self.action_client.send_goal_async(goal_msg)
@@ -174,7 +172,7 @@ class NavTester(Node):
         rclpy.spin_until_future_complete(self, send_goal_future)
         goal_handle = send_goal_future.result()
 
-        if not goal_handle or not goal_handle.accepted:
+        if not goal_handle.accepted:
             self.error_msg('Goal rejected')
             return False
 
@@ -186,23 +184,20 @@ class NavTester(Node):
 
         self.info_msg("Waiting for 'NavigateToPose' action to complete")
         rclpy.spin_until_future_complete(self, get_result_future)
-        status = get_result_future.result().status  # type: ignore[union-attr]
+        status = get_result_future.result().status
         if status != GoalStatus.STATUS_SUCCEEDED:
-            result = get_result_future.result().result  # type: ignore[union-attr]
-            self.info_msg(f'Goal failed with status code: {status}'
-                          f' error code:{result.error_code}'
-                          f' error msg:{result.error_msg}')
+            self.info_msg(f'Goal failed with status code: {status}')
             return False
 
         self.info_msg('Goal succeeded!')
         return True
 
-    def poseCallback(self, msg: PoseWithCovarianceStamped) -> None:
+    def poseCallback(self, msg):
         self.info_msg('Received amcl_pose')
         self.current_pose = msg.pose.pose
         self.initial_pose_received = True
 
-    def wait_for_node_active(self, node_name: str) -> None:
+    def wait_for_node_active(self, node_name: str):
         # Waits for the node within the tester namespace to become active
         self.info_msg(f'Waiting for {node_name} to become active')
         node_service = f'{node_name}/get_state'
@@ -216,7 +211,7 @@ class NavTester(Node):
             future = state_client.call_async(req)
             rclpy.spin_until_future_complete(self, future)
             if future.result() is not None:
-                state = future.result().current_state.label  # type: ignore[union-attr]
+                state = future.result().current_state.label
                 self.info_msg(f'Result of get_state: {state}')
             else:
                 self.error_msg(
@@ -224,7 +219,7 @@ class NavTester(Node):
                 )
             time.sleep(5)
 
-    def shutdown(self) -> None:
+    def shutdown(self):
         self.info_msg('Shutting down')
         self.action_client.destroy()
 
@@ -259,7 +254,7 @@ class NavTester(Node):
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
 
-    def wait_for_initial_pose(self) -> None:
+    def wait_for_initial_pose(self):
         self.initial_pose_received = False
         while not self.initial_pose_received:
             self.info_msg('Setting initial pose')
@@ -268,7 +263,7 @@ class NavTester(Node):
             rclpy.spin_once(self, timeout_sec=1)
 
 
-def run_all_tests(robot_tester: NavTester) -> bool:
+def run_all_tests(robot_tester):
     # set transforms to use_sim_time
     result = True
     if result:
@@ -292,7 +287,7 @@ def run_all_tests(robot_tester: NavTester) -> bool:
     return result
 
 
-def fwd_pose(x: float = 0.0, y: float = 0.0, z: float = 0.01) -> Pose:
+def fwd_pose(x=0.0, y=0.0, z=0.01):
     initial_pose = Pose()
     initial_pose.position.x = x
     initial_pose.position.y = y
@@ -304,7 +299,7 @@ def fwd_pose(x: float = 0.0, y: float = 0.0, z: float = 0.01) -> Pose:
     return initial_pose
 
 
-def get_testers(args: argparse.Namespace) -> list[NavTester]:
+def get_testers(args):
     testers = []
 
     init_x, init_y, final_x, final_y = args.robot[0]
@@ -327,7 +322,7 @@ def get_testers(args: argparse.Namespace) -> list[NavTester]:
     return testers
 
 
-def main(argv: list[str] = sys.argv[1:]):  # type: ignore[no-untyped-def]
+def main(argv=sys.argv[1:]):
     # The robot(s) positions from the input arguments
     parser = argparse.ArgumentParser(description='System-level navigation tester node')
     group = parser.add_mutually_exclusive_group(required=True)

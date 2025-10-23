@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
+from typing import Text
+
 import launch
 import yaml
 
 
-class HasNodeParams(launch.Substitution):  # type: ignore[misc]
+class HasNodeParams(launch.Substitution):
     """
     Substitution that checks if a param file contains parameters for a node.
 
@@ -24,7 +27,7 @@ class HasNodeParams(launch.Substitution):  # type: ignore[misc]
     """
 
     def __init__(
-        self, source_file: launch.SomeSubstitutionsType, node_name: str
+        self, source_file: launch.SomeSubstitutionsType, node_name: Text
     ) -> None:
         super().__init__()
         """
@@ -34,25 +37,25 @@ class HasNodeParams(launch.Substitution):  # type: ignore[misc]
     :param: node_name the name of the node to check
     """
 
-        # import here to avoid loop
-        from launch.utilities import normalize_to_list_of_substitutions
+        from launch.utilities import (
+            normalize_to_list_of_substitutions,
+        )  # import here to avoid loop
 
-        self.__source_file: list[launch.Substitution] = \
-            normalize_to_list_of_substitutions(source_file)
+        self.__source_file = normalize_to_list_of_substitutions(source_file)
         self.__node_name = node_name
 
     @property
-    def name(self) -> list[launch.Substitution]:
+    def name(self) -> List[launch.Substitution]:
         """Getter for name."""
         return self.__source_file
 
-    def describe(self) -> str:
+    def describe(self) -> Text:
         """Return a description of this substitution as a string."""
         return ''
 
-    def perform(self, context: launch.LaunchContext) -> str:
+    def perform(self, context: launch.LaunchContext) -> Text:
         yaml_filename = launch.utilities.perform_substitutions(context, self.name)
-        data = yaml.safe_load(open(yaml_filename))
+        data = yaml.safe_load(open(yaml_filename, 'r'))
 
         if self.__node_name in data.keys():
             return 'True'

@@ -22,9 +22,12 @@
 #ifndef NAV2_AMCL__MOTION_MODEL__OMNI_MOTION_MODEL_HPP_
 #define NAV2_AMCL__MOTION_MODEL__OMNI_MOTION_MODEL_HPP_
 
+#include <sys/types.h>
+#include <math.h>
+#include <algorithm>
 #include "nav2_amcl/motion_model/motion_model.hpp"
-#include "nav2_amcl/pf/pf.hpp"
-#include "nav2_amcl/pf/pf_vector.hpp"
+#include "nav2_amcl/angleutils.hpp"
+
 
 namespace nav2_amcl
 {

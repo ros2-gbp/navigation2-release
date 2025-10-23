@@ -65,11 +65,6 @@ public:
    */
   void costmapUpdateCallback(const nav2_msgs::msg::CostmapUpdate::SharedPtr update_msg);
 
-  std::string getFrameID() const
-  {
-    return frame_id_;
-  }
-
 protected:
   bool isCostmapReceived() {return costmap_ != nullptr;}
   void processCurrentCostmapMsg();
@@ -86,7 +81,6 @@ protected:
   nav2_msgs::msg::Costmap::SharedPtr costmap_msg_;
 
   std::string topic_name_;
-  std::string frame_id_;
   std::mutex costmap_msg_mutex_;
   rclcpp::Logger logger_{rclcpp::get_logger("nav2_costmap_2d")};
 };

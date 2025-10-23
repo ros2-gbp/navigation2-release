@@ -135,8 +135,7 @@ TEST(OperationsManagerTest, test_processing_speed_on_status)
   bool got_msg = false;
   nav2_msgs::msg::SpeedLimit my_msg;
   auto sub = node->create_subscription<nav2_msgs::msg::SpeedLimit>(
-    "speed_limit",
-    rclcpp::QoS(1),
+    "speed_limit", rclcpp::QoS(10),
     [&, this](nav2_msgs::msg::SpeedLimit msg) {got_msg = true; my_msg = msg;});
 
   Node node2;
@@ -548,7 +547,7 @@ class TestRouteOperations : public nav2_route::RouteOperation
 {
 public:
   void configure(
-    const rclcpp_lifecycle::LifecycleNode::SharedPtr,
+    const nav2_util::LifecycleNode::SharedPtr,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>,
     const std::string &) override
   {

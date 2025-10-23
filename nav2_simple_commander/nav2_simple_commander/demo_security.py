@@ -17,8 +17,10 @@ from copy import deepcopy
 
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
+
 import rclpy
 from rclpy.duration import Duration
+
 
 """
 Basic security route patrol demo. In this demonstration, the expectation
@@ -27,7 +29,7 @@ watched live by security staff.
 """
 
 
-def main() -> None:
+def main():
     rclpy.init()
 
     navigator = BasicNavigator()
@@ -56,7 +58,7 @@ def main() -> None:
     navigator.waitUntilNav2Active()
 
     # Do security route until dead
-    while rclpy.ok():  # type: ignore[attr-defined]
+    while rclpy.ok():
         # Send our route
         route_poses = []
         pose = PoseStamped()
@@ -67,18 +69,18 @@ def main() -> None:
             pose.pose.position.x = pt[0]
             pose.pose.position.y = pt[1]
             route_poses.append(deepcopy(pose))
-        go_through_poses_task = navigator.goThroughPoses(route_poses)
+        navigator.goThroughPoses(route_poses)
 
         # Do something during our route (e.x. AI detection on camera images for anomalies)
-        # Simply print ETA for the demonstration
+        # Simply print ETA for the demonstation
         i = 0
-        while not navigator.isTaskComplete(task=go_through_poses_task):
+        while not navigator.isTaskComplete():
             i += 1
-            feedback = navigator.getFeedback(task=go_through_poses_task)
+            feedback = navigator.getFeedback()
             if feedback and i % 5 == 0:
                 print(
                     'Estimated time to complete current route: '
-                    + '{:.0f}'.format(
+                    + '{0:.0f}'.format(
                         Duration.from_msg(feedback.estimated_time_remaining).nanoseconds
                         / 1e9
                     )
@@ -102,9 +104,7 @@ def main() -> None:
             print('Security route was canceled, exiting.')
             exit(1)
         elif result == TaskResult.FAILED:
-            (error_code, error_msg) = navigator.getTaskError()
-            print(f'Security route failed!:{error_code}:{error_msg}')
-            print('Restarting from other side...')
+            print('Security route failed! Restarting from other side...')
 
     exit(0)
 

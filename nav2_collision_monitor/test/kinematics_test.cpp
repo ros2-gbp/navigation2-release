@@ -29,6 +29,14 @@ using namespace std::chrono_literals;
 
 static constexpr double EPSILON = std::numeric_limits<float>::epsilon();
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
+
 TEST(KinematicsTest, testTransformPoints)
 {
   // Transform: move frame to (2.0, 1.0) coordinate and rotate it on 30 degrees
@@ -87,17 +95,4 @@ TEST(KinematicsTest, testProjectState)
   EXPECT_NEAR(vel.x, std::cos(rotated_vel_angle), EPSILON);
   EXPECT_NEAR(vel.y, std::sin(rotated_vel_angle), EPSILON);
   EXPECT_NEAR(vel.tw, M_PI / 4.0, EPSILON);  // should be the same
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

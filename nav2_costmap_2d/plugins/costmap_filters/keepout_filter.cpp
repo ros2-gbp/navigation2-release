@@ -38,7 +38,7 @@
 #include <string>
 #include <memory>
 #include <algorithm>
-#include "tf2/convert.hpp"
+#include "tf2/convert.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 #include "nav2_costmap_2d/costmap_filters/keepout_filter.hpp"
@@ -63,7 +63,7 @@ void KeepoutFilter::initializeFilter(
     throw std::runtime_error{"Failed to lock node"};
   }
 
-  filter_info_topic_ = joinWithParentNamespace(filter_info_topic);
+  filter_info_topic_ = filter_info_topic;
   // Setting new costmap filter info subscriber
   RCLCPP_INFO(
     logger_,
@@ -117,7 +117,7 @@ void KeepoutFilter::filterInfoCallback(
       BASE_DEFAULT, MULTIPLIER_DEFAULT);
   }
 
-  mask_topic_ = joinWithParentNamespace(msg->filter_mask_topic);
+  mask_topic_ = msg->filter_mask_topic;
 
   // Setting new filter mask subscriber
   RCLCPP_INFO(
@@ -153,6 +153,37 @@ void KeepoutFilter::maskCallback(
 
   // Store filter_mask_
   filter_mask_ = msg;
+  has_updated_data_ = true;
+  x_ = y_ = 0;
+  width_ = msg->info.width;
+  height_ = msg->info.height;
+}
+
+void KeepoutFilter::updateBounds(
+  double robot_x, double robot_y, double robot_yaw,
+  double * min_x, double * min_y, double * max_x, double * max_y)
+{
+  if (!enabled_) {
+    return;
+  }
+
+  CostmapFilter::updateBounds(robot_x, robot_y, robot_yaw, min_x, min_y, max_x, max_y);
+
+  if(!has_updated_data_) {
+    return;
+  }
+
+  double wx, wy;
+
+  layered_costmap_->getCostmap()->mapToWorld(x_, y_, wx, wy);
+  *min_x = std::min(wx, *min_x);
+  *min_y = std::min(wy, *min_y);
+
+  layered_costmap_->getCostmap()->mapToWorld(x_ + width_, y_ + height_, wx, wy);
+  *max_x = std::max(wx, *max_x);
+  *max_y = std::max(wy, *max_y);
+
+  has_updated_data_ = false;
 }
 
 void KeepoutFilter::process(

@@ -18,12 +18,10 @@
 namespace mppi::critics
 {
 
+using xt::evaluation_strategy::immediate;
 
 void GoalCritic::initialize()
 {
-  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
-  getParentParam(enforce_path_inversion_, "enforce_path_inversion", false);
-
   auto getParam = parameters_handler_->getParamGetter(name_);
 
   getParam(power_, "cost_power", 1);
@@ -37,30 +35,27 @@ void GoalCritic::initialize()
 
 void GoalCritic::score(CriticData & data)
 {
-  if (!enabled_) {
-    return;
-  }
-
-  geometry_msgs::msg::Pose goal = utils::getCriticGoal(data, enforce_path_inversion_);
-
-  if (!utils::withinPositionGoalTolerance(
-      threshold_to_consider_, data.state.pose.pose, goal))
+  if (!enabled_ || !utils::withinPositionGoalTolerance(
+      threshold_to_consider_, data.state.pose.pose, data.goal))
   {
     return;
   }
 
-  auto goal_x = goal.position.x;
-  auto goal_y = goal.position.y;
+  const auto & goal_x = data.goal.position.x;
+  const auto & goal_y = data.goal.position.y;
 
-  const auto delta_x = data.trajectories.x - goal_x;
-  const auto delta_y = data.trajectories.y - goal_y;
+  const auto traj_x = xt::view(data.trajectories.x, xt::all(), xt::all());
+  const auto traj_y = xt::view(data.trajectories.y, xt::all(), xt::all());
 
-  if(power_ > 1u) {
-    data.costs += (((delta_x.square() + delta_y.square()).sqrt()).rowwise().mean() *
-      weight_).pow(power_);
+  if (power_ > 1u) {
+    data.costs += xt::pow(
+      xt::mean(
+        xt::hypot(traj_x - goal_x, traj_y - goal_y),
+        {1}, immediate) * weight_, power_);
   } else {
-    data.costs += (((delta_x.square() + delta_y.square()).sqrt()).rowwise().mean() *
-      weight_).eval();
+    data.costs += xt::mean(
+      xt::hypot(traj_x - goal_x, traj_y - goal_y),
+      {1}, immediate) * weight_;
   }
 }
 

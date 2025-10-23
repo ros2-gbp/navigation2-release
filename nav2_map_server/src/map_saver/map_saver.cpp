@@ -72,10 +72,8 @@ MapSaver::on_configure(const rclcpp_lifecycle::State & /*state*/)
   map_subscribe_transient_local_ = get_parameter("map_subscribe_transient_local").as_bool();
 
   // Create a service that saves the occupancy grid from map topic to a file
-  save_map_service_ = std::make_shared<nav2_util::ServiceServer<nav2_msgs::srv::SaveMap,
-      std::shared_ptr<nav2_util::LifecycleNode>>>(
+  save_map_service_ = create_service<nav2_msgs::srv::SaveMap>(
     service_prefix + save_map_service_name_,
-    shared_from_this(),
     std::bind(&MapSaver::saveMapCallback, this, _1, _2, _3));
 
   return nav2_util::CallbackReturn::SUCCESS;

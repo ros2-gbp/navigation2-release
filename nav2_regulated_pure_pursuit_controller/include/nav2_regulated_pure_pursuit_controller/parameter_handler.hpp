@@ -42,7 +42,6 @@ struct Parameters
   double min_approach_linear_velocity;
   double approach_velocity_scaling_dist;
   double max_allowed_time_to_collision_up_to_carrot;
-  double min_distance_to_obstacle;
   bool use_regulated_linear_velocity_scaling;
   bool use_cost_regulated_linear_velocity_scaling;
   double cost_scaling_dist;
@@ -95,14 +94,12 @@ protected:
    * @brief Callback executed when a parameter change is detected
    * @param event ParameterEvent message
    */
-  void
-  updateParametersCallback(std::vector<rclcpp::Parameter> parameters);
   rcl_interfaces::msg::SetParametersResult
-  validateParameterUpdatesCallback(std::vector<rclcpp::Parameter> parameters);
+  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+
   // Dynamic parameters handler
   std::mutex mutex_;
-  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
   Parameters params_;
   std::string plugin_name_;
   rclcpp::Logger logger_ {rclcpp::get_logger("RegulatedPurePursuitController")};

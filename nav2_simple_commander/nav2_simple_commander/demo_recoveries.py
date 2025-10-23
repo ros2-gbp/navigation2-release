@@ -18,6 +18,7 @@ from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 import rclpy
 from rclpy.duration import Duration
 
+
 """
 Basic recoveries demo. In this demonstration, the robot navigates
 to a dead-end where recoveries such as backup and spin are used
@@ -25,7 +26,7 @@ to get out of it.
 """
 
 
-def main() -> None:
+def main():
     rclpy.init()
 
     navigator = BasicNavigator()
@@ -50,12 +51,12 @@ def main() -> None:
     goal_pose.pose.position.y = 1.3
     goal_pose.pose.orientation.w = 1.0
 
-    go_to_pose_task = navigator.goToPose(goal_pose)
+    navigator.goToPose(goal_pose)
 
     i = 0
-    while not navigator.isTaskComplete(task=go_to_pose_task):
+    while not navigator.isTaskComplete():
         i += 1
-        feedback = navigator.getFeedback(task=go_to_pose_task)
+        feedback = navigator.getFeedback()
         if feedback and i % 5 == 0:
             print(
                 f'Estimated time of arrival to destination is: \
@@ -63,24 +64,24 @@ def main() -> None:
             )
 
     # Robot hit a dead end, back it up
-    print("Robot hit a dead end (let's pretend), backing up...")
-    backup_task = navigator.backup(backup_dist=0.5, backup_speed=0.1)
+    print('Robot hit a dead end (lets pretend), backing up...')
+    navigator.backup(backup_dist=0.5, backup_speed=0.1)
 
     i = 0
-    while not navigator.isTaskComplete(task=backup_task):
+    while not navigator.isTaskComplete():
         i += 1
-        feedback = navigator.getFeedback(task=backup_task)
+        feedback = navigator.getFeedback()
         if feedback and i % 5 == 0:
             print(f'Distance traveled: {feedback.distance_traveled}')
 
     # Turn it around
     print('Spinning robot around...')
-    spin_task = navigator.spin(spin_dist=3.14)
+    navigator.spin(spin_dist=3.14)
 
     i = 0
-    while not navigator.isTaskComplete(task=spin_task):
+    while not navigator.isTaskComplete():
         i += 1
-        feedback = navigator.getFeedback(task=spin_task)
+        feedback = navigator.getFeedback()
         if feedback and i % 5 == 0:
             print(f'Spin angle traveled: {feedback.angular_distance_traveled}')
 
@@ -90,13 +91,11 @@ def main() -> None:
     elif result == TaskResult.CANCELED:
         print('Recovery was canceled. Returning to start...')
     elif result == TaskResult.FAILED:
-        (error_code, error_msg) = navigator.getTaskError()
-        print(f'Recovering from dead end failed!:{error_code}:{error_msg}')
-        print('Returning to start...')
+        print('Recovering from dead end failed! Returning to start...')
 
     initial_pose.header.stamp = navigator.get_clock().now().to_msg()
-    go_to_pose_task = navigator.goToPose(initial_pose)
-    while not navigator.isTaskComplete(task=go_to_pose_task):
+    navigator.goToPose(initial_pose)
+    while not navigator.isTaskComplete():
         pass
 
     exit(0)

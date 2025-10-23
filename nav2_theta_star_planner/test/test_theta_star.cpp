@@ -19,6 +19,13 @@
 #include "nav2_theta_star_planner/theta_star.hpp"
 #include "nav2_theta_star_planner/theta_star_planner.hpp"
 
+class init_rclcpp
+{
+public:
+  init_rclcpp() {rclcpp::init(0, nullptr);}
+  ~init_rclcpp() {rclcpp::shutdown();}
+};
+
 /// class created to access the protected members of the ThetaStar class
 /// u is used as shorthand for use
 class test_theta_star : public theta_star::ThetaStar
@@ -63,6 +70,8 @@ public:
     return false;
   }
 };
+
+init_rclcpp node;
 
 // Tests meant to test the algorithm itself and its helper functions
 TEST(ThetaStarTest, test_theta_star) {
@@ -228,17 +237,4 @@ TEST(ThetaStarPlanner, test_theta_star_reconfigure)
   rclcpp::spin_until_future_complete(
     life_node->get_node_base_interface(),
     results);
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

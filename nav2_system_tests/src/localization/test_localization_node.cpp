@@ -15,10 +15,12 @@
 #include <memory>
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
+#include "nav2_amcl/amcl_node.hpp"
+#include "std_msgs/msg/string.hpp"
 #include "geometry_msgs/msg/pose_array.hpp"
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 
+using std::placeholders::_1;
 using namespace std::chrono_literals;
 
 class TestAmclPose : public ::testing::Test
@@ -41,7 +43,7 @@ public:
       "initialpose", rclcpp::SystemDefaultsQoS());
     subscription_ = node->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
       "amcl_pose", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-      std::bind(&TestAmclPose::amcl_pose_callback, this, std::placeholders::_1));
+      std::bind(&TestAmclPose::amcl_pose_callback, this, _1));
     initial_pose_pub_->publish(testPose_);
   }
 

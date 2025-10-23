@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <limits>
 
+#include "Eigen/Core"
 #include "nav2_smac_planner/smac_planner_hybrid.hpp"
 
 // #define BENCHMARK_TESTING
@@ -166,29 +167,7 @@ void SmacPlannerHybrid::configure(
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".motion_model_for_search", rclcpp::ParameterValue(std::string("DUBIN")));
   node->get_parameter(name + ".motion_model_for_search", _motion_model_for_search);
-  // Note that we need to declare it here to prevent the parameter from being declared in the
-  // dynamic reconfigure callback
-  nav2_util::declare_parameter_if_not_declared(
-    node, "service_introspection_mode", rclcpp::ParameterValue("disabled"));
-
-  std::string goal_heading_type;
-  nav2_util::declare_parameter_if_not_declared(
-    node, name + ".goal_heading_mode", rclcpp::ParameterValue("DEFAULT"));
-  node->get_parameter(name + ".goal_heading_mode", goal_heading_type);
-  _goal_heading_mode = fromStringToGH(goal_heading_type);
-
-  nav2_util::declare_parameter_if_not_declared(
-    node, name + ".coarse_search_resolution", rclcpp::ParameterValue(1));
-  node->get_parameter(name + ".coarse_search_resolution", _coarse_search_resolution);
-
-  if (_goal_heading_mode == GoalHeadingMode::UNKNOWN) {
-    std::string error_msg = "Unable to get GoalHeader type. Given '" + goal_heading_type + "' "
-      "Valid options are DEFAULT, BIDIRECTIONAL, ALL_DIRECTION. ";
-    throw nav2_core::PlannerException(error_msg);
-  }
-
   _motion_model = fromString(_motion_model_for_search);
-
   if (_motion_model == MotionModel::UNKNOWN) {
     RCLCPP_WARN(
       _logger,
@@ -209,21 +188,6 @@ void SmacPlannerHybrid::configure(
       _logger, "maximum iteration selected as <= 0, "
       "disabling maximum iterations.");
     _max_iterations = std::numeric_limits<int>::max();
-  }
-
-  if (_coarse_search_resolution <= 0) {
-    RCLCPP_WARN(
-      _logger, "coarse iteration resolution selected as <= 0, "
-      "disabling coarse iteration resolution search for goal heading"
-    );
-
-    _coarse_search_resolution = 1;
-  }
-
-  if (_angle_quantizations % _coarse_search_resolution != 0) {
-    std::string error_msg = "coarse iteration should be an increment"
-      " of the number of angular bins configured";
-    throw nav2_core::PlannerException(error_msg);
   }
 
   if (_minimum_turning_radius_global_coords < _costmap->getResolution() * _downsampling_factor) {
@@ -329,6 +293,7 @@ void SmacPlannerHybrid::activate()
 
   // Special case handling to obtain resolution changes in global costmap
   auto resolution_remote_cb = [this](const rclcpp::Parameter & p) {
+      auto node = _node.lock();
       dynamicParametersCallback(
         {rclcpp::Parameter("resolution", rclcpp::ParameterValue(p.as_double()))});
     };
@@ -416,17 +381,15 @@ nav_msgs::msg::Path SmacPlannerHybrid::createPlan(
             std::to_string(start.pose.position.y) + ") was outside bounds");
   }
 
-  double start_orientation_bin = std::round(tf2::getYaw(start.pose.orientation) / _angle_bin_size);
-  while (start_orientation_bin < 0.0) {
-    start_orientation_bin += static_cast<float>(_angle_quantizations);
+  double orientation_bin = std::round(tf2::getYaw(start.pose.orientation) / _angle_bin_size);
+  while (orientation_bin < 0.0) {
+    orientation_bin += static_cast<float>(_angle_quantizations);
   }
   // This is needed to handle precision issues
-  if (start_orientation_bin >= static_cast<float>(_angle_quantizations)) {
-    start_orientation_bin -= static_cast<float>(_angle_quantizations);
+  if (orientation_bin >= static_cast<float>(_angle_quantizations)) {
+    orientation_bin -= static_cast<float>(_angle_quantizations);
   }
-  unsigned int start_orientation_bin_int =
-    static_cast<unsigned int>(start_orientation_bin);
-  _a_star->setStart(mx_start, my_start, start_orientation_bin_int);
+  _a_star->setStart(mx_start, my_start, static_cast<unsigned int>(orientation_bin));
 
   // Set goal point, in A* bin search coordinates
   if (!costmap->worldToMapContinuous(
@@ -439,18 +402,15 @@ nav_msgs::msg::Path SmacPlannerHybrid::createPlan(
             "Goal Coordinates of(" + std::to_string(goal.pose.position.x) + ", " +
             std::to_string(goal.pose.position.y) + ") was outside bounds");
   }
-  double goal_orientation_bin = std::round(tf2::getYaw(goal.pose.orientation) / _angle_bin_size);
-  while (goal_orientation_bin < 0.0) {
-    goal_orientation_bin += static_cast<float>(_angle_quantizations);
+  orientation_bin = std::round(tf2::getYaw(goal.pose.orientation) / _angle_bin_size);
+  while (orientation_bin < 0.0) {
+    orientation_bin += static_cast<float>(_angle_quantizations);
   }
   // This is needed to handle precision issues
-  if (goal_orientation_bin >= static_cast<float>(_angle_quantizations)) {
-    goal_orientation_bin -= static_cast<float>(_angle_quantizations);
+  if (orientation_bin >= static_cast<float>(_angle_quantizations)) {
+    orientation_bin -= static_cast<float>(_angle_quantizations);
   }
-  unsigned int goal_orientation_bin_int =
-    static_cast<unsigned int>(goal_orientation_bin);
-  _a_star->setGoal(mx_goal, my_goal, static_cast<unsigned int>(goal_orientation_bin_int),
-    _goal_heading_mode, _coarse_search_resolution);
+  _a_star->setGoal(mx_goal, my_goal, static_cast<unsigned int>(orientation_bin));
 
   // Setup message
   nav_msgs::msg::Path plan;
@@ -466,8 +426,7 @@ nav_msgs::msg::Path SmacPlannerHybrid::createPlan(
 
   // Corner case of start and goal being on the same cell
   if (std::floor(mx_start) == std::floor(mx_goal) &&
-    std::floor(my_start) == std::floor(my_goal) &&
-    start_orientation_bin_int == goal_orientation_bin_int)
+    std::floor(my_start) == std::floor(my_goal))
   {
     pose.pose = start.pose;
     pose.pose.orientation = goal.pose.orientation;
@@ -625,21 +584,19 @@ SmacPlannerHybrid::dynamicParametersCallback(std::vector<rclcpp::Parameter> para
   bool reinit_smoother = false;
 
   for (auto parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if(param_name.find(_name + ".") != 0 && param_name != "resolution") {
-      continue;
-    }
-    if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == _name + ".max_planning_time") {
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
+
+    if (type == ParameterType::PARAMETER_DOUBLE) {
+      if (name == _name + ".max_planning_time") {
         reinit_a_star = true;
         _max_planning_time = parameter.as_double();
-      } else if (param_name == _name + ".tolerance") {
+      } else if (name == _name + ".tolerance") {
         _tolerance = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".lookup_table_size") {
+      } else if (name == _name + ".lookup_table_size") {
         reinit_a_star = true;
         _lookup_table_size = parameter.as_double();
-      } else if (param_name == _name + ".minimum_turning_radius") {
+      } else if (name == _name + ".minimum_turning_radius") {
         reinit_a_star = true;
         if (_smoother) {
           reinit_smoother = true;
@@ -652,29 +609,29 @@ SmacPlannerHybrid::dynamicParametersCallback(std::vector<rclcpp::Parameter> para
         }
 
         _minimum_turning_radius_global_coords = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".reverse_penalty") {
+      } else if (name == _name + ".reverse_penalty") {
         reinit_a_star = true;
         _search_info.reverse_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".change_penalty") {
+      } else if (name == _name + ".change_penalty") {
         reinit_a_star = true;
         _search_info.change_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".non_straight_penalty") {
+      } else if (name == _name + ".non_straight_penalty") {
         reinit_a_star = true;
         _search_info.non_straight_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".cost_penalty") {
+      } else if (name == _name + ".cost_penalty") {
         reinit_a_star = true;
         _search_info.cost_penalty = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".analytic_expansion_ratio") {
+      } else if (name == _name + ".analytic_expansion_ratio") {
         reinit_a_star = true;
         _search_info.analytic_expansion_ratio = static_cast<float>(parameter.as_double());
-      } else if (param_name == _name + ".analytic_expansion_max_length") {
+      } else if (name == _name + ".analytic_expansion_max_length") {
         reinit_a_star = true;
         _search_info.analytic_expansion_max_length =
           static_cast<float>(parameter.as_double()) / _costmap->getResolution();
-      } else if (param_name == _name + ".analytic_expansion_max_cost") {
+      } else if (name == _name + ".analytic_expansion_max_cost") {
         reinit_a_star = true;
         _search_info.analytic_expansion_max_cost = static_cast<float>(parameter.as_double());
-      } else if (param_name == "resolution") {
+      } else if (name == "resolution") {
         // Special case: When the costmap's resolution changes, need to reinitialize
         // the controller to have new resolution information
         RCLCPP_INFO(_logger, "Costmap resolution changed. Reinitializing SmacPlannerHybrid.");
@@ -683,35 +640,35 @@ SmacPlannerHybrid::dynamicParametersCallback(std::vector<rclcpp::Parameter> para
         reinit_downsampler = true;
         reinit_smoother = true;
       }
-    } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == _name + ".downsample_costmap") {
+    } else if (type == ParameterType::PARAMETER_BOOL) {
+      if (name == _name + ".downsample_costmap") {
         reinit_downsampler = true;
         _downsample_costmap = parameter.as_bool();
-      } else if (param_name == _name + ".allow_unknown") {
+      } else if (name == _name + ".allow_unknown") {
         reinit_a_star = true;
         _allow_unknown = parameter.as_bool();
-      } else if (param_name == _name + ".cache_obstacle_heuristic") {
+      } else if (name == _name + ".cache_obstacle_heuristic") {
         reinit_a_star = true;
         _search_info.cache_obstacle_heuristic = parameter.as_bool();
-      } else if (param_name == _name + ".allow_primitive_interpolation") {
+      } else if (name == _name + ".allow_primitive_interpolation") {
         _search_info.allow_primitive_interpolation = parameter.as_bool();
         reinit_a_star = true;
-      } else if (param_name == _name + ".smooth_path") {
+      } else if (name == _name + ".smooth_path") {
         if (parameter.as_bool()) {
           reinit_smoother = true;
         } else {
           _smoother.reset();
         }
-      } else if (param_name == _name + ".analytic_expansion_max_cost_override") {
+      } else if (name == _name + ".analytic_expansion_max_cost_override") {
         _search_info.analytic_expansion_max_cost_override = parameter.as_bool();
         reinit_a_star = true;
       }
-    } else if (param_type == ParameterType::PARAMETER_INTEGER) {
-      if (param_name == _name + ".downsampling_factor") {
+    } else if (type == ParameterType::PARAMETER_INTEGER) {
+      if (name == _name + ".downsampling_factor") {
         reinit_a_star = true;
         reinit_downsampler = true;
         _downsampling_factor = parameter.as_int();
-      } else if (param_name == _name + ".max_iterations") {
+      } else if (name == _name + ".max_iterations") {
         reinit_a_star = true;
         _max_iterations = parameter.as_int();
         if (_max_iterations <= 0) {
@@ -720,7 +677,7 @@ SmacPlannerHybrid::dynamicParametersCallback(std::vector<rclcpp::Parameter> para
             "disabling maximum iterations.");
           _max_iterations = std::numeric_limits<int>::max();
         }
-      } else if (param_name == _name + ".max_on_approach_iterations") {
+      } else if (name == _name + ".max_on_approach_iterations") {
         reinit_a_star = true;
         _max_on_approach_iterations = parameter.as_int();
         if (_max_on_approach_iterations <= 0) {
@@ -729,43 +686,18 @@ SmacPlannerHybrid::dynamicParametersCallback(std::vector<rclcpp::Parameter> para
             "disabling tolerance and on approach iterations.");
           _max_on_approach_iterations = std::numeric_limits<int>::max();
         }
-      } else if (param_name == _name + ".terminal_checking_interval") {
+      } else if (name == _name + ".terminal_checking_interval") {
         reinit_a_star = true;
         _terminal_checking_interval = parameter.as_int();
-      } else if (param_name == _name + ".angle_quantization_bins") {
+      } else if (name == _name + ".angle_quantization_bins") {
         reinit_collision_checker = true;
         reinit_a_star = true;
         int angle_quantizations = parameter.as_int();
         _angle_bin_size = 2.0 * M_PI / angle_quantizations;
         _angle_quantizations = static_cast<unsigned int>(angle_quantizations);
-
-        if (_angle_quantizations % _coarse_search_resolution != 0) {
-          RCLCPP_WARN(
-            _logger, "coarse iteration should be an increment of the "
-            "number of angular bins configured. Disabling course research!"
-          );
-          _coarse_search_resolution = 1;
-        }
-      } else if (param_name == _name + ".coarse_search_resolution") {
-        _coarse_search_resolution = parameter.as_int();
-        if (_coarse_search_resolution <= 0) {
-          RCLCPP_WARN(
-            _logger, "coarse iteration resolution selected as <= 0. "
-            "Disabling course research!"
-          );
-          _coarse_search_resolution = 1;
-        }
-        if (_angle_quantizations % _coarse_search_resolution != 0) {
-          RCLCPP_WARN(
-            _logger,
-              "coarse iteration should be an increment of the "
-              "number of angular bins configured. Disabling course research!"
-          );
-          _coarse_search_resolution = 1;
-        }
       }
-    } else if (param_type == ParameterType::PARAMETER_STRING) {
-      if (param_name == _name + ".motion_model_for_search") {
+    } else if (type == ParameterType::PARAMETER_STRING) {
+      if (name == _name + ".motion_model_for_search") {
         reinit_a_star = true;
         _motion_model = fromString(parameter.as_string());
         if (_motion_model == MotionModel::UNKNOWN) {
@@ -774,22 +706,6 @@ SmacPlannerHybrid::dynamicParametersCallback(std::vector<rclcpp::Parameter> para
             "Unable to get MotionModel search type. Given '%s', "
             "valid options are MOORE, VON_NEUMANN, DUBIN, REEDS_SHEPP.",
             _motion_model_for_search.c_str());
-        }
-      } else if (param_name == _name + ".goal_heading_mode") {
-        std::string goal_heading_type = parameter.as_string();
-        GoalHeadingMode goal_heading_mode = fromStringToGH(goal_heading_type);
-        RCLCPP_INFO(
-          _logger,
-          "GoalHeadingMode type set to '%s'.",
-          goal_heading_type.c_str());
-        if (goal_heading_mode == GoalHeadingMode::UNKNOWN) {
-          RCLCPP_WARN(
-            _logger,
-            "Unable to get GoalHeader type. Given '%s', "
-            "Valid options are DEFAULT, BIDIRECTIONAL, ALL_DIRECTION. ",
-            goal_heading_type.c_str());
-        } else {
-          _goal_heading_mode = goal_heading_mode;
         }
       }
     }

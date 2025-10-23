@@ -67,7 +67,7 @@ pf_t * pf_alloc(
   // the max error between the true distribution and the estimated
   // distribution.  [z] is the upper standard normal quantile for (1 -
   // p), where p is the probability that the error on the estimated
-  // distribution will be less than [err].
+  // distrubition will be less than [err].
   pf->pop_err = 0.01;
   pf->pop_z = 3;
   pf->dist_threshold = 0.5;
@@ -123,7 +123,7 @@ void pf_free(pf_t * pf)
   free(pf);
 }
 
-// Initialize the filter using a gaussian
+// Initialize the filter using a guassian
 void pf_init(pf_t * pf, pf_vector_t mean, pf_matrix_t cov)
 {
   int i;

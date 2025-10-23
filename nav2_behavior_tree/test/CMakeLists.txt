@@ -1,28 +1,7 @@
 ament_add_gtest(test_bt_utils test_bt_utils.cpp)
-target_link_libraries(test_bt_utils
-  ${library_name}
-  ${geometry_msgs_TARGETS}
-)
+ament_target_dependencies(test_bt_utils ${dependencies})
 
-ament_add_gtest(test_json_utils test_json_utils.cpp)
-target_link_libraries(test_json_utils
-  ${library_name}
-  ${geometry_msgs_TARGETS}
-)
-
-function(plugin_add_test target filename plugin)
-  ament_add_gtest(${target} ${filename})
-  target_link_libraries(${target}
-    ${geometry_msgs_TARGETS}
-    nav2_util::nav2_util_core
-    behaviortree_cpp::behaviortree_cpp
-    ${library_name}
-    ${plugin}
-  )
-  target_include_directories(${target}
-    PRIVATE
-    "$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/test>")
-endfunction()
+include_directories(.)
 
 add_subdirectory(plugins/condition)
 add_subdirectory(plugins/decorator)

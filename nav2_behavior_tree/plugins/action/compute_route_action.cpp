@@ -57,7 +57,6 @@ BT::NodeStatus ComputeRouteAction::on_success()
   setOutput("planning_time", result_.result->planning_time);
   // Set empty error code, action was successful
   setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -74,7 +73,6 @@ BT::NodeStatus ComputeRouteAction::on_aborted()
 {
   resetPorts();
   setOutput("error_code_id", result_.result->error_code);
-  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
@@ -83,14 +81,7 @@ BT::NodeStatus ComputeRouteAction::on_cancelled()
   resetPorts();
   // Set empty error code, action was cancelled
   setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
-}
-
-void ComputeRouteAction::on_timeout()
-{
-  setOutput("error_code_id", ActionResult::TIMEOUT);
-  setOutput("error_msg", "Behavior Tree action client timed out waiting.");
 }
 
 void ComputeRouteAction::halt()

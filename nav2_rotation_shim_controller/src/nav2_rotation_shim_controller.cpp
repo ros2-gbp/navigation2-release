@@ -18,11 +18,6 @@
 #include <vector>
 #include <utility>
 
-#include "angles/angles.h"
-#include "nav2_util/geometry_utils.hpp"
-#include "nav2_util/node_utils.hpp"
-#include "nav2_util/robot_utils.hpp"
-
 #include "nav2_rotation_shim_controller/nav2_rotation_shim_controller.hpp"
 
 using rcl_interfaces::msg::ParameterType;
@@ -418,32 +413,29 @@ RotationShimController::dynamicParametersCallback(std::vector<rclcpp::Parameter>
   std::lock_guard<std::mutex> lock_reinit(mutex_);
 
   for (auto parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if (param_name.find(plugin_name_ + ".") != 0) {
-      continue;
-    }
+    const auto & type = parameter.get_type();
+    const auto & name = parameter.get_name();
 
-    if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == plugin_name_ + ".angular_dist_threshold") {
+    if (type == ParameterType::PARAMETER_DOUBLE) {
+      if (name == plugin_name_ + ".angular_dist_threshold") {
         angular_dist_threshold_ = parameter.as_double();
-      } else if (param_name == plugin_name_ + ".forward_sampling_distance") {
+      } else if (name == plugin_name_ + ".forward_sampling_distance") {
         forward_sampling_distance_ = parameter.as_double();
-      } else if (param_name == plugin_name_ + ".rotate_to_heading_angular_vel") {
+      } else if (name == plugin_name_ + ".rotate_to_heading_angular_vel") {
         rotate_to_heading_angular_vel_ = parameter.as_double();
-      } else if (param_name == plugin_name_ + ".max_angular_accel") {
+      } else if (name == plugin_name_ + ".max_angular_accel") {
         max_angular_accel_ = parameter.as_double();
-      } else if (param_name == plugin_name_ + ".simulate_ahead_time") {
+      } else if (name == plugin_name_ + ".simulate_ahead_time") {
         simulate_ahead_time_ = parameter.as_double();
       }
-    } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == plugin_name_ + ".rotate_to_goal_heading") {
+    } else if (type == ParameterType::PARAMETER_BOOL) {
+      if (name == plugin_name_ + ".rotate_to_goal_heading") {
         rotate_to_goal_heading_ = parameter.as_bool();
-      } else if (param_name == plugin_name_ + ".rotate_to_heading_once") {
+      } else if (name == plugin_name_ + ".rotate_to_heading_once") {
         rotate_to_heading_once_ = parameter.as_bool();
-      } else if (param_name == plugin_name_ + ".closed_loop") {
+      } else if (name == plugin_name_ + ".closed_loop") {
         closed_loop_ = parameter.as_bool();
-      } else if (param_name == plugin_name_ + ".use_path_orientations") {
+      } else if (name == plugin_name_ + ".use_path_orientations") {
         use_path_orientations_ = parameter.as_bool();
       }
     }
