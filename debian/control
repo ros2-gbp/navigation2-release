@@ -1,0 +1,12 @@
+Source: ros-humble-nav2-msgs
+Section: misc
+Priority: optional
+Maintainer: Michael Jeronimo <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-humble-action-msgs, ros-humble-ament-cmake, ros-humble-builtin-interfaces, ros-humble-geometry-msgs, ros-humble-nav-msgs, ros-humble-nav2-common, ros-humble-rclcpp, ros-humble-rosidl-default-generators, ros-humble-std-msgs, ros-humble-ros-workspace, ros-humble-rosidl-typesupport-fastrtps-c, ros-humble-rosidl-typesupport-fastrtps-cpp
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-humble-nav2-msgs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-humble-action-msgs, ros-humble-builtin-interfaces, ros-humble-geometry-msgs, ros-humble-nav-msgs, ros-humble-rclcpp, ros-humble-rosidl-default-generators, ros-humble-std-msgs, ros-humble-ros-workspace
+Description: Messages and service files for the Nav2 stack
