@@ -62,11 +62,10 @@ public:
    * @param tf TF buffer for transformations
    * @param costmap_subscriber Costmap subscriber to use for traversability
    * @param route_frame Planning frame
-   * @param global_frame Global frame for costmap
    * @param base_frame Robot reference frame
    */
   void configure(
-    nav2_util::LifecycleNode::SharedPtr node,
+    rclcpp_lifecycle::LifecycleNode::SharedPtr node,
     Graph & graph,
     GraphToIDMap * id_to_graph_map,
     std::shared_ptr<tf2_ros::Buffer> tf,
@@ -134,8 +133,8 @@ protected:
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber_;
   std::string route_frame_;
-  std::string base_frame_;
   std::string global_frame_;
+  std::string base_frame_;
   geometry_msgs::msg::PoseStamped start_, goal_;
   bool prune_goal_, enable_search_;
   int max_nn_search_iterations_;

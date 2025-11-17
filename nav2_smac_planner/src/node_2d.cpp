@@ -25,14 +25,13 @@ namespace nav2_smac_planner
 std::vector<int> Node2D::_neighbors_grid_offsets;
 float Node2D::cost_travel_multiplier = 2.0;
 
-Node2D::Node2D(const uint64_t index)
+Node2D::Node2D(const unsigned int index)
 : parent(nullptr),
   _cell_cost(std::numeric_limits<float>::quiet_NaN()),
   _accumulated_cost(std::numeric_limits<float>::max()),
   _index(index),
   _was_visited(false),
-  _is_queued(false),
-  _in_collision(false)
+  _is_queued(false)
 {
 }
 
@@ -48,21 +47,18 @@ void Node2D::reset()
   _accumulated_cost = std::numeric_limits<float>::max();
   _was_visited = false;
   _is_queued = false;
-  _in_collision = false;
 }
 
 bool Node2D::isNodeValid(
   const bool & traverse_unknown,
   GridCollisionChecker * collision_checker)
 {
-  // Already found, we can return the result
-  if (!std::isnan(_cell_cost)) {
-    return !_in_collision;
+  if (collision_checker->inCollision(this->getIndex(), traverse_unknown)) {
+    return false;
   }
 
-  _in_collision = collision_checker->inCollision(this->getIndex(), traverse_unknown);
   _cell_cost = collision_checker->getCost();
-  return !_in_collision;
+  return true;
 }
 
 float Node2D::getTraversalCost(const NodePtr & child)
@@ -85,7 +81,8 @@ float Node2D::getTraversalCost(const NodePtr & child)
 
 float Node2D::getHeuristicCost(
   const Coordinates & node_coords,
-  const Coordinates & goal_coordinates)
+  const Coordinates & goal_coordinates,
+  const nav2_costmap_2d::Costmap2D * /*costmap*/)
 {
   // Using Moore distance as it more accurately represents the distances
   // even a Van Neumann neighborhood robot can navigate.
@@ -112,8 +109,7 @@ void Node2D::initMotionModel(
 }
 
 void Node2D::getNeighbors(
-  std::function<bool(const uint64_t &,
-  nav2_smac_planner::Node2D * &)> & NeighborGetter,
+  std::function<bool(const unsigned int &, nav2_smac_planner::Node2D * &)> & NeighborGetter,
   GridCollisionChecker * collision_checker,
   const bool & traverse_unknown,
   NodeVector & neighbors)
@@ -129,9 +125,9 @@ void Node2D::getNeighbors(
   // 100 100 100   where lower-middle '100' is visited with same cost by both bottom '50' nodes
   // Therefore, it is valuable to have some low-potential across the entire map
   // rather than a small inflation around the obstacles
-  uint64_t index;
+  int index;
   NodePtr neighbor;
-  uint64_t node_i = this->getIndex();
+  int node_i = this->getIndex();
   const Coordinates parent = getCoords(this->getIndex());
   Coordinates child;
 

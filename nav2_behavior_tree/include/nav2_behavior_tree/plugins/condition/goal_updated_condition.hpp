@@ -18,9 +18,8 @@
 #include <string>
 #include <vector>
 
-#include "behaviortree_cpp/condition_node.h"
+#include "behaviortree_cpp_v3/condition_node.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_behavior_tree/bt_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -55,12 +54,7 @@ public:
    */
   static BT::PortsList providedPorts()
   {
-    return {
-      BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
-        "goals", "Vector of navigation goals"),
-      BT::InputPort<geometry_msgs::msg::PoseStamped>(
-        "goal", "Navigation goal"),
-    };
+    return {};
   }
 
 private:

@@ -23,7 +23,6 @@
 #include "nav2_velocity_smoother/velocity_smoother.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "nav2_util/twist_subscriber.hpp"
 
 using namespace std::chrono_literals;
 
@@ -40,10 +39,7 @@ class VelSmootherShim : public nav2_velocity_smoother::VelocitySmoother
 public:
   VelSmootherShim()
   : VelocitySmoother() {}
-  nav2_util::CallbackReturn configure(const rclcpp_lifecycle::State & state)
-  {
-    return this->on_configure(state);
-  }
+  void configure(const rclcpp_lifecycle::State & state) {this->on_configure(state);}
   void activate(const rclcpp_lifecycle::State & state) {this->on_activate(state);}
   void deactivate(const rclcpp_lifecycle::State & state) {this->on_deactivate(state);}
   void cleanup(const rclcpp_lifecycle::State & state) {this->on_cleanup(state);}
@@ -51,7 +47,7 @@ public:
 
   bool isOdomSmoother() {return odom_smoother_ ? true : false;}
   bool hasCommandMsg() {return last_command_time_.nanoseconds() != 0;}
-  geometry_msgs::msg::TwistStamped::SharedPtr lastCommandMsg() {return command_;}
+  geometry_msgs::msg::Twist::SharedPtr lastCommandMsg() {return command_;}
 
   void sendCommandMsg(geometry_msgs::msg::Twist::SharedPtr msg) {inputCommandCallback(msg);}
 };
@@ -70,14 +66,11 @@ TEST(VelocitySmootherTest, openLoopTestTimer)
   smoother->activate(state);
 
   std::vector<double> linear_vels;
-  auto subscription = nav2_util::TwistSubscriber(
-    smoother,
+  auto subscription = smoother->create_subscription<geometry_msgs::msg::Twist>(
     "cmd_vel_smoothed",
     1,
     [&](geometry_msgs::msg::Twist::SharedPtr msg) {
       linear_vels.push_back(msg->linear.x);
-    }, [&](geometry_msgs::msg::TwistStamped::SharedPtr msg) {
-      linear_vels.push_back(msg->twist.linear.x);
     });
 
   // Send a velocity command
@@ -124,14 +117,11 @@ TEST(VelocitySmootherTest, approxClosedLoopTestTimer)
   smoother->activate(state);
 
   std::vector<double> linear_vels;
-  auto subscription = nav2_util::TwistSubscriber(
-    smoother,
+  auto subscription = smoother->create_subscription<geometry_msgs::msg::Twist>(
     "cmd_vel_smoothed",
     1,
     [&](geometry_msgs::msg::Twist::SharedPtr msg) {
       linear_vels.push_back(msg->linear.x);
-    }, [&](geometry_msgs::msg::TwistStamped::SharedPtr msg) {
-      linear_vels.push_back(msg->twist.linear.x);
     });
 
   auto odom_pub = smoother->create_publisher<nav_msgs::msg::Odometry>("odom", 1);
@@ -576,7 +566,7 @@ TEST(VelocitySmootherTest, testCommandCallback)
   rclcpp::spin_some(smoother->get_node_base_interface());
 
   EXPECT_TRUE(smoother->hasCommandMsg());
-  EXPECT_EQ(smoother->lastCommandMsg()->twist.linear.x, 100.0);
+  EXPECT_EQ(smoother->lastCommandMsg()->linear.x, 100.0);
 }
 
 TEST(VelocitySmootherTest, testClosedLoopSub)
@@ -597,10 +587,10 @@ TEST(VelocitySmootherTest, testInvalidParams)
   std::vector<double> max_vels{0.0, 0.0};  // invalid size
   smoother->declare_parameter("max_velocity", rclcpp::ParameterValue(max_vels));
   rclcpp_lifecycle::State state;
-  EXPECT_EQ(smoother->configure(state), nav2_util::CallbackReturn::FAILURE);
+  EXPECT_THROW(smoother->configure(state), std::runtime_error);
 
   smoother->set_parameter(rclcpp::Parameter("feedback", std::string("LAWLS")));
-  EXPECT_EQ(smoother->configure(state), nav2_util::CallbackReturn::FAILURE);
+  EXPECT_THROW(smoother->configure(state), std::runtime_error);
 }
 
 TEST(VelocitySmootherTest, testInvalidParamsAccelDecel)
@@ -616,13 +606,13 @@ TEST(VelocitySmootherTest, testInvalidParamsAccelDecel)
   smoother->declare_parameter("max_velocity", rclcpp::ParameterValue(bad_test_max_vel));
   smoother->declare_parameter("min_velocity", rclcpp::ParameterValue(bad_test_min_vel));
   rclcpp_lifecycle::State state;
-  EXPECT_EQ(smoother->configure(state), nav2_util::CallbackReturn::FAILURE);
+  EXPECT_THROW(smoother->configure(state), std::runtime_error);
 
   smoother->set_parameter(rclcpp::Parameter("max_accel", rclcpp::ParameterValue(bad_test_accel)));
-  EXPECT_EQ(smoother->configure(state), nav2_util::CallbackReturn::FAILURE);
+  EXPECT_THROW(smoother->configure(state), std::runtime_error);
 
   smoother->set_parameter(rclcpp::Parameter("max_decel", rclcpp::ParameterValue(bad_test_decel)));
-  EXPECT_EQ(smoother->configure(state), nav2_util::CallbackReturn::FAILURE);
+  EXPECT_THROW(smoother->configure(state), std::runtime_error);
 }
 
 TEST(VelocitySmootherTest, testDynamicParameter)

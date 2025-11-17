@@ -36,12 +36,6 @@ public:
     const std::string & lifecycle_node_name,
     rclcpp::Node::SharedPtr parent_node);
 
-  ~LifecycleServiceClient()
-  {
-    change_state_.stop();
-    get_state_.stop();
-  }
-
   /// Trigger a state change
   /**
    * Throws std::runtime_error on failure

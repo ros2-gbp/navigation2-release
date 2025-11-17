@@ -19,7 +19,6 @@
 #include <string>
 #include <thread>
 
-#include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "nav2_util/node_thread.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -169,11 +168,6 @@ public:
   }
 
   /**
-   * @brief Automatically configure and active the node
-   */
-  void autostart();
-
-  /**
    * @brief Perform preshutdown activities before our Context is shutdown.
    * Note that this is related to our Context's shutdown sequence, not the
    * lifecycle node state machine.
@@ -210,9 +204,7 @@ protected:
   void runCleanups();
 
   // Connection to tell that server is still up
-  std::shared_ptr<bond::Bond> bond_{nullptr};
-  double bond_heartbeat_period;
-  rclcpp::TimerBase::SharedPtr autostart_timer_;
+  std::unique_ptr<bond::Bond> bond_{nullptr};
 };
 
 }  // namespace nav2_util

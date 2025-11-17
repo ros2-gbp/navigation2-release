@@ -148,7 +148,7 @@ class FootprintCollisionChecker:
             raise ValueError(
                 'Costmap not specified, use setCostmap to specify the costmap first'
             )
-        return self.costmap_.worldToMapValidated(wx, wy)
+        return self.costmap_.worldToMap(wx, wy)
 
     def pointCost(self, x: int, y: int):
         """

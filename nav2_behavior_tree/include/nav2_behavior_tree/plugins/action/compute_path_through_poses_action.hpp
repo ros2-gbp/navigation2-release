@@ -32,9 +32,6 @@ namespace nav2_behavior_tree
 class ComputePathThroughPosesAction
   : public BtActionNode<nav2_msgs::action::ComputePathThroughPoses>
 {
-  using Action = nav2_msgs::action::ComputePathThroughPoses;
-  using ActionResult = Action::Result;
-
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::ComputePathThroughPosesAction
@@ -75,6 +72,7 @@ public:
   {
     return providedBasicPorts(
       {
+        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathThroughPoses node"),
         BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
           "goals",
           "Destinations to plan through"),
@@ -83,9 +81,6 @@ public:
         BT::InputPort<std::string>(
           "planner_id", "",
           "Mapped name to the planner plugin type to use"),
-        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathThroughPoses node"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The compute path through poses error code"),
       });
   }
 };

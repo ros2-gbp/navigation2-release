@@ -22,8 +22,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "behaviortree_cpp/action_node.h"
-#include "nav2_behavior_tree/bt_utils.hpp"
+#include "behaviortree_cpp_v3/action_node.h"
 
 namespace nav2_behavior_tree
 {
@@ -37,10 +36,6 @@ public:
     const std::string & xml_tag_name,
     const BT::NodeConfiguration & conf);
 
-  /**
-   * @brief Function to read parameters and initialize class variables
-   */
-  void initialize();
 
   static BT::PortsList providedPorts()
   {
@@ -48,8 +43,8 @@ public:
       BT::InputPort<Goals>("input_goals", "Original goals to remove viapoints from"),
       BT::OutputPort<Goals>("output_goals", "Goals with passed viapoints removed"),
       BT::InputPort<double>("radius", 0.5, "radius to goal for it to be considered for removal"),
-      BT::InputPort<std::string>("global_frame", "Global frame"),
-      BT::InputPort<std::string>("robot_base_frame", "Robot base frame"),
+      BT::InputPort<std::string>("global_frame", std::string("map"), "Global frame"),
+      BT::InputPort<std::string>("robot_base_frame", std::string("base_link"), "Robot base frame"),
     };
   }
 
@@ -58,9 +53,9 @@ private:
   BT::NodeStatus tick() override;
 
   double viapoint_achieved_radius_;
+  std::string robot_base_frame_, global_frame_;
   double transform_tolerance_;
   std::shared_ptr<tf2_ros::Buffer> tf_;
-  std::string robot_base_frame_;
 };
 
 }  // namespace nav2_behavior_tree

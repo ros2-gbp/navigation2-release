@@ -23,6 +23,15 @@
 using std::placeholders::_1;
 using namespace std::chrono_literals;
 
+// rclcpp::init can only be called once per process, so this needs to be a global variable
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
+
 class TestAmclPose : public ::testing::Test
 {
 public:
@@ -110,17 +119,4 @@ void TestAmclPose::initTestPose()
 TEST_F(TestAmclPose, SimpleAmclTest)
 {
   EXPECT_EQ(true, defaultAmclTest());
-}
-
-int main(int argc, char **argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

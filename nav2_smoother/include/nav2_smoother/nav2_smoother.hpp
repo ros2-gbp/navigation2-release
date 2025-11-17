@@ -114,7 +114,6 @@ protected:
   nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   using Action = nav2_msgs::action::SmoothPath;
-  using ActionResult = Action::Result;
   using ActionServer = nav2_util::SimpleActionServer<Action>;
 
   /**
@@ -135,13 +134,6 @@ protected:
    * @return bool Whether it found a valid smoother to use
    */
   bool findSmootherId(const std::string & c_name, std::string & name);
-
-  /**
-   * @brief Validate that the path contains a meaningful path for smoothing
-   * @param path current path
-   * return bool if the path is valid
-   */
-  bool validate(const nav_msgs::msg::Path & path);
 
   // Our action server implements the SmoothPath action
   std::unique_ptr<ActionServer> action_server_;

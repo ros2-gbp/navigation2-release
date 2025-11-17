@@ -60,12 +60,10 @@ public:
 
   void uresetContainers() {nodes_data_.clear(); resetContainers();}
 
-  bool runAlgo(
-    std::vector<coordsW> & path,
-    std::function<bool()> cancel_checker = [] () {return false;})
+  bool runAlgo(std::vector<coordsW> & path)
   {
     if (!isUnsafeToPlan()) {
-      return generatePath(path, cancel_checker);
+      return generatePath(path);
     }
     return false;
   }
@@ -164,11 +162,7 @@ TEST(ThetaStarPlanner, test_theta_star_planner) {
   planner_2d->configure(life_node, "test", nullptr, costmap_ros);
   planner_2d->activate();
 
-  auto dummy_cancel_checker = []() {
-      return false;
-    };
-
-  nav_msgs::msg::Path path = planner_2d->createPlan(start, goal, dummy_cancel_checker);
+  nav_msgs::msg::Path path = planner_2d->createPlan(start, goal);
   EXPECT_GT(static_cast<int>(path.poses.size()), 0);
 
   // test if the goal is unsafe
@@ -179,8 +173,8 @@ TEST(ThetaStarPlanner, test_theta_star_planner) {
   }
   goal.pose.position.x = 1.0;
   goal.pose.position.y = 1.0;
-
-  EXPECT_THROW(planner_2d->createPlan(start, goal, dummy_cancel_checker), nav2_core::GoalOccupied);
+  path = planner_2d->createPlan(start, goal);
+  EXPECT_EQ(static_cast<int>(path.poses.size()), 0);
 
   planner_2d->deactivate();
   planner_2d->cleanup();
@@ -218,8 +212,7 @@ TEST(ThetaStarPlanner, test_theta_star_reconfigure)
       rclcpp::Parameter("test.w_euc_cost", 1.0),
       rclcpp::Parameter("test.w_traversal_cost", 2.0),
       rclcpp::Parameter("test.use_final_approach_orientation", false),
-      rclcpp::Parameter("test.allow_unknown", false),
-      rclcpp::Parameter("test.terminal_checking_interval", 100)});
+      rclcpp::Parameter("test.allow_unknown", false)});
 
   rclcpp::spin_until_future_complete(
     life_node->get_node_base_interface(),
@@ -232,7 +225,6 @@ TEST(ThetaStarPlanner, test_theta_star_reconfigure)
   EXPECT_EQ(life_node->get_parameter("test.w_traversal_cost").as_double(), 2.0);
   EXPECT_EQ(life_node->get_parameter("test.use_final_approach_orientation").as_bool(), false);
   EXPECT_EQ(life_node->get_parameter("test.allow_unknown").as_bool(), false);
-  EXPECT_EQ(life_node->get_parameter("test.terminal_checking_interval").as_int(), 100);
 
   rclcpp::spin_until_future_complete(
     life_node->get_node_base_interface(),

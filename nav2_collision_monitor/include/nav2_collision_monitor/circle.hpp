@@ -19,8 +19,6 @@
 #include <vector>
 #include <string>
 
-#include "std_msgs/msg/float32.hpp"
-
 #include "nav2_collision_monitor/polygon.hpp"
 
 namespace nav2_collision_monitor
@@ -28,7 +26,7 @@ namespace nav2_collision_monitor
 
 /**
  * @brief Circle shape implementaiton.
- * For STOP/SLOWDOWN/LIMIT model it represents zone around the robot
+ * For STOP/SLOWDOWN model it represents zone around the robot
  * while for APPROACH model it represents robot footprint.
  */
 class Circle : public Polygon
@@ -68,54 +66,22 @@ public:
    */
   int getPointsInside(const std::vector<Point> & points) const override;
 
-  /**
-   * @brief Returns true if circle radius is set.
-   * Otherwise, prints a warning and returns false.
-   */
-  bool isShapeSet() override;
-
 protected:
   /**
    * @brief Supporting routine obtaining polygon-specific ROS-parameters
-   * @param polygon_sub_topic Input name of polygon subscription topic
-   * @param polygon_pub_topic Output name of polygon or radius publishing topic
+   * @param polygon_pub_topic Output name of polygon publishing topic
    * @param footprint_topic Output name of footprint topic. For Circle returns empty string,
    * there is no footprint subscription in this class.
    * @return True if all parameters were obtained or false in failure case
    */
-  bool getParameters(
-    std::string & polygon_sub_topic,
-    std::string & polygon_pub_topic,
-    std::string & footprint_topic) override;
-
-  /**
-   * @brief Creates polygon or radius topic subscription
-   * @param polygon_sub_topic Output name of polygon or radius subscription topic.
-   * Empty, if no polygon subscription.
-   */
-  void createSubscription(std::string & polygon_sub_topic) override;
-
-  /**
-   * @brief Updates polygon from radius value
-   * @param radius New circle radius to update polygon
-   */
-  void updatePolygon(double radius);
-
-  /**
-   * @brief Dynamic circle radius callback
-   * @param msg Shared pointer to the radius value message
-   */
-  void radiusCallback(std_msgs::msg::Float32::ConstSharedPtr msg);
-
+  bool getParameters(std::string & polygon_pub_topic, std::string & footprint_topic) override;
 
   // ----- Variables -----
 
   /// @brief Radius of the circle
   double radius_;
   /// @brief (radius * radius) value. Stored for optimization.
-  double radius_squared_ = -1.0;
-  /// @brief Radius subscription
-  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr radius_sub_;
+  double radius_squared_;
 };  // class Circle
 
 }  // namespace nav2_collision_monitor

@@ -21,7 +21,7 @@ namespace nav2_route
 {
 
 GraphSaver::GraphSaver(
-  nav2_util::LifecycleNode::SharedPtr node,
+  rclcpp_lifecycle::LifecycleNode::SharedPtr node,
   std::shared_ptr<tf2_ros::Buffer> tf,
   const std::string frame)
 : plugin_loader_("nav2_route", "nav2_route::GraphFileSaver"),
