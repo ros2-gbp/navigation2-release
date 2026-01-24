@@ -20,18 +20,28 @@
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
-#include "behaviortree_cpp_v3/utils/shared_library.h"
+#include "behaviortree_cpp/json_export.h"
+#include "behaviortree_cpp/utils/shared_library.h"
+#include "nav2_behavior_tree/json_utils.hpp"
 
 namespace nav2_behavior_tree
 {
 
 BehaviorTreeEngine::BehaviorTreeEngine(
-  const std::vector<std::string> & plugin_libraries)
+  const std::vector<std::string> & plugin_libraries, rclcpp::Node::SharedPtr node)
 {
   BT::SharedLibrary loader;
   for (const auto & p : plugin_libraries) {
     factory_.registerFromPlugin(loader.getOSName(p));
   }
+
+  // clock for throttled debug log
+  clock_ = node->get_clock();
+
+  // FIXME: the next two line are needed for back-compatibility with BT.CPP 3.8.x
+  // Note that the can be removed, once we migrate from BT.CPP 4.5.x to 4.6+
+  BT::ReactiveSequence::EnableException(false);
+  BT::ReactiveFallback::EnableException(false);
 }
 
 BtStatus
@@ -48,17 +58,20 @@ BehaviorTreeEngine::run(
   try {
     while (rclcpp::ok() && result == BT::NodeStatus::RUNNING) {
       if (cancelRequested()) {
-        tree->rootNode()->halt();
+        tree->haltTree();
         return BtStatus::CANCELED;
       }
 
-      result = tree->tickRoot();
+      result = tree->tickOnce();
 
-      onLoop();
+      if (result == BT::NodeStatus::RUNNING || result == BT::NodeStatus::IDLE) {
+        onLoop();
+      }
 
       if (!loopRate.sleep()) {
-        RCLCPP_WARN(
+        RCLCPP_DEBUG_THROTTLE(
           rclcpp::get_logger("BehaviorTreeEngine"),
+          *clock_, 1000,
           "Behavior Tree tick rate %0.2f was exceeded!",
           1.0 / (loopRate.period().count() * 1.0e-9));
       }
@@ -89,24 +102,33 @@ BehaviorTreeEngine::createTreeFromFile(
   return factory_.createTreeFromFile(file_path, blackboard);
 }
 
+void
+BehaviorTreeEngine::addGrootMonitoring(
+  BT::Tree * tree,
+  uint16_t server_port)
+{
+  // This logger publish status changes using Groot2
+  groot_monitor_ = std::make_unique<BT::Groot2Publisher>(*tree, server_port);
+
+  // Register common types JSON definitions
+  BT::RegisterJsonDefinition<builtin_interfaces::msg::Time>();
+  BT::RegisterJsonDefinition<std_msgs::msg::Header>();
+}
+
+void
+BehaviorTreeEngine::resetGrootMonitor()
+{
+  if (groot_monitor_) {
+    groot_monitor_.reset();
+  }
+}
+
 // In order to re-run a Behavior Tree, we must be able to reset all nodes to the initial state
 void
-BehaviorTreeEngine::haltAllActions(BT::TreeNode * root_node)
+BehaviorTreeEngine::haltAllActions(BT::Tree & tree)
 {
-  if (!root_node) {
-    return;
-  }
-
   // this halt signal should propagate through the entire tree.
-  root_node->halt();
-
-  // but, just in case...
-  auto visitor = [](BT::TreeNode * node) {
-      if (node->status() == BT::NodeStatus::RUNNING) {
-        node->halt();
-      }
-    };
-  BT::applyRecursiveVisitor(root_node, visitor);
+  tree.haltTree();
 }
 
 }  // namespace nav2_behavior_tree

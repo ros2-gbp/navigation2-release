@@ -37,7 +37,7 @@ void PathConverter::configure(nav2_util::LifecycleNode::SharedPtr node)
     node, "smooth_corners", rclcpp::ParameterValue(false));
   smooth_corners_ = node->get_parameter("smooth_corners").as_bool();
 
-  path_pub_ = node->create_publisher<nav_msgs::msg::Path>("plan", 1);
+  path_pub_ = node->create_publisher<nav_msgs::msg::Path>("plan", 10);
   path_pub_->on_activate();
   logger_ = node->get_logger();
 }
@@ -141,6 +141,11 @@ void PathConverter::interpolateEdge(
   // Find number of points to populate by given density
   const float mag = hypotf(x1 - x0, y1 - y0);
   const unsigned int num_pts = ceil(mag / density_);
+  // For zero-length edges, we can just push the start point and return
+  if (num_pts < 1) {
+    return;
+  }
+
   const float iterpolated_dist = mag / num_pts;
 
   // Find unit vector direction

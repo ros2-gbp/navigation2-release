@@ -17,6 +17,7 @@
 
 #include <string>
 
+#include "behaviortree_cpp/json_export.h"
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
@@ -30,6 +31,9 @@ namespace nav2_behavior_tree
  */
 class NavigateToPoseAction : public BtActionNode<nav2_msgs::action::NavigateToPose>
 {
+  using Action = nav2_msgs::action::NavigateToPose;
+  using ActionResult = Action::Result;
+
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::NavigateToPoseAction
@@ -48,15 +52,35 @@ public:
   void on_tick() override;
 
   /**
+   * @brief Function to perform some user-defined operation upon successful completion of the action
+   */
+  BT::NodeStatus on_success() override;
+
+  /**
+   * @brief Function to perform some user-defined operation upon abortion of the action
+   */
+  BT::NodeStatus on_aborted() override;
+
+  /**
+   * @brief Function to perform some user-defined operation upon cancellation of the action
+   */
+  BT::NodeStatus on_cancelled() override;
+
+  /**
    * @brief Creates list of BT ports
    * @return BT::PortsList Containing basic ports along with node-specific ports
    */
   static BT::PortsList providedPorts()
   {
+    // Register JSON definitions for the types used in the ports
+    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
+
     return providedBasicPorts(
       {
         BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination to plan to"),
         BT::InputPort<std::string>("behavior_tree", "Behavior tree to run"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "Navigate to pose error code"),
       });
   }
 };

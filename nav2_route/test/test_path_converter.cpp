@@ -39,7 +39,7 @@ TEST(PathConverterTest, test_path_converter_api)
 
   nav_msgs::msg::Path path_msg;
   auto sub = node->create_subscription<nav_msgs::msg::Path>(
-    "plan", rclcpp::QoS(1), [&, this](nav_msgs::msg::Path msg) {path_msg = msg;});
+    "plan", rclcpp::QoS(10), [&, this](nav_msgs::msg::Path msg) {path_msg = msg;});
 
   PathConverter converter;
   converter.configure(node);
@@ -162,4 +162,16 @@ TEST(PathConverterTest, test_path_converter_interpolation)
         poses[i].pose.position.x - poses[i + 1].pose.position.x,
         poses[i].pose.position.y - poses[i + 1].pose.position.y), 0.05);
   }
+}
+
+TEST(PathConverterTest, test_path_converter_zero_length_edge)
+{
+  auto node = std::make_shared<nav2_util::LifecycleNode>("edge_scorer_test");
+  PathConverter converter;
+  converter.configure(node);
+
+  float x0 = 10.0, y0 = 10.0, x1 = 10.0, y1 = 10.0;
+  std::vector<geometry_msgs::msg::PoseStamped> poses;
+  converter.interpolateEdge(x0, y0, x1, y1, poses);
+  ASSERT_TRUE(poses.empty());
 }

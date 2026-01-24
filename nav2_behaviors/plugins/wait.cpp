@@ -28,13 +28,13 @@ Wait::Wait()
 
 Wait::~Wait() = default;
 
-Status Wait::onRun(const std::shared_ptr<const WaitAction::Goal> command)
+ResultStatus Wait::onRun(const std::shared_ptr<const WaitAction::Goal> command)
 {
   wait_end_ = node_.lock()->now() + rclcpp::Duration(command->time);
-  return Status::SUCCEEDED;
+  return ResultStatus{Status::SUCCEEDED};
 }
 
-Status Wait::onCycleUpdate()
+ResultStatus Wait::onCycleUpdate()
 {
   auto current_point = node_.lock()->now();
   auto time_left = wait_end_ - current_point;
@@ -43,9 +43,9 @@ Status Wait::onCycleUpdate()
   action_server_->publish_feedback(feedback_);
 
   if (time_left.nanoseconds() > 0) {
-    return Status::RUNNING;
+    return ResultStatus{Status::RUNNING};
   } else {
-    return Status::SUCCEEDED;
+    return ResultStatus{Status::SUCCEEDED};
   }
 }
 

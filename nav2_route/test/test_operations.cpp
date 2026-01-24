@@ -47,12 +47,11 @@ TEST(OperationsManagerTest, test_lifecycle)
 
 TEST(OperationsManagerTest, test_failed_plugins)
 {
-  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   // This plugin does not exist
   auto node = std::make_shared<nav2_util::LifecycleNode>("operations_manager_test");
   node->declare_parameter("operations", rclcpp::ParameterValue(std::vector<std::string>{"hi"}));
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
-  ASSERT_DEATH(OperationsManager manager(node, costmap_subscriber), "");
+  EXPECT_THROW(OperationsManager manager(node, costmap_subscriber), std::runtime_error);
 }
 
 TEST(OperationsManagerTest, test_find_operations)
@@ -95,12 +94,11 @@ TEST(OperationsManagerTest, test_find_operations)
 
 TEST(OperationsManagerTest, test_find_operations_failure2)
 {
-  ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   // This plugin does not exist
   auto node = std::make_shared<nav2_util::LifecycleNode>("operations_manager_test");
   node->declare_parameter("operations", rclcpp::ParameterValue(std::vector<std::string>{"hi"}));
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
-  ASSERT_DEATH(OperationsManager manager(node, costmap_subscriber), "");
+  EXPECT_THROW(OperationsManager manager(node, costmap_subscriber), std::runtime_error);
 }
 
 TEST(OperationsManagerTest, test_processing_fail)
@@ -137,8 +135,7 @@ TEST(OperationsManagerTest, test_processing_speed_on_status)
   bool got_msg = false;
   nav2_msgs::msg::SpeedLimit my_msg;
   auto sub = node->create_subscription<nav2_msgs::msg::SpeedLimit>(
-    "speed_limit",
-    rclcpp::QoS(1),
+    "speed_limit", rclcpp::QoS(10),
     [&, this](nav2_msgs::msg::SpeedLimit msg) {got_msg = true; my_msg = msg;});
 
   Node node2;

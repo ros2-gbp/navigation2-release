@@ -50,7 +50,7 @@ namespace nav2_costmap_2d
 
 BinaryFilter::BinaryFilter()
 : filter_info_sub_(nullptr), mask_sub_(nullptr),
-  binary_state_pub_(nullptr), filter_mask_(nullptr), mask_frame_(""), global_frame_(""),
+  binary_state_pub_(nullptr), filter_mask_(nullptr), global_frame_(""),
   default_state_(false), binary_state_(default_state_)
 {
 }
@@ -96,8 +96,8 @@ void BinaryFilter::initializeFilter(
   base_ = BASE_DEFAULT;
   multiplier_ = MULTIPLIER_DEFAULT;
 
-  // Initialize state as "false" by-default
-  changeState(default_state_);
+  // Initialize state binary_state_ which at start its equal to default_state_
+  changeState(binary_state_);
 }
 
 void BinaryFilter::filterInfoCallback(
@@ -162,7 +162,6 @@ void BinaryFilter::maskCallback(
   }
 
   filter_mask_ = msg;
-  mask_frame_ = msg->header.frame_id;
 }
 
 void BinaryFilter::process(
@@ -183,7 +182,7 @@ void BinaryFilter::process(
   geometry_msgs::msg::Pose2D mask_pose;  // robot coordinates in mask frame
 
   // Transforming robot pose from current layer frame to mask frame
-  if (!transformPose(global_frame_, pose, mask_frame_, mask_pose)) {
+  if (!transformPose(global_frame_, pose, filter_mask_->header.frame_id, mask_pose)) {
     return;
   }
 
@@ -225,8 +224,11 @@ void BinaryFilter::resetFilter()
 {
   std::lock_guard<CostmapFilter::mutex_t> guard(*getMutex());
 
-  RCLCPP_INFO(logger_, "BinaryFilter: Resetting the filter to default state");
-  changeState(default_state_);
+  // Publishing new BinaryState in reset
+  std::unique_ptr<std_msgs::msg::Bool> msg =
+    std::make_unique<std_msgs::msg::Bool>();
+  msg->data = binary_state_;
+  binary_state_pub_->publish(std::move(msg));
 
   filter_info_sub_.reset();
   mask_sub_.reset();

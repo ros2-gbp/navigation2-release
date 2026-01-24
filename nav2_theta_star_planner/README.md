@@ -1,7 +1,7 @@
 # Nav2 Theta Star Planner
 The Theta Star Planner is a global planning plugin meant to be used with the Nav2 Planner Server. The `nav2_theta_star_planner` implements a highly optimized version of the Theta\* Planner (specifically the [Lazy Theta\* P variant](http://idm-lab.org/bib/abstracts/papers/aaai10b.pdf)) meant to plan any-angle paths using A\*. The planner supports differential-drive and omni-directional robots.
 
-See its [Configuration Guide Page](https://navigation.ros.org/configuration/packages/configuring-thetastar.html) for additional parameter descriptions.
+See its [Configuration Guide Page](https://docs.nav2.org/configuration/packages/configuring-thetastar.html) for additional parameter descriptions.
 
 ## Features 
 - The planner uses A\* search along with line of sight (LOS) checks to form any-angle paths thus avoiding zig-zag paths that may be present in the usual implementation of A\*
@@ -25,9 +25,6 @@ The parameters were set to - `w_euc_cost: 1.0`, `w_traversal_cost: 5.0` and the 
 
 **f(a)** - total cost (g(a) + h(a)) for the node 'a'
 
-**LETHAL_COST** - a value of the costmap traversal cost that inscribes an obstacle with
-respect to a function, value = 253
-
 **curr** - represents the node whose neighbours are being added to the list
 
 **neigh** - one of the neighboring nodes of curr
@@ -36,7 +33,7 @@ respect to a function, value = 253
 
 **euc_cost(a,b)** - euclidean distance between the node type 'a' and type 'b'
 
-**costmap_cost(a,b)** - the costmap traversal cost (ranges from 0 - 252, 254 = unknown value) between the node type 'a' and type 'b'
+**costmap_cost(a,b)** - the costmap traversal cost (ranges from 0 - 252, 255 = unknown value) between the node type 'a' and type 'b'
 
 ### Cost function
 ```
@@ -57,8 +54,7 @@ Below are the default values of the parameters :
 ```
 planner_server:
   ros__parameters:
-    planner_plugin_types: ["nav2_theta_star_planner/ThetaStarPlanner"]
-    use_sim_time: True
+    planner_plugin_types: ["nav2_theta_star_planner::ThetaStarPlanner"]
     planner_plugin_ids: ["GridBased"]
     GridBased:
       how_many_corners: 8

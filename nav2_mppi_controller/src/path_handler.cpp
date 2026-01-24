@@ -105,12 +105,12 @@ geometry_msgs::msg::PoseStamped PathHandler::transformToGlobalPlanFrame(
   const geometry_msgs::msg::PoseStamped & pose)
 {
   if (global_plan_up_to_inversion_.poses.empty()) {
-    throw std::runtime_error("Received plan with zero length");
+    throw nav2_core::InvalidPath("Received plan with zero length");
   }
 
   geometry_msgs::msg::PoseStamped robot_pose;
   if (!transformPose(global_plan_up_to_inversion_.header.frame_id, pose, robot_pose)) {
-    throw std::runtime_error(
+    throw nav2_core::ControllerTFError(
             "Unable to transform robot pose into global plan's frame");
   }
 
@@ -136,7 +136,7 @@ nav_msgs::msg::Path PathHandler::transformPath(
   }
 
   if (transformed_plan.poses.empty()) {
-    throw std::runtime_error("Resulting plan has 0 poses in it.");
+    throw nav2_core::InvalidPath("Resulting plan has 0 poses in it.");
   }
 
   return transformed_plan;
@@ -184,6 +184,22 @@ nav_msgs::msg::Path & PathHandler::getPath() {return global_plan_;}
 void PathHandler::prunePlan(nav_msgs::msg::Path & plan, const PathIterator end)
 {
   plan.poses.erase(plan.poses.begin(), end);
+}
+
+geometry_msgs::msg::PoseStamped PathHandler::getTransformedGoal(
+  const builtin_interfaces::msg::Time & stamp)
+{
+  auto goal = global_plan_.poses.back();
+  goal.header.frame_id = global_plan_.header.frame_id;
+  goal.header.stamp = stamp;
+  if (goal.header.frame_id.empty()) {
+    throw nav2_core::ControllerTFError("Goal pose has an empty frame_id");
+  }
+  geometry_msgs::msg::PoseStamped transformed_goal;
+  if (!transformPose(costmap_->getGlobalFrameID(), goal, transformed_goal)) {
+    throw nav2_core::ControllerTFError("Unable to transform goal pose into costmap frame");
+  }
+  return transformed_goal;
 }
 
 bool PathHandler::isWithinInversionTolerances(const geometry_msgs::msg::PoseStamped & robot_pose)

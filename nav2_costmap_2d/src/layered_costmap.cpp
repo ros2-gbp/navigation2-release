@@ -44,6 +44,8 @@
 #include <vector>
 #include <limits>
 
+#include <rclcpp/clock.hpp>
+
 #include "nav2_costmap_2d/footprint.hpp"
 
 
@@ -68,7 +70,8 @@ LayeredCostmap::LayeredCostmap(std::string global_frame, bool rolling_window, bo
   initialized_(false),
   size_locked_(false),
   circumscribed_radius_(1.0),
-  inscribed_radius_(0.1)
+  inscribed_radius_(0.1),
+  footprint_(std::make_shared<std::vector<geometry_msgs::msg::Point>>())
 {
   if (track_unknown) {
     primary_costmap_.setDefaultValue(255);
@@ -114,7 +117,9 @@ void LayeredCostmap::resizeMap(
   for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
     plugin != plugins_.end(); ++plugin)
   {
-    (*plugin)->matchSize();
+    if (*plugin) {
+      (*plugin)->matchSize();
+    }
   }
   for (vector<std::shared_ptr<Layer>>::iterator filter = filters_.begin();
     filter != filters_.end(); ++filter)
@@ -145,9 +150,11 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
   }
 
   if (isOutofBounds(robot_x, robot_y)) {
-    RCLCPP_WARN(
+    rclcpp::Clock clock{RCL_ROS_TIME};
+    RCLCPP_WARN_THROTTLE(
       rclcpp::get_logger("nav2_costmap_2d"),
-      "Robot is out of bounds of the costmap!");
+      clock, 5000,
+      "Robot is out of bounds of the costmap");
   }
 
   if (plugins_.size() == 0 && filters_.size() == 0) {
@@ -274,10 +281,15 @@ bool LayeredCostmap::isCurrent()
 
 void LayeredCostmap::setFootprint(const std::vector<geometry_msgs::msg::Point> & footprint_spec)
 {
-  footprint_ = footprint_spec;
-  nav2_costmap_2d::calculateMinAndMaxDistances(
-    footprint_spec,
-    inscribed_radius_, circumscribed_radius_);
+  std::pair<double, double> inside_outside = nav2_costmap_2d::calculateMinAndMaxDistances(
+    footprint_spec);
+  // use atomic store here since footprint is used by various planners/controllers
+  // and not otherwise locked
+  std::atomic_store(
+    &footprint_,
+    std::make_shared<std::vector<geometry_msgs::msg::Point>>(footprint_spec));
+  inscribed_radius_.store(std::get<0>(inside_outside));
+  circumscribed_radius_.store(std::get<1>(inside_outside));
 
   for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
     plugin != plugins_.end();

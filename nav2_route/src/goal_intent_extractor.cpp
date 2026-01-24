@@ -39,8 +39,8 @@ void GoalIntentExtractor::configure(
   tf_ = tf;
   costmap_subscriber_ = costmap_subscriber;
   route_frame_ = route_frame;
-  global_frame_ = global_frame;
   base_frame_ = base_frame;
+  global_frame_ = global_frame;
   node_spatial_tree_ = std::make_shared<NodeSpatialTree>();
   node_spatial_tree_->computeTree(graph);
 
@@ -177,13 +177,14 @@ GoalIntentExtractor::findStartandGoal(const std::shared_ptr<const GoalT> goal)
       node_pose.pose.position.x = node_data.coords.x;
       node_pose.pose.position.y = node_data.coords.y;
       node_pose.header.frame_id = node_data.coords.frame_id;
+      node_pose.header.stamp = start_pose.header.stamp;
       candidate_nodes.push_back(transformPose(node_pose, costmap_frame_id));
     }
 
     auto transformed_start = transformPose(start_, costmap_frame_id);
     GoalIntentSearch::LoSCollisionChecker los_checker(costmap);
     if (los_checker.worldToMap(
-        candidate_nodes.front().pose.position, transformed_start.pose.position))
+      candidate_nodes.front().pose.position, transformed_start.pose.position))
     {
       if (los_checker.isInCollision()) {
         GoalIntentSearch::BreadthFirstSearch bfs(costmap);
@@ -204,13 +205,14 @@ GoalIntentExtractor::findStartandGoal(const std::shared_ptr<const GoalT> goal)
       node_pose.pose.position.x = node_data.coords.x;
       node_pose.pose.position.y = node_data.coords.y;
       node_pose.header.frame_id = node_data.coords.frame_id;
+      node_pose.header.stamp = goal_pose.header.stamp;
       candidate_nodes.push_back(transformPose(node_pose, costmap_frame_id));
     }
 
     auto transformed_end = transformPose(goal_, costmap_frame_id);
     GoalIntentSearch::LoSCollisionChecker los_checker(costmap);
     if (los_checker.worldToMap(
-        candidate_nodes.front().pose.position, transformed_end.pose.position))
+      candidate_nodes.front().pose.position, transformed_end.pose.position))
     {
       if (los_checker.isInCollision()) {
         GoalIntentSearch::BreadthFirstSearch bfs(costmap);

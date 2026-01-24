@@ -17,19 +17,22 @@
 #include <fstream>
 #include <memory>
 #include <utility>
+#include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 
 #include "gtest/gtest.h"
 
-#include "behaviortree_cpp_v3/behavior_tree.h"
-#include "behaviortree_cpp_v3/bt_factory.h"
-#include "behaviortree_cpp_v3/utils/shared_library.h"
+#include "behaviortree_cpp/behavior_tree.h"
+#include "behaviortree_cpp/bt_factory.h"
+#include "behaviortree_cpp/utils/shared_library.h"
 
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/create_timer_ros.h"
 
 #include "nav2_util/odometry_utils.hpp"
+
+#include "nav2_behavior_tree/plugins_list.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
@@ -38,6 +41,9 @@
 
 using namespace std::chrono_literals;
 namespace fs = boost::filesystem;
+
+namespace nav2_system_tests
+{
 
 class BehaviorTreeHandler
 {
@@ -55,54 +61,9 @@ public:
 
     odom_smoother_ = std::make_shared<nav2_util::OdomSmoother>(node_);
 
-    const std::vector<std::string> plugin_libs = {
-      "nav2_compute_path_to_pose_action_bt_node",
-      "nav2_compute_path_through_poses_action_bt_node",
-      "nav2_smooth_path_action_bt_node",
-      "nav2_follow_path_action_bt_node",
-      "nav2_spin_action_bt_node",
-      "nav2_wait_action_bt_node",
-      "nav2_assisted_teleop_action_bt_node",
-      "nav2_back_up_action_bt_node",
-      "nav2_drive_on_heading_bt_node",
-      "nav2_clear_costmap_service_bt_node",
-      "nav2_is_stuck_condition_bt_node",
-      "nav2_goal_reached_condition_bt_node",
-      "nav2_initial_pose_received_condition_bt_node",
-      "nav2_goal_updated_condition_bt_node",
-      "nav2_globally_updated_goal_condition_bt_node",
-      "nav2_is_path_valid_condition_bt_node",
-      "nav2_reinitialize_global_localization_service_bt_node",
-      "nav2_rate_controller_bt_node",
-      "nav2_distance_controller_bt_node",
-      "nav2_speed_controller_bt_node",
-      "nav2_truncate_path_action_bt_node",
-      "nav2_truncate_path_local_action_bt_node",
-      "nav2_goal_updater_node_bt_node",
-      "nav2_recovery_node_bt_node",
-      "nav2_pipeline_sequence_bt_node",
-      "nav2_round_robin_node_bt_node",
-      "nav2_transform_available_condition_bt_node",
-      "nav2_time_expired_condition_bt_node",
-      "nav2_path_expiring_timer_condition",
-      "nav2_distance_traveled_condition_bt_node",
-      "nav2_single_trigger_bt_node",
-      "nav2_is_battery_low_condition_bt_node",
-      "nav2_navigate_through_poses_action_bt_node",
-      "nav2_navigate_to_pose_action_bt_node",
-      "nav2_remove_passed_goals_action_bt_node",
-      "nav2_planner_selector_bt_node",
-      "nav2_controller_selector_bt_node",
-      "nav2_goal_checker_selector_bt_node",
-      "nav2_controller_cancel_bt_node",
-      "nav2_path_longer_on_approach_bt_node",
-      "nav2_assisted_teleop_cancel_bt_node",
-      "nav2_wait_cancel_bt_node",
-      "nav2_spin_cancel_bt_node",
-      "nav2_back_up_cancel_bt_node",
-      "nav2_drive_on_heading_cancel_bt_node",
-      "nav2_goal_updated_controller_bt_node"
-    };
+    std::vector<std::string> plugin_libs;
+    boost::split(plugin_libs, nav2::details::BT_BUILTIN_PLUGINS, boost::is_any_of(";"));
+
     for (const auto & p : plugin_libs) {
       factory_.registerFromPlugin(BT::SharedLibrary::getOSName(p));
     }
@@ -118,25 +79,25 @@ public:
       return false;
     }
 
-    auto xml_string = std::string(
-      std::istreambuf_iterator<char>(xml_file),
-      std::istreambuf_iterator<char>());
-
+    std::stringstream buffer;
+    buffer << xml_file.rdbuf();
+    xml_file.close();
+    std::string xml_string = buffer.str();
     // Create the blackboard that will be shared by all of the nodes in the tree
     blackboard = BT::Blackboard::create();
 
     // Put items on the blackboard
-    blackboard->set<rclcpp::Node::SharedPtr>("node", node_);  // NOLINT
+    blackboard->set("node", node_);  // NOLINT
     blackboard->set<std::chrono::milliseconds>(
       "server_timeout", std::chrono::milliseconds(20));  // NOLINT
     blackboard->set<std::chrono::milliseconds>(
       "bt_loop_duration", std::chrono::milliseconds(10));  // NOLINT
     blackboard->set<std::chrono::milliseconds>(
       "wait_for_service_timeout", std::chrono::milliseconds(1000));  // NOLINT
-    blackboard->set<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer", tf_);  // NOLINT
-    blackboard->set<bool>("initial_pose_received", false);  // NOLINT
-    blackboard->set<int>("number_recoveries", 0);  // NOLINT
-    blackboard->set<std::shared_ptr<nav2_util::OdomSmoother>>("odom_smoother", odom_smoother_);  // NOLINT
+    blackboard->set("tf_buffer", tf_);  // NOLINT
+    blackboard->set("initial_pose_received", false);  // NOLINT
+    blackboard->set("number_recoveries", 0);  // NOLINT
+    blackboard->set("odom_smoother", odom_smoother_);  // NOLINT
 
     // set dummy goal on blackboard
     geometry_msgs::msg::PoseStamped goal;
@@ -150,7 +111,7 @@ public:
     goal.pose.orientation.z = 0.0;
     goal.pose.orientation.w = 1.0;
 
-    blackboard->set<geometry_msgs::msg::PoseStamped>("goal", goal);  // NOLINT
+    blackboard->set("goal", goal);  // NOLINT
 
     // Create the Behavior Tree from the XML input
     try {
@@ -161,6 +122,17 @@ public:
     }
 
     return true;
+  }
+
+  std::string generateBTLogFileName()
+  {
+    auto end = std::chrono::system_clock::now();
+    std::time_t end_time = std::chrono::system_clock::to_time_t(end);
+    std::string time_str = std::ctime(&end_time);
+    std::replace(time_str.begin(), time_str.end(), ' ', '_');
+    time_str.erase(std::remove(time_str.begin(), time_str.end(), '\n'), time_str.end());
+    std::string file_name = "bt_trace_" + time_str + "_.fbl";
+    return file_name;
   }
 
 public:
@@ -252,7 +224,7 @@ TEST_F(BehaviorTreeTestFixture, TestAllSuccess)
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   while (result == BT::NodeStatus::RUNNING) {
-    result = bt_handler->tree.tickRoot();
+    result = bt_handler->tree.tickOnce();
     std::this_thread::sleep_for(10ms);
   }
 
@@ -281,7 +253,7 @@ TEST_F(BehaviorTreeTestFixture, TestAllSuccess)
  * RoundRobin triggers Spin, Wait, and BackUp which return FAILURE
  * RoundRobin returns FAILURE hence RecoveryCallbackk returns FAILURE
  * Finally NavigateRecovery returns FAILURE
- * The behavior tree should also return FAILURE
+ * The behavior tree should return FAILURE
  */
 TEST_F(BehaviorTreeTestFixture, TestAllFailure)
 {
@@ -292,42 +264,38 @@ TEST_F(BehaviorTreeTestFixture, TestAllFailure)
   EXPECT_EQ(bt_handler->loadBehaviorTree(bt_file.string()), true);
 
   // Set all action server to fail the first 100 times
-  std::vector<std::pair<int, int>> failureRange;
-  failureRange.emplace_back(std::pair<int, int>(0, 100));
+  Ranges failureRange;
+  failureRange.emplace_back(Range(0, 100));
   server_handler->compute_path_to_pose_server->setFailureRanges(failureRange);
   server_handler->follow_path_server->setFailureRanges(failureRange);
   server_handler->spin_server->setFailureRanges(failureRange);
   server_handler->wait_server->setFailureRanges(failureRange);
   server_handler->backup_server->setFailureRanges(failureRange);
 
-  // Disable services
-  server_handler->clear_global_costmap_server->disable();
-  server_handler->clear_local_costmap_server->disable();
-
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   while (result == BT::NodeStatus::RUNNING) {
-    result = bt_handler->tree.tickRoot();
+    result = bt_handler->tree.tickOnce();
     std::this_thread::sleep_for(10ms);
   }
 
   // The final result should be failure
   EXPECT_EQ(result, BT::NodeStatus::FAILURE);
 
-  // Goal count should be 1 since only one goal is sent to ComputePathToPose
-  EXPECT_EQ(server_handler->compute_path_to_pose_server->getGoalCount(), 1);
+  // Goal count should be 2 since only two goals are sent to ComputePathToPose
+  EXPECT_EQ(server_handler->compute_path_to_pose_server->getGoalCount(), 14);
 
   // Goal count should be 0 since no goal is sent to FollowPath action server
   EXPECT_EQ(server_handler->follow_path_server->getGoalCount(), 0);
 
-  // All recovery action servers were sent 1 goal
-  EXPECT_EQ(server_handler->spin_server->getGoalCount(), 1);
-  EXPECT_EQ(server_handler->wait_server->getGoalCount(), 1);
-  EXPECT_EQ(server_handler->backup_server->getGoalCount(), 1);
+  EXPECT_EQ(server_handler->spin_server->getGoalCount(), 5);
+  EXPECT_EQ(server_handler->wait_server->getGoalCount(), 5);
+  EXPECT_EQ(server_handler->backup_server->getGoalCount(), 5);
 
-  // Service count is 0 since the server was disabled
-  EXPECT_EQ(server_handler->clear_local_costmap_server->getRequestCount(), 0);
-  EXPECT_EQ(server_handler->clear_global_costmap_server->getRequestCount(), 0);
+  // Service count is 1 to try and resolve global planner error
+  EXPECT_EQ(server_handler->clear_global_costmap_server->getRequestCount(), 13);
+
+  EXPECT_EQ(server_handler->clear_local_costmap_server->getRequestCount(), 6);
 }
 
 /**
@@ -348,15 +316,15 @@ TEST_F(BehaviorTreeTestFixture, TestNavigateSubtreeRecoveries)
   EXPECT_EQ(bt_handler->loadBehaviorTree(bt_file.string()), true);
 
   // Set ComputePathToPose and FollowPath action servers to fail for the first action
-  std::vector<std::pair<int, int>> failureRange;
-  failureRange.emplace_back(std::pair<int, int>(0, 1));
+  Ranges failureRange;
+  failureRange.emplace_back(Range(0, 1));
   server_handler->compute_path_to_pose_server->setFailureRanges(failureRange);
   server_handler->follow_path_server->setFailureRanges(failureRange);
 
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   while (result == BT::NodeStatus::RUNNING) {
-    result = bt_handler->tree.tickRoot();
+    result = bt_handler->tree.tickOnce();
     std::this_thread::sleep_for(10ms);
   }
 
@@ -402,19 +370,19 @@ TEST_F(BehaviorTreeTestFixture, TestNavigateRecoverySimple)
   EXPECT_EQ(bt_handler->loadBehaviorTree(bt_file.string()), true);
 
   // Set ComputePathToPose action server to fail for the first action
-  std::vector<std::pair<int, int>> plannerFailureRange;
-  plannerFailureRange.emplace_back(std::pair<int, int>(0, 1));
+  Ranges plannerFailureRange;
+  plannerFailureRange.emplace_back(Range(0, 1));
   server_handler->compute_path_to_pose_server->setFailureRanges(plannerFailureRange);
 
   // Set FollowPath action server to fail for the first 3 actions
-  std::vector<std::pair<int, int>> controllerFailureRange;
-  controllerFailureRange.emplace_back(std::pair<int, int>(0, 3));
+  Ranges controllerFailureRange;
+  controllerFailureRange.emplace_back(Range(0, 3));
   server_handler->follow_path_server->setFailureRanges(controllerFailureRange);
 
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   while (result == BT::NodeStatus::RUNNING) {
-    result = bt_handler->tree.tickRoot();
+    result = bt_handler->tree.tickOnce();
     std::this_thread::sleep_for(10ms);
   }
 
@@ -440,56 +408,52 @@ TEST_F(BehaviorTreeTestFixture, TestNavigateRecoverySimple)
 }
 
 /**
- * Test scenario:
+ * Test Scenario:
  *
- * ComputePathToPose returns FAILURE on the first try triggering the planner recovery
- * ClearGlobalCostmap-Context returns SUCCESS and ComputePathToPose returns FAILURE when retried
- * PipelineSequence returns FAILURE and NavigateRecovery triggers RecoveryFallback
+ * PipelineSequence returns FAILURE and triggers the Recovery subtree
+ * NavigateRecovery ticks the recovery subtree, WouldAControllerRecoveryHelp returns SUCCESS
  * GoalUpdated returns FAILURE, RoundRobin triggers ClearingActions Sequence which returns SUCCESS
- * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
+ * RoundRobin returns SUCCESS and the recovery subtree returns SUCCESS
  *
- * PipelineSequence is triggered again and ComputePathToPose returns SUCCESS (retry #1)
- * FollowPath returns FAILURE on the first try triggering the controller recovery
- * ClearLocalCostmap-Context returns SUCCESS and FollowPath is retried
- * FollowPath returns FAILURE again and PipelineSequence returns FAILURE
- * NavigateRecovery triggers RecoveryFallback and GoalUpdated returns FAILURE
- * RoundRobin triggers Spin which returns FAILURE
+ * RETRY 1
+ * PipelineSequence returns FAILURE and triggers the Recovery subtree
+ * NavigateRecovery ticks the recovery subtree, WouldAControllerRecoveryHelp returns SUCCESS
+ * GoalUpdated returns FAILURE, RoundRobin triggers Spin which returns FAILURE
  * RoundRobin triggers Wait which returns SUCCESS
  * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
  *
- * PipelineSequence is triggered again and ComputePathToPose returns FAILURE (retry #2)
- * ClearGlobalCostmap-Context returns SUCCESS and ComputePathToPose returns FAILURE when retried
- * PipelineSequence returns FAILURE NavigateRecovery triggers RecoveryFallback
+ * RETRY 2
+ * PipelineSequence returns FAILURE and triggers the Recovery subtree
+ * NavigateRecovery ticks the recovery subtree, WouldAControllerRecoveryHelp returns SUCCESS
  * GoalUpdated returns FAILURE and RoundRobin triggers BackUp which returns FAILURE
  * RoundRobin triggers ClearingActions Sequence which returns SUCCESS
  * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
  *
- * PipelineSequence is triggered again and ComputePathToPose returns FAILURE (retry #3)
- * ClearGlobalCostmap-Context returns SUCCESS and ComputePathToPose returns FAILURE when retried
- * PipelineSequence returns FAILURE NavigateRecovery triggers RecoveryFallback
+ * RETRY 3
+ * PipelineSequence returns FAILURE and triggers the Recovery subtree
+ * NavigateRecovery ticks the recovery subtree, WouldAControllerRecoveryHelp returns SUCCESS
+ * GoalUpdated returns FAILURE and RoundRobin triggers ClearingActions which returns SUCCESS
+ * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
+ *
+ * RETRY 4
+ * PipelineSequence returns FAILURE and triggers the Recovery subtree
+ * NavigateRecovery ticks the recovery subtree, WouldAControllerRecoveryHelp returns SUCCESS
+ * WouldAControllerRecoveryHelp returns SUCCESS
  * GoalUpdated returns FAILURE and RoundRobin triggers Spin which returns SUCCESS
- * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
  *
- * PipelineSequence is triggered again and ComputePathToPose returns FAILURE (retry #4)
- * ClearGlobalCostmap-Context returns SUCCESS and ComputePathToPose returns FAILURE when retried
- * PipelineSequence returns FAILURE NavigateRecovery triggers RecoveryFallback
- * GoalUpdated returns FAILURE and RoundRobin triggers Wait which returns FAILURE
+ * RETRY 5
+ * PipelineSequence returns FAILURE and triggers the Recovery subtree
+ * NavigateRecovery ticks the recovery subtree, WouldAControllerRecoveryHelp returns SUCCESS
+ * GoalUpdated returns FAILURE and RoundRobin triggers Wait which returns SUCCESS
  * RoundRobin triggers BackUp which returns SUCCESS
- * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
  *
- * PipelineSequence is triggered again and ComputePathToPose returns SUCCESS (retry #5)
- * FollowPath returns FAILURE on the first try triggering the controller recovery
- * ClearLocalCostmap-Context returns SUCCESS and FollowPath is retried
- * FollowPath returns FAILURE again and PipelineSequence returns FAILURE
- * NavigateRecovery triggers RecoveryFallback and GoalUpdated returns FAILURE
- * RoundRobin triggers ClearingActions Sequence which returns SUCCESS
- * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
- *
- * PipelineSequence is triggered again and ComputePathToPose returns FAILURE (retry #6)
+ * RETRY 6
+ * ComputePathToPose returns FAILURE on the first try triggering the planner recovery
  * ClearGlobalCostmap-Context returns SUCCESS and ComputePathToPose returns FAILURE when retried
  * PipelineSequence returns FAILURE and NavigateRecovery finally also returns FAILURE
  *
  * The behavior tree should return FAILURE
+ *
  */
 TEST_F(BehaviorTreeTestFixture, TestNavigateRecoveryComplex)
 {
@@ -499,37 +463,20 @@ TEST_F(BehaviorTreeTestFixture, TestNavigateRecoveryComplex)
   bt_file /= "navigate_to_pose_w_replanning_and_recovery.xml";
   EXPECT_EQ(bt_handler->loadBehaviorTree(bt_file.string()), true);
 
-  // Set ComputePathToPose action server to fail for the first 2 actions
-  std::vector<std::pair<int, int>> plannerFailureRange;
-  plannerFailureRange.emplace_back(std::pair<int, int>(0, 2));
-  plannerFailureRange.emplace_back(std::pair<int, int>(4, 9));
-  plannerFailureRange.emplace_back(std::pair<int, int>(11, 12));
-  server_handler->compute_path_to_pose_server->setFailureRanges(plannerFailureRange);
-
   // Set FollowPath action server to fail for the first 2 actions
-  std::vector<std::pair<int, int>> controllerFailureRange;
-  controllerFailureRange.emplace_back(std::pair<int, int>(0, 4));
+  Ranges controllerFailureRange;
+  controllerFailureRange.emplace_back(Range(0, 14));
   server_handler->follow_path_server->setFailureRanges(controllerFailureRange);
 
   // Set Spin action server to fail for the first action
-  std::vector<std::pair<int, int>> spinFailureRange;
-  spinFailureRange.emplace_back(std::pair<int, int>(0, 1));
+  Ranges spinFailureRange;
+  spinFailureRange.emplace_back(Range(0, 1));
   server_handler->spin_server->setFailureRanges(spinFailureRange);
-
-  // Set Wait action server to fail for the first action
-  std::vector<std::pair<int, int>> waitFailureRange;
-  waitFailureRange.emplace_back(std::pair<int, int>(2, 2));
-  server_handler->wait_server->setFailureRanges(waitFailureRange);
-
-  // Set BackUp action server to fail for the first action
-  std::vector<std::pair<int, int>> backupFailureRange;
-  backupFailureRange.emplace_back(std::pair<int, int>(0, 1));
-  server_handler->backup_server->setFailureRanges(backupFailureRange);
 
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   while (result == BT::NodeStatus::RUNNING) {
-    result = bt_handler->tree.tickRoot();
+    result = bt_handler->tree.tickOnce();
     std::this_thread::sleep_for(10ms);
   }
 
@@ -537,38 +484,30 @@ TEST_F(BehaviorTreeTestFixture, TestNavigateRecoveryComplex)
   EXPECT_EQ(result, BT::NodeStatus::FAILURE);
 
   // ComputePathToPose is called 12 times
-  EXPECT_EQ(server_handler->compute_path_to_pose_server->getGoalCount(), 12);
+  EXPECT_EQ(server_handler->compute_path_to_pose_server->getGoalCount(), 7);
 
   // FollowPath is called 4 times
-  EXPECT_EQ(server_handler->follow_path_server->getGoalCount(), 4);
+  EXPECT_EQ(server_handler->follow_path_server->getGoalCount(), 14);
 
   // Local costmap is cleared 5 times
-  EXPECT_EQ(server_handler->clear_local_costmap_server->getRequestCount(), 5);
+  EXPECT_EQ(server_handler->clear_local_costmap_server->getRequestCount(), 9);
 
   // Global costmap is cleared 8 times
-  EXPECT_EQ(server_handler->clear_global_costmap_server->getRequestCount(), 8);
+  EXPECT_EQ(server_handler->clear_global_costmap_server->getRequestCount(), 2);
 
   // All recovery action servers receive 2 goals
   EXPECT_EQ(server_handler->spin_server->getGoalCount(), 2);
   EXPECT_EQ(server_handler->wait_server->getGoalCount(), 2);
-  EXPECT_EQ(server_handler->backup_server->getGoalCount(), 2);
+  EXPECT_EQ(server_handler->backup_server->getGoalCount(), 1);
 }
 
 /**
  * Test scenario:
  *
- * ComputePathToPose returns FAILURE on the first try triggering the planner recovery
- * ClearGlobalCostmap-Context returns SUCCESS and ComputePathToPose returns FAILURE when retried
- * PipelineSequence returns FAILURE and NavigateRecovery triggers RecoveryFallback
- * GoalUpdated returns FAILURE, RoundRobin triggers ClearingActions Sequence which returns SUCCESS
- * RoundRobin returns SUCCESS and RecoveryFallback returns SUCCESS
- * PipelineSequence is triggered again and ComputePathToPose returns SUCCESS
- * FollowPath returns FAILURE on the first try triggering the controller recovery
- * ClearLocalCostmap-Context returns SUCCESS and FollowPath is retried
- * FollowPath returns FAILURE and PipelineSequence returns FAILURE
- * NavigateRecovery triggers RecoveryFallback which triggers GoalUpdated
- * GoalUpdated returns FAILURE and RecoveryFallback triggers RoundRobin
- * RoundRobin triggers Spin which returns RUNNING
+ * The PipelineSequence return FAILURE due to FollowPath returning FAILURE
+ * The NavigateRecovery triggers the recovery sub tree which returns SUCCESS
+ * The PipelineSequence return FAILURE due to FollowPath returning FAILURE
+ * The NavigateRecovery triggers the recovery sub tree which ticks the Spin recovery
  *
  * At this point a new goal is updated on the blackboard
  *
@@ -588,25 +527,20 @@ TEST_F(BehaviorTreeTestFixture, TestRecoverySubtreeGoalUpdated)
   bt_file /= "navigate_to_pose_w_replanning_and_recovery.xml";
   EXPECT_EQ(bt_handler->loadBehaviorTree(bt_file.string()), true);
 
-  // Set ComputePathToPose action server to fail for the first 2 actions
-  std::vector<std::pair<int, int>> plannerFailureRange;
-  plannerFailureRange.emplace_back(std::pair<int, int>(0, 2));
-  server_handler->compute_path_to_pose_server->setFailureRanges(plannerFailureRange);
-
   // Set FollowPath action server to fail for the first 2 actions
-  std::vector<std::pair<int, int>> controllerFailureRange;
-  controllerFailureRange.emplace_back(std::pair<int, int>(0, 2));
+  Ranges controllerFailureRange;
+  controllerFailureRange.emplace_back(Range(0, 4));
   server_handler->follow_path_server->setFailureRanges(controllerFailureRange);
 
   // Set Spin action server to return running for the first action
-  std::vector<std::pair<int, int>> spinRunningRange;
-  spinRunningRange.emplace_back(std::pair<int, int>(1, 1));
+  Ranges spinRunningRange;
+  spinRunningRange.emplace_back(Range(1, 1));
   server_handler->spin_server->setRunningRanges(spinRunningRange);
 
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   while (result == BT::NodeStatus::RUNNING) {
-    result = bt_handler->tree.tickRoot();
+    result = bt_handler->tree.tickOnce();
 
     // Update goal on blackboard after Spin has been triggered once
     // to simulate a goal update during a recovery action
@@ -619,7 +553,7 @@ TEST_F(BehaviorTreeTestFixture, TestRecoverySubtreeGoalUpdated)
       goal.pose.orientation.y = 0.0;
       goal.pose.orientation.z = 0.0;
       goal.pose.orientation.w = 1.0;
-      bt_handler->blackboard->set<geometry_msgs::msg::PoseStamped>("goal", goal);  // NOLINT
+      bt_handler->blackboard->set("goal", goal);  // NOLINT
     }
 
     std::this_thread::sleep_for(10ms);
@@ -629,16 +563,16 @@ TEST_F(BehaviorTreeTestFixture, TestRecoverySubtreeGoalUpdated)
   EXPECT_EQ(result, BT::NodeStatus::SUCCESS);
 
   // ComputePathToPose is called 4 times
-  EXPECT_EQ(server_handler->compute_path_to_pose_server->getGoalCount(), 4);
+  EXPECT_EQ(server_handler->compute_path_to_pose_server->getGoalCount(), 3);
 
   // FollowPath is called 3 times
-  EXPECT_EQ(server_handler->follow_path_server->getGoalCount(), 3);
+  EXPECT_EQ(server_handler->follow_path_server->getGoalCount(), 5);
 
   // Local costmap is cleared 2 times
-  EXPECT_EQ(server_handler->clear_local_costmap_server->getRequestCount(), 2);
+  EXPECT_EQ(server_handler->clear_local_costmap_server->getRequestCount(), 3);
 
   // Global costmap is cleared 2 times
-  EXPECT_EQ(server_handler->clear_global_costmap_server->getRequestCount(), 2);
+  EXPECT_EQ(server_handler->clear_global_costmap_server->getRequestCount(), 1);
 
   // Spin server receives 1 action
   EXPECT_EQ(server_handler->spin_server->getGoalCount(), 1);
@@ -647,6 +581,8 @@ TEST_F(BehaviorTreeTestFixture, TestRecoverySubtreeGoalUpdated)
   EXPECT_EQ(server_handler->wait_server->getGoalCount(), 0);
   EXPECT_EQ(server_handler->backup_server->getGoalCount(), 0);
 }
+
+}  // namespace nav2_system_tests
 
 int main(int argc, char ** argv)
 {

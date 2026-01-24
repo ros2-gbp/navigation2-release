@@ -50,7 +50,7 @@ public:
    * @param parent pointer to user's node
    */
   virtual void configure(
-    const rclcpp_lifecycle::LifecycleNode::SharedPtr node) = 0;
+    const nav2_util::LifecycleNode::SharedPtr node) = 0;
 
   /**
    * @brief Method to save the graph to the filepath

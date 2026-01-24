@@ -21,7 +21,7 @@ namespace nav2_route
 {
 
 void CostmapScorer::configure(
-  const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+  const nav2_util::LifecycleNode::SharedPtr node,
   const std::shared_ptr<tf2_ros::Buffer>/* tf_buffer */,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
   const std::string & name)
@@ -69,8 +69,7 @@ void CostmapScorer::configure(
   if (costmap_topic != server_costmap_topic) {
     costmap_subscriber_ = std::make_shared<nav2_costmap_2d::CostmapSubscriber>(
       node, costmap_topic);
-    RCLCPP_INFO(
-      node->get_logger(),
+    RCLCPP_INFO(node->get_logger(),
       "Using costmap topic: %s instead of server costmap topic: %s for CostmapScorer.",
       costmap_topic.c_str(), server_costmap_topic.c_str());
   } else {

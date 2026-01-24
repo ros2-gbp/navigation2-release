@@ -25,6 +25,7 @@ using nav2_util::generate_internal_node;
 using nav2_util::add_namespaces;
 using nav2_util::time_to_string;
 using nav2_util::declare_parameter_if_not_declared;
+using nav2_util::declare_or_get_parameter;
 using nav2_util::get_plugin_type_param;
 
 class RclCppFixture
@@ -86,43 +87,55 @@ TEST(DeclareParameterIfNotDeclared, DeclareParameterIfNotDeclared)
   ASSERT_EQ(param, "fred");
 }
 
+TEST(DeclareOrGetParam, DeclareOrGetParam)
+{
+  auto node = std::make_shared<rclcpp::Node>("test_node");
+
+  // test declared parameter
+  node->declare_parameter("foobar", "foo");
+  std::string param = declare_or_get_parameter(node, "foobar", std::string{"bar"});
+  EXPECT_EQ(param, "foo");
+  node->get_parameter("foobar", param);
+  EXPECT_EQ(param, "foo");
+
+  // test undeclared parameter
+  node->set_parameter(rclcpp::Parameter("warn_on_missing_params", true));
+  int int_param = declare_or_get_parameter(node, "waldo", 3);
+  EXPECT_EQ(int_param, 3);
+
+  // test unknown parameter with strict_param_loading enabled
+  bool got_exception{false};
+  node->set_parameter(rclcpp::Parameter("strict_param_loading", true));
+  try {
+    declare_or_get_parameter(node, "burpy", true);
+  } catch (const rclcpp::exceptions::InvalidParameterValueException & exc) {
+    got_exception = true;
+  }
+  EXPECT_TRUE(got_exception);
+  // The parameter is anyway declared with the default val and subsequent calls won't fail
+  EXPECT_TRUE(declare_or_get_parameter(node, "burpy", true));
+
+  // test declaration by type of existing param
+  int_param = declare_or_get_parameter<int>(node, "waldo",
+    rclcpp::ParameterType::PARAMETER_INTEGER);
+  EXPECT_EQ(int_param, 3);
+
+  // test declaration by type of non existing param
+  got_exception = false;
+  try {
+    int_param = declare_or_get_parameter<int>(node, "wololo",
+      rclcpp::ParameterType::PARAMETER_INTEGER);
+  } catch (const rclcpp::exceptions::InvalidParameterValueException & exc) {
+    got_exception = true;
+  }
+  EXPECT_TRUE(got_exception);
+}
+
 TEST(GetPluginTypeParam, GetPluginTypeParam)
 {
   ::testing::FLAGS_gtest_death_test_style = "threadsafe";
   auto node = std::make_shared<rclcpp::Node>("test_node");
   node->declare_parameter("Foo.plugin", "bar");
   ASSERT_EQ(get_plugin_type_param(node, "Foo"), "bar");
-  ASSERT_EXIT(get_plugin_type_param(node, "Waldo"), ::testing::ExitedWithCode(255), ".*");
-}
-
-TEST(TestParamCopying, TestParamCopying)
-{
-  auto node1 = std::make_shared<rclcpp::Node>("test_node1");
-  auto node2 = std::make_shared<rclcpp::Node>("test_node2");
-
-  // Tests for (1) multiple types, (2) recursion, (3) overriding values
-  node1->declare_parameter("Foo1", rclcpp::ParameterValue(std::string(("bar1"))));
-  node1->declare_parameter("Foo2", rclcpp::ParameterValue(0.123));
-  node1->declare_parameter("Foo", rclcpp::ParameterValue(std::string(("bar"))));
-  node1->declare_parameter("Foo.bar", rclcpp::ParameterValue(std::string(("steve"))));
-  node2->declare_parameter("Foo", rclcpp::ParameterValue(std::string(("barz2"))));
-
-  // Show Node2 is empty of Node1's parameters, but contains its own
-  EXPECT_FALSE(node2->has_parameter("Foo1"));
-  EXPECT_FALSE(node2->has_parameter("Foo2"));
-  EXPECT_FALSE(node2->has_parameter("Foo.bar"));
-  EXPECT_TRUE(node2->has_parameter("Foo"));
-  EXPECT_EQ(node2->get_parameter("Foo").as_string(), std::string("barz2"));
-
-  nav2_util::copy_all_parameters(node1, node2);
-
-  // Test new parameters exist, of expected value, and original param is not overridden
-  EXPECT_TRUE(node2->has_parameter("Foo1"));
-  EXPECT_EQ(node2->get_parameter("Foo1").as_string(), std::string("bar1"));
-  EXPECT_TRUE(node2->has_parameter("Foo2"));
-  EXPECT_EQ(node2->get_parameter("Foo2").as_double(), 0.123);
-  EXPECT_TRUE(node2->has_parameter("Foo.bar"));
-  EXPECT_EQ(node2->get_parameter("Foo.bar").as_string(), std::string("steve"));
-  EXPECT_TRUE(node2->has_parameter("Foo"));
-  EXPECT_EQ(node2->get_parameter("Foo").as_string(), std::string("barz2"));
+  EXPECT_THROW(get_plugin_type_param(node, "Waldo"), std::runtime_error);
 }

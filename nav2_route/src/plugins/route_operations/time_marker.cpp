@@ -22,7 +22,7 @@ namespace nav2_route
 {
 
 void TimeMarker::configure(
-  const rclcpp_lifecycle::LifecycleNode::SharedPtr node,
+  const nav2_util::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>/* costmap_subscriber */,
   const std::string & name)
 {

@@ -19,8 +19,11 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
-#include "behaviortree_cpp_v3/condition_node.h"
+#include "behaviortree_cpp/condition_node.h"
+#include "behaviortree_cpp/json_export.h"
 #include "tf2_ros/buffer.h"
+#include "nav2_behavior_tree/bt_utils.hpp"
+#include "nav2_behavior_tree/json_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -71,10 +74,13 @@ public:
    */
   static BT::PortsList providedPorts()
   {
+    // Register JSON definitions for the types used in the ports
+    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
+
     return {
       BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination"),
-      BT::InputPort<std::string>("global_frame", std::string("map"), "Global frame"),
-      BT::InputPort<std::string>("robot_base_frame", std::string("base_link"), "Robot base frame")
+      BT::InputPort<std::string>("global_frame", "Global frame"),
+      BT::InputPort<std::string>("robot_base_frame", "Robot base frame")
     };
   }
 
@@ -89,11 +95,9 @@ private:
   rclcpp::Node::SharedPtr node_;
   std::shared_ptr<tf2_ros::Buffer> tf_;
 
-  bool initialized_;
   double goal_reached_tol_;
-  std::string global_frame_;
-  std::string robot_base_frame_;
   double transform_tolerance_;
+  std::string robot_base_frame_;
 };
 
 }  // namespace nav2_behavior_tree

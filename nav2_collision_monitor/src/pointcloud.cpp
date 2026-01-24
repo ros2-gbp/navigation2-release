@@ -17,8 +17,10 @@
 #include <functional>
 
 #include "sensor_msgs/point_cloud2_iterator.hpp"
+#include "tf2/transform_datatypes.h"
 
 #include "nav2_util/node_utils.hpp"
+#include "nav2_util/robot_utils.hpp"
 
 namespace nav2_collision_monitor
 {
@@ -64,59 +66,76 @@ void PointCloud::configure()
     std::bind(&PointCloud::dataCallback, this, std::placeholders::_1));
 }
 
-void PointCloud::getData(
+bool PointCloud::getData(
   const rclcpp::Time & curr_time,
-  std::vector<Point> & data) const
+  std::vector<Point> & data)
 {
   // Ignore data from the source if it is not being published yet or
   // not published for a long time
   if (data_ == nullptr) {
-    return;
+    return false;
   }
   if (!sourceValid(data_->header.stamp, curr_time)) {
-    return;
+    return false;
   }
 
   tf2::Transform tf_transform;
-  if (base_shift_correction_) {
-    // Obtaining the transform to get data from source frame and time where it was received
-    // to the base frame and current time
-    if (
-      !nav2_util::getTransform(
-        data_->header.frame_id, data_->header.stamp,
-        base_frame_id_, curr_time, global_frame_id_,
-        transform_tolerance_, tf_buffer_, tf_transform))
-    {
-      return;
-    }
-  } else {
-    // Obtaining the transform to get data from source frame to base frame without time shift
-    // considered. Less accurate but much more faster option not dependent on state estimation
-    // frames.
-    if (
-      !nav2_util::getTransform(
-        data_->header.frame_id, base_frame_id_,
-        transform_tolerance_, tf_buffer_, tf_transform))
-    {
-      return;
-    }
+  if (!getTransform(curr_time, data_->header, tf_transform)) {
+    return false;
   }
 
   sensor_msgs::PointCloud2ConstIterator<float> iter_x(*data_, "x");
   sensor_msgs::PointCloud2ConstIterator<float> iter_y(*data_, "y");
   sensor_msgs::PointCloud2ConstIterator<float> iter_z(*data_, "z");
 
+  bool height_present = false;
+  for (const auto & field : data_->fields) {
+    if (field.name == "height") {
+      height_present = true;
+    }
+  }
+
+// Reference height field
+  std::string height_field{"z"};
+  if (use_global_height_ && height_present) {
+    height_field = "height";
+  } else if (use_global_height_) {
+    RCLCPP_ERROR(logger_, "[%s]: 'use_global_height' parameter true but height field not in cloud",
+      source_name_.c_str());
+    return false;
+  }
+  sensor_msgs::PointCloud2ConstIterator<float> iter_height(*data_, height_field);
+
   // Refill data array with PointCloud points in base frame
   for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
     // Transform point coordinates from source frame -> to base frame
     tf2::Vector3 p_v3_s(*iter_x, *iter_y, *iter_z);
+
+    double data_height = *iter_z;
+    if (use_global_height_) {
+      data_height = *iter_height;
+      ++iter_height;
+    }
+
+    // Check range from sensor origin before transformation
+    double range = p_v3_s.length();
+    if (range < min_range_) {
+      continue;
+    }
+
     tf2::Vector3 p_v3_b = tf_transform * p_v3_s;
 
+    // Still need to transfer height from "z" field if not using global height
+    if (!use_global_height_) {
+      data_height = p_v3_b.z();
+    }
+
     // Refill data array
-    if (p_v3_b.z() >= min_height_ && p_v3_b.z() <= max_height_) {
+    if (data_height >= min_height_ && data_height <= max_height_) {
       data.push_back({p_v3_b.x(), p_v3_b.y()});
     }
   }
+  return true;
 }
 
 void PointCloud::getParameters(std::string & source_topic)
@@ -134,6 +153,12 @@ void PointCloud::getParameters(std::string & source_topic)
   nav2_util::declare_parameter_if_not_declared(
     node, source_name_ + ".max_height", rclcpp::ParameterValue(0.5));
   max_height_ = node->get_parameter(source_name_ + ".max_height").as_double();
+  nav2_util::declare_parameter_if_not_declared(
+    node, source_name_ + ".min_range", rclcpp::ParameterValue(0.0));
+  min_range_ = node->get_parameter(source_name_ + ".min_range").as_double();
+  nav2_util::declare_parameter_if_not_declared(
+    node, source_name_ + ".use_global_height", rclcpp::ParameterValue(false));
+  use_global_height_ = node->get_parameter(source_name_ + ".use_global_height").as_bool();
 }
 
 void PointCloud::dataCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr msg)

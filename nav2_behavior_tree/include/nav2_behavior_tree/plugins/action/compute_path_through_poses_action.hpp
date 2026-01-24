@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 
+#include "behaviortree_cpp/json_export.h"
 #include "nav2_msgs/action/compute_path_through_poses.hpp"
 #include "nav_msgs/msg/path.h"
 #include "nav2_behavior_tree/bt_action_node.hpp"
@@ -32,6 +33,9 @@ namespace nav2_behavior_tree
 class ComputePathThroughPosesAction
   : public BtActionNode<nav2_msgs::action::ComputePathThroughPoses>
 {
+  using Action = nav2_msgs::action::ComputePathThroughPoses;
+  using ActionResult = Action::Result;
+
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::ComputePathThroughPosesAction
@@ -70,9 +74,12 @@ public:
    */
   static BT::PortsList providedPorts()
   {
+    // Register JSON definitions for the types used in the ports
+    BT::RegisterJsonDefinition<nav_msgs::msg::Path>();
+    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
+
     return providedBasicPorts(
       {
-        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathThroughPoses node"),
         BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
           "goals",
           "Destinations to plan through"),
@@ -81,6 +88,9 @@ public:
         BT::InputPort<std::string>(
           "planner_id", "",
           "Mapped name to the planner plugin type to use"),
+        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathThroughPoses node"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The compute path through poses error code"),
       });
   }
 };

@@ -22,9 +22,11 @@
 #include <memory>
 #include <queue>
 #include <utility>
+#include <tuple>
 #include "Eigen/Core"
 
 #include "nav2_costmap_2d/costmap_2d.hpp"
+#include "nav2_core/planner_exceptions.hpp"
 
 #include "nav2_smac_planner/thirdparty/robin_hood.h"
 #include "nav2_smac_planner/analytic_expansion.hpp"
@@ -47,13 +49,13 @@ class AStarAlgorithm
 {
 public:
   typedef NodeT * NodePtr;
-  typedef robin_hood::unordered_node_map<unsigned int, NodeT> Graph;
+  typedef robin_hood::unordered_node_map<uint64_t, NodeT> Graph;
   typedef std::vector<NodePtr> NodeVector;
   typedef std::pair<float, NodeBasic<NodeT>> NodeElement;
   typedef typename NodeT::Coordinates Coordinates;
   typedef typename NodeT::CoordinateVector CoordinateVector;
   typedef typename NodeVector::iterator NeighborIterator;
-  typedef std::function<bool (const unsigned int &, NodeT * &)> NodeGetter;
+  typedef std::function<bool (const uint64_t &, NodeT * &)> NodeGetter;
 
   /**
    * @struct nav2_smac_planner::NodeComparator
@@ -86,6 +88,8 @@ public:
    * @param max_on_approach_iterations Maximum number of iterations before returning a valid
    * path once within thresholds to refine path
    * comes at more compute time but smoother paths.
+   * @param terminal_checking_interval Number of iterations to check if the task has been canceled or
+   * or planning time exceeded
    * @param max_planning_time Maximum time (in seconds) to wait for a plan, createPath returns
    * false after this timeout
    */
@@ -93,6 +97,7 @@ public:
     const bool & allow_unknown,
     int & max_iterations,
     const int & max_on_approach_iterations,
+    const int & terminal_checking_interval,
     const double & max_planning_time,
     const float & lookup_table_size,
     const unsigned int & dim_3_size);
@@ -102,9 +107,14 @@ public:
    * @param path Reference to a vector of indicies of generated path
    * @param num_iterations Reference to number of iterations to create plan
    * @param tolerance Reference to tolerance in costmap nodes
+   * @param cancel_checker Function to check if the task has been canceled
+   * @param expansions_log Optional expansions logged for debug
    * @return if plan was successful
    */
-  bool createPath(CoordinateVector & path, int & num_iterations, const float & tolerance);
+  bool createPath(
+    CoordinateVector & path, int & num_iterations, const float & tolerance,
+    std::function<bool()> cancel_checker,
+    std::vector<std::tuple<float, float, float>> * expansions_log = nullptr);
 
   /**
    * @brief Sets the collision checker to use
@@ -119,8 +129,8 @@ public:
    * @param dim_3 The node dim_3 index of the goal
    */
   void setGoal(
-    const unsigned int & mx,
-    const unsigned int & my,
+    const float & mx,
+    const float & my,
     const unsigned int & dim_3);
 
   /**
@@ -130,8 +140,8 @@ public:
    * @param dim_3 The node dim_3 index of the goal
    */
   void setStart(
-    const unsigned int & mx,
-    const unsigned int & my,
+    const float & mx,
+    const float & my,
     const unsigned int & dim_3);
 
   /**
@@ -200,7 +210,7 @@ protected:
    * @brief Adds node to graph
    * @param index Node index to add
    */
-  inline NodePtr addToGraph(const unsigned int & index);
+  inline NodePtr addToGraph(const uint64_t & index);
 
   /**
    * @brief Check if this node is the goal node
@@ -232,12 +242,21 @@ protected:
    */
   inline void clearGraph();
 
-  int _timing_interval = 5000;
+  inline bool onVisitationCheckNode(const NodePtr & node);
+
+  /**
+   * @brief Populate a debug log of expansions for Hybrid-A* for visualization
+   * @param node Node expanded
+   * @param expansions_log Log to add not expanded to
+   */
+  inline void populateExpansionsLog(
+    const NodePtr & node, std::vector<std::tuple<float, float, float>> * expansions_log);
 
   bool _traverse_unknown;
   bool _is_initialized;
   int _max_iterations;
   int _max_on_approach_iterations;
+  int _terminal_checking_interval;
   double _max_planning_time;
   float _tolerance;
   unsigned int _x_size;

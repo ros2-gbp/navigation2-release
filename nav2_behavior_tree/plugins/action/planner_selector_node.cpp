@@ -50,6 +50,9 @@ PlannerSelector::PlannerSelector(
     qos,
     std::bind(&PlannerSelector::callbackPlannerSelect, this, _1),
     sub_option);
+
+  // Spin multiple times due to rclcpp regression in Jazzy requiring a 'warm up' spin
+  callback_group_executor_.spin_some(std::chrono::nanoseconds(1));
 }
 
 BT::NodeStatus PlannerSelector::tick()
@@ -84,7 +87,7 @@ PlannerSelector::callbackPlannerSelect(const std_msgs::msg::String::SharedPtr ms
 
 }  // namespace nav2_behavior_tree
 
-#include "behaviortree_cpp_v3/bt_factory.h"
+#include "behaviortree_cpp/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
   factory.registerNodeType<nav2_behavior_tree::PlannerSelector>("PlannerSelector");
