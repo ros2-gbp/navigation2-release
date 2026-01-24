@@ -1,5 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
-// Copyright (c) 2020 Francisco Martin Rico
+// Copyright (c) 2025 Open Navigation LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__TRUNCATE_PATH_ACTION_HPP_
-#define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__TRUNCATE_PATH_ACTION_HPP_
+#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__CONCATENATE_PATHS_ACTION_HPP_
+#define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__CONCATENATE_PATHS_ACTION_HPP_
 
-#include <memory>
 #include <string>
+#include <memory>
+#include <limits>
 
 #include "nav_msgs/msg/path.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "nav2_util/geometry_utils.hpp"
 
 #include "behaviortree_cpp/action_node.h"
-#include "behaviortree_cpp/json_export.h"
-#include "nav2_behavior_tree/json_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -31,15 +31,15 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::ActionNodeBase to shorten path by some distance
  */
-class TruncatePath : public BT::ActionNodeBase
+class ConcatenatePaths : public BT::ActionNodeBase
 {
 public:
   /**
-   * @brief A nav2_behavior_tree::TruncatePath constructor
+   * @brief A nav2_behavior_tree::ConcatenatePaths constructor
    * @param xml_tag_name Name for the XML tag for this node
    * @param conf BT node configuration
    */
-  TruncatePath(
+  ConcatenatePaths(
     const std::string & xml_tag_name,
     const BT::NodeConfiguration & conf);
 
@@ -49,13 +49,10 @@ public:
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<nav_msgs::msg::Path>();
-
     return {
-      BT::InputPort<nav_msgs::msg::Path>("input_path", "Original Path"),
-      BT::OutputPort<nav_msgs::msg::Path>("output_path", "Path truncated to a certain distance"),
-      BT::InputPort<double>("distance", 1.0, "distance"),
+      BT::InputPort<nav_msgs::msg::Path>("input_path1", "Input Path 1 to cancatenate"),
+      BT::InputPort<nav_msgs::msg::Path>("input_path2", "Input Path 2 to cancatenate"),
+      BT::OutputPort<nav_msgs::msg::Path>("output_path", "Paths concatenated"),
     };
   }
 
@@ -70,10 +67,8 @@ private:
    * @return BT::NodeStatus Status of tick execution
    */
   BT::NodeStatus tick() override;
-
-  double distance_;
 };
 
 }  // namespace nav2_behavior_tree
 
-#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__TRUNCATE_PATH_ACTION_HPP_
+#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__CONCATENATE_PATHS_ACTION_HPP_
