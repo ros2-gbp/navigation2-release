@@ -101,6 +101,8 @@ ParameterHandler::ParameterHandler(
   declare_parameter_if_not_declared(
     node, plugin_name_ + ".use_collision_detection",
     rclcpp::ParameterValue(true));
+  declare_parameter_if_not_declared(
+      node, plugin_name_ + ".stateful", rclcpp::ParameterValue(true));
 
   node->get_parameter(plugin_name_ + ".desired_linear_vel", params_.desired_linear_vel);
   params_.base_desired_linear_vel = params_.desired_linear_vel;
@@ -181,6 +183,7 @@ ParameterHandler::ParameterHandler(
   node->get_parameter(
     plugin_name_ + ".use_collision_detection",
     params_.use_collision_detection);
+  node->get_parameter(plugin_name_ + ".stateful", params_.stateful);
 
   if (params_.inflation_cost_scaling_factor <= 0.0) {
     RCLCPP_WARN(
@@ -257,6 +260,10 @@ ParameterHandler::dynamicParametersCallback(
         params_.cancel_deceleration = parameter.as_double();
       } else if (name == plugin_name_ + ".rotate_to_heading_min_angle") {
         params_.rotate_to_heading_min_angle = parameter.as_double();
+      } else if (name == plugin_name_ + ".transform_tolerance") {
+        params_.transform_tolerance = parameter.as_double();
+      } else if (name == plugin_name_ + ".max_robot_pose_search_dist") {
+        params_.max_robot_pose_search_dist = parameter.as_double();
       }
     } else if (type == ParameterType::PARAMETER_BOOL) {
       if (name == plugin_name_ + ".use_velocity_scaled_lookahead_dist") {
@@ -269,6 +276,8 @@ ParameterHandler::dynamicParametersCallback(
         params_.use_cost_regulated_linear_velocity_scaling = parameter.as_bool();
       } else if (name == plugin_name_ + ".use_collision_detection") {
         params_.use_collision_detection = parameter.as_bool();
+      } else if (name == plugin_name_ + ".stateful") {
+        params_.stateful = parameter.as_bool();
       } else if (name == plugin_name_ + ".use_rotate_to_heading") {
         params_.use_rotate_to_heading = parameter.as_bool();
       } else if (name == plugin_name_ + ".use_cancel_deceleration") {
@@ -281,6 +290,8 @@ ParameterHandler::dynamicParametersCallback(
           continue;
         }
         params_.allow_reversing = parameter.as_bool();
+      } else if (name == plugin_name_ + ".interpolate_curvature_after_goal") {
+        params_.interpolate_curvature_after_goal = parameter.as_bool();
       }
     }
   }
