@@ -61,6 +61,9 @@ BtActionServer<ActionT>::BtActionServer(
   if (!node->has_parameter("default_server_timeout")) {
     node->declare_parameter("default_server_timeout", 20);
   }
+  if (!node->has_parameter("default_cancel_timeout")) {
+    node->declare_parameter("default_cancel_timeout", 20);
+  }
   if (!node->has_parameter("action_server_result_timeout")) {
     node->declare_parameter("action_server_result_timeout", 900.0);
   }
@@ -164,6 +167,9 @@ bool BtActionServer<ActionT>::on_configure()
   int default_server_timeout;
   node->get_parameter("default_server_timeout", default_server_timeout);
   default_server_timeout_ = std::chrono::milliseconds(default_server_timeout);
+  int default_cancel_timeout;
+  node->get_parameter("default_cancel_timeout", default_cancel_timeout);
+  default_cancel_timeout_ = std::chrono::milliseconds(default_cancel_timeout);
   int wait_for_service_timeout;
   node->get_parameter("wait_for_service_timeout", wait_for_service_timeout);
   wait_for_service_timeout_ = std::chrono::milliseconds(wait_for_service_timeout);
@@ -181,6 +187,7 @@ bool BtActionServer<ActionT>::on_configure()
   // Put items on the blackboard
   blackboard_->set<rclcpp::Node::SharedPtr>("node", client_node_);  // NOLINT
   blackboard_->set<std::chrono::milliseconds>("server_timeout", default_server_timeout_);  // NOLINT
+  blackboard_->set<std::chrono::milliseconds>("cancel_timeout", default_cancel_timeout_);  // NOLINT
   blackboard_->set<std::chrono::milliseconds>("bt_loop_duration", bt_loop_duration_);  // NOLINT
   blackboard_->set<std::chrono::milliseconds>(
     "wait_for_service_timeout",
@@ -217,8 +224,16 @@ bool BtActionServer<ActionT>::on_cleanup()
   current_bt_xml_filename_.clear();
   blackboard_.reset();
   bt_->haltAllActions(tree_);
+  bt_->resetGrootMonitor();
   bt_.reset();
   return true;
+}
+
+template<class ActionT>
+void BtActionServer<ActionT>::setGrootMonitoring(const bool enable, const unsigned server_port)
+{
+  enable_groot_monitoring_ = enable;
+  groot_server_port_ = server_port;
 }
 
 template<class ActionT>
@@ -232,6 +247,9 @@ bool BtActionServer<ActionT>::loadBehaviorTree(const std::string & bt_xml_filena
     RCLCPP_DEBUG(logger_, "BT will not be reloaded as the given xml is already loaded");
     return true;
   }
+
+  // Reset any existing Groot2 monitoring
+  bt_->resetGrootMonitor();
 
   // Read the input BT XML from the specified file into a string
   std::ifstream xml_file(filename);
@@ -248,6 +266,7 @@ bool BtActionServer<ActionT>::loadBehaviorTree(const std::string & bt_xml_filena
       auto & blackboard = subtree->blackboard;
       blackboard->set("node", client_node_);
       blackboard->set<std::chrono::milliseconds>("server_timeout", default_server_timeout_);
+      blackboard->set<std::chrono::milliseconds>("cancel_timeout", default_cancel_timeout_);
       blackboard->set<std::chrono::milliseconds>("bt_loop_duration", bt_loop_duration_);
       blackboard->set<std::chrono::milliseconds>(
         "wait_for_service_timeout",
@@ -261,6 +280,14 @@ bool BtActionServer<ActionT>::loadBehaviorTree(const std::string & bt_xml_filena
   topic_logger_ = std::make_unique<RosTopicLogger>(client_node_, tree_);
 
   current_bt_xml_filename_ = filename;
+
+  if (enable_groot_monitoring_) {
+    bt_->addGrootMonitoring(&tree_, groot_server_port_);
+    RCLCPP_DEBUG(
+      logger_, "Enabling Groot2 monitoring for %s: %d",
+      action_name_.c_str(), groot_server_port_);
+  }
+
   return true;
 }
 

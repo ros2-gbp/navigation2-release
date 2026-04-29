@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Intel Corporation
+// Copyright (c) 2025 Open Navigation LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__GOAL_REACHED_CONDITION_HPP_
-#define NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__GOAL_REACHED_CONDITION_HPP_
+#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__ARE_POSES_NEAR_CONDITION_HPP_
+#define NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__ARE_POSES_NEAR_CONDITION_HPP_
 
 #include <string>
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
-#include "behaviortree_cpp/condition_node.h"
-#include "behaviortree_cpp/json_export.h"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "tf2_ros/buffer.h"
+#include "behaviortree_cpp/condition_node.h"
+#include "nav2_util/robot_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "nav2_behavior_tree/bt_utils.hpp"
-#include "nav2_behavior_tree/json_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -32,24 +33,24 @@ namespace nav2_behavior_tree
  * @brief A BT::ConditionNode that returns SUCCESS when a specified goal
  * is reached and FAILURE otherwise
  */
-class GoalReachedCondition : public BT::ConditionNode
+class ArePosesNearCondition : public BT::ConditionNode
 {
 public:
   /**
-   * @brief A constructor for nav2_behavior_tree::GoalReachedCondition
+   * @brief A constructor for nav2_behavior_tree::ArePosesNearCondition
    * @param condition_name Name for the XML tag for this node
    * @param conf BT node configuration
    */
-  GoalReachedCondition(
+  ArePosesNearCondition(
     const std::string & condition_name,
     const BT::NodeConfiguration & conf);
 
-  GoalReachedCondition() = delete;
+  ArePosesNearCondition() = delete;
 
   /**
-   * @brief A destructor for nav2_behavior_tree::GoalReachedCondition
+   * @brief A destructor for nav2_behavior_tree::ArePosesNearCondition
    */
-  ~GoalReachedCondition() override;
+  ~ArePosesNearCondition() override = default;
 
   /**
    * @brief The main override required by a BT action
@@ -66,7 +67,7 @@ public:
    * @brief Checks if the current robot pose lies within a given distance from the goal
    * @return bool true when goal is reached, false otherwise
    */
-  bool isGoalReached();
+  bool arePosesNearby();
 
   /**
    * @brief Creates list of BT ports
@@ -74,32 +75,21 @@ public:
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-
     return {
-      BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination"),
+      BT::InputPort<geometry_msgs::msg::PoseStamped>("ref_pose", "Destination"),
+      BT::InputPort<geometry_msgs::msg::PoseStamped>("target_pose", "Destination"),
       BT::InputPort<std::string>("global_frame", "Global frame"),
-      BT::InputPort<std::string>("robot_base_frame", "Robot base frame")
+      BT::InputPort<double>("tolerance", 0.5, "Tolerance")
     };
   }
 
 protected:
-  /**
-   * @brief Cleanup function
-   */
-  void cleanup()
-  {}
-
-private:
   rclcpp::Node::SharedPtr node_;
   std::shared_ptr<tf2_ros::Buffer> tf_;
-
-  double goal_reached_tol_;
   double transform_tolerance_;
-  std::string robot_base_frame_;
+  std::string global_frame_;
 };
 
 }  // namespace nav2_behavior_tree
 
-#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__GOAL_REACHED_CONDITION_HPP_
+#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__ARE_POSES_NEAR_CONDITION_HPP_

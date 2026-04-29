@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2025 Open Navigation LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
 #include <memory>
 #include <string>
 
-#include "nav2_behavior_tree/plugins/action/compute_path_to_pose_action.hpp"
+#include "nav2_behavior_tree/plugins/action/compute_route_action.hpp"
 
 namespace nav2_behavior_tree
 {
 
-ComputePathToPoseAction::ComputePathToPoseAction(
+ComputeRouteAction::ComputeRouteAction(
   const std::string & xml_tag_name,
   const std::string & action_name,
   const BT::NodeConfiguration & conf)
@@ -28,61 +28,67 @@ ComputePathToPoseAction::ComputePathToPoseAction(
 {
 }
 
-void ComputePathToPoseAction::on_tick()
+void ComputeRouteAction::on_tick()
 {
-  getInput("goal", goal_.goal);
-  getInput("planner_id", goal_.planner_id);
+  bool use_poses = false, use_start = false;
+  getInput("use_poses", use_poses);
+  if (use_poses) {
+    goal_.use_poses = true;
+    getInput("goal", goal_.goal);
 
-  // if "use_start" is provided try to enforce it (true or false), but we cannot enforce true if
-  // start is not provided
-  goal_.use_start = false;
-  if (getInput("use_start", goal_.use_start)) {
-    if (goal_.use_start && !getInput("start", goal_.start)) {
-      // in case we don't have a "start" pose
-      goal_.use_start = false;
-      RCLCPP_ERROR(
-          node_->get_logger(),
-          "use_start is set to true but no start pose was provided, falling back to default "
-          "behavior, i.e. using the current robot pose");
-    }
-  } else {
-    // else if "use_start" is not provided, but "start" is, then use it in order to not change
-    // the legacy behavior
-    if (getInput("start", goal_.start)) {
+    goal_.use_start = false;
+    getInput("use_start", use_start);
+    if (use_start) {
+      getInput("start", goal_.start);
       goal_.use_start = true;
     }
+  } else {
+    getInput("start_id", goal_.start_id);
+    getInput("goal_id", goal_.goal_id);
+    goal_.use_start = false;
+    goal_.use_poses = false;
   }
 }
 
-BT::NodeStatus ComputePathToPoseAction::on_success()
+BT::NodeStatus ComputeRouteAction::on_success()
 {
   setOutput("path", result_.result->path);
+  setOutput("route", result_.result->route);
+  setOutput("planning_time", result_.result->planning_time);
   // Set empty error code, action was successful
   setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
-BT::NodeStatus ComputePathToPoseAction::on_aborted()
+void ComputeRouteAction::resetPorts()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
+  nav2_msgs::msg::Route empty_route;
+  setOutput("route", empty_route);
+  setOutput("planning_time", builtin_interfaces::msg::Duration());
+}
+
+BT::NodeStatus ComputeRouteAction::on_aborted()
+{
+  resetPorts();
   setOutput("error_code_id", result_.result->error_code);
   return BT::NodeStatus::FAILURE;
 }
 
-BT::NodeStatus ComputePathToPoseAction::on_cancelled()
+BT::NodeStatus ComputeRouteAction::on_cancelled()
 {
-  nav_msgs::msg::Path empty_path;
-  setOutput("path", empty_path);
+  resetPorts();
   // Set empty error code, action was cancelled
   setOutput("error_code_id", ActionResult::NONE);
   return BT::NodeStatus::SUCCESS;
 }
 
-void ComputePathToPoseAction::halt()
+void ComputeRouteAction::halt()
 {
-  nav_msgs::msg::Path empty_path;
-  setOutput("path", empty_path);
+  resetPorts();
+  // DO NOT reset "error_code_id" output port, we want to read it later
+  // DO NOT reset "error_msg" output port, we want to read it later
   BtActionNode::halt();
 }
 
@@ -94,10 +100,10 @@ BT_REGISTER_NODES(factory)
   BT::NodeBuilder builder =
     [](const std::string & name, const BT::NodeConfiguration & config)
     {
-      return std::make_unique<nav2_behavior_tree::ComputePathToPoseAction>(
-        name, "compute_path_to_pose", config);
+      return std::make_unique<nav2_behavior_tree::ComputeRouteAction>(
+        name, "compute_route", config);
     };
 
-  factory.registerBuilder<nav2_behavior_tree::ComputePathToPoseAction>(
-    "ComputePathToPose", builder);
+  factory.registerBuilder<nav2_behavior_tree::ComputeRouteAction>(
+    "ComputeRoute", builder);
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2025 Open Navigation LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,35 +12,35 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__COMPUTE_PATH_TO_POSE_ACTION_HPP_
-#define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__COMPUTE_PATH_TO_POSE_ACTION_HPP_
+#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__COMPUTE_ROUTE_ACTION_HPP_
+#define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__COMPUTE_ROUTE_ACTION_HPP_
 
 #include <string>
 
-#include "behaviortree_cpp/json_export.h"
-#include "nav2_msgs/action/compute_path_to_pose.hpp"
-#include "nav_msgs/msg/path.h"
+#include "nav2_msgs/action/compute_route.hpp"
+#include "nav_msgs/msg/path.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
- * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::ComputePathToPose
+ * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::ComputeRoute
  */
-class ComputePathToPoseAction : public BtActionNode<nav2_msgs::action::ComputePathToPose>
+class ComputeRouteAction : public BtActionNode<nav2_msgs::action::ComputeRoute>
 {
-  using Action = nav2_msgs::action::ComputePathToPose;
+  using Action = nav2_msgs::action::ComputeRoute;
   using ActionResult = Action::Result;
 
 public:
   /**
-   * @brief A constructor for nav2_behavior_tree::ComputePathToPoseAction
+   * @brief A constructor for nav2_behavior_tree::ComputeRoute
    * @param xml_tag_name Name for the XML tag for this node
    * @param action_name Action name this node creates a client for
    * @param conf BT node configuration
    */
-  ComputePathToPoseAction(
+  ComputeRouteAction(
     const std::string & xml_tag_name,
     const std::string & action_name,
     const BT::NodeConfiguration & conf);
@@ -71,34 +71,41 @@ public:
   void halt() override;
 
   /**
+   * @brief Reset output port values on failure
+   */
+  void resetPorts();
+
+  /**
    * @brief Creates list of BT ports
    * @return BT::PortsList Containing basic ports along with node-specific ports
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<nav_msgs::msg::Path>();
-    BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-
     return providedBasicPorts(
       {
-        BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination to plan to"),
+        BT::InputPort<unsigned int>("start_id", "ID of the start node"),
+        BT::InputPort<unsigned int>("goal_id", "ID of the goal node"),
         BT::InputPort<geometry_msgs::msg::PoseStamped>(
           "start",
-          "Used as the planner start pose instead of the current robot pose, if use_start is"
-                   " not false (i.e. not provided or set to true)"),
+          "Start pose of the path if overriding current robot pose and using poses over IDs"),
+        BT::InputPort<geometry_msgs::msg::PoseStamped>(
+          "goal", "Goal pose of the path if using poses over IDs"),
         BT::InputPort<bool>(
-          "use_start", "For using or not using (i.e. ignoring) the provided start pose"),
-        BT::InputPort<std::string>(
-          "planner_id", "",
-          "Mapped name to the planner plugin type to use"),
-        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathToPose node"),
+          "use_start", false,
+          "Whether to use the start pose or the robot's current pose"),
+        BT::InputPort<bool>(
+          "use_poses", false, "Whether to use poses or IDs for start and goal"),
+        BT::OutputPort<ActionResult::_route_type>(
+          "route", "The route computed by ComputeRoute node"),
+        BT::OutputPort<builtin_interfaces::msg::Duration>("planning_time",
+          "Time taken to compute route"),
+        BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputeRoute node"),
         BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The compute path to pose error code"),
+          "error_code_id", "The compute route error code"),
       });
   }
 };
 
 }  // namespace nav2_behavior_tree
 
-#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__COMPUTE_PATH_TO_POSE_ACTION_HPP_
+#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__COMPUTE_ROUTE_ACTION_HPP_

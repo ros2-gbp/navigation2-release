@@ -20,9 +20,11 @@
 #include <chrono>
 
 #include "behaviortree_cpp/action_node.h"
+#include "behaviortree_cpp/json_export.h"
 #include "nav2_util/node_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_behavior_tree/bt_utils.hpp"
+#include "nav2_behavior_tree/json_utils.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -85,9 +87,8 @@ public:
         node_->get_logger(), "\"%s\" service server not available after waiting for %.2fs",
         service_name_.c_str(), wait_for_service_timeout_.count() / 1000.0);
       throw std::runtime_error(
-              std::string(
-                "Service server %s not available",
-                service_name_.c_str()));
+              std::string("Service server ") + service_name_ +
+              std::string(" not available"));
     }
 
     RCLCPP_DEBUG(

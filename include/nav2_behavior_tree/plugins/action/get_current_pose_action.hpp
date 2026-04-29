@@ -1,5 +1,4 @@
-// Copyright (c) 2018 Intel Corporation
-// Copyright (c) 2020 Francisco Martin Rico
+// Copyright (c) 2025 Open Navigation LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,54 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__TRUNCATE_PATH_ACTION_HPP_
-#define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__TRUNCATE_PATH_ACTION_HPP_
+#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__GET_CURRENT_POSE_ACTION_HPP_
+#define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__GET_CURRENT_POSE_ACTION_HPP_
 
 #include <memory>
 #include <string>
 
-#include "nav_msgs/msg/path.hpp"
-
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "tf2_ros/buffer.h"
+#include "rclcpp/rclcpp.hpp"
 #include "behaviortree_cpp/action_node.h"
-#include "behaviortree_cpp/json_export.h"
-#include "nav2_behavior_tree/json_utils.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "nav2_behavior_tree/bt_utils.hpp"
+#include "nav2_util/geometry_utils.hpp"
+#include "nav2_util/robot_utils.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
- * @brief A BT::ActionNodeBase to shorten path by some distance
+ * @brief Action Node to get the current robot pose from TF
  */
-class TruncatePath : public BT::ActionNodeBase
+class GetCurrentPoseAction : public BT::ActionNodeBase
 {
 public:
   /**
-   * @brief A nav2_behavior_tree::TruncatePath constructor
+   * @brief Constructor
    * @param xml_tag_name Name for the XML tag for this node
    * @param conf BT node configuration
    */
-  TruncatePath(
+  GetCurrentPoseAction(
     const std::string & xml_tag_name,
     const BT::NodeConfiguration & conf);
 
   /**
    * @brief Creates list of BT ports
-   * @return BT::PortsList Containing basic ports along with node-specific ports
+   * @return BT::PortsList
    */
   static BT::PortsList providedPorts()
   {
-    // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<nav_msgs::msg::Path>();
-
     return {
-      BT::InputPort<nav_msgs::msg::Path>("input_path", "Original Path"),
-      BT::OutputPort<nav_msgs::msg::Path>("output_path", "Path truncated to a certain distance"),
-      BT::InputPort<double>("distance", 1.0, "distance"),
+      BT::InputPort<std::string>("global_frame", "Global reference frame"),
+      BT::InputPort<std::string>("robot_base_frame", "Robot base frame"),
+      BT::OutputPort<geometry_msgs::msg::PoseStamped>("current_pose", "Current pose output"),
     };
   }
 
 private:
-  /**
+   /**
    * @brief The other (optional) override required by a BT action.
    */
   void halt() override {}
@@ -71,9 +70,11 @@ private:
    */
   BT::NodeStatus tick() override;
 
-  double distance_;
+  std::string global_frame_, robot_base_frame_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
+  double transform_tolerance_;
 };
 
 }  // namespace nav2_behavior_tree
 
-#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__TRUNCATE_PATH_ACTION_HPP_
+#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__GET_CURRENT_POSE_ACTION_HPP_
