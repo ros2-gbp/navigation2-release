@@ -64,6 +64,13 @@ AmclNode::AmclNode(const rclcpp::NodeOptions & options)
 {
   RCLCPP_INFO(get_logger(), "Creating");
 
+  init_pose_[0] = 0.0;
+  init_pose_[1] = 0.0;
+  init_pose_[2] = 0.0;
+  init_cov_[0] = 0.0;
+  init_cov_[1] = 0.0;
+  init_cov_[2] = 0.0;
+
   add_parameter(
     "alpha1", rclcpp::ParameterValue(0.2),
     "This is the alpha1 parameter", "These are additional constraints for alpha1");
@@ -798,7 +805,7 @@ bool AmclNode::updateFilter(
   const pf_vector_t & pose)
 {
   nav2_amcl::LaserData ldata;
-  ldata.laser = lasers_[laser_index];
+  ldata.laser = lasers_[laser_index].get();
   ldata.range_count = laser_scan->ranges.size();
   // To account for lasers that are mounted upside-down, we determine the
   // min, max, and increment angles of the laser in the base frame.
@@ -1038,25 +1045,25 @@ AmclNode::sendMapToOdomTransform(const tf2::TimePoint & transform_expiration)
   tf_broadcaster_->sendTransform(tmp_tf_stamped);
 }
 
-nav2_amcl::Laser *
+std::unique_ptr<nav2_amcl::Laser>
 AmclNode::createLaserObject()
 {
   RCLCPP_INFO(get_logger(), "createLaserObject");
 
   if (sensor_model_type_ == "beam") {
-    return new nav2_amcl::BeamModel(
+    return std::make_unique<nav2_amcl::BeamModel>(
       z_hit_, z_short_, z_max_, z_rand_, sigma_hit_, lambda_short_,
       0.0, max_beams_, map_);
   }
 
   if (sensor_model_type_ == "likelihood_field_prob") {
-    return new nav2_amcl::LikelihoodFieldModelProb(
+    return std::make_unique<nav2_amcl::LikelihoodFieldModelProb>(
       z_hit_, z_rand_, sigma_hit_,
       laser_likelihood_max_dist_, do_beamskip_, beam_skip_distance_, beam_skip_threshold_,
       beam_skip_error_threshold_, max_beams_, map_);
   }
 
-  return new nav2_amcl::LikelihoodFieldModel(
+  return std::make_unique<nav2_amcl::LikelihoodFieldModel>(
     z_hit_, z_rand_, sigma_hit_,
     laser_likelihood_max_dist_, max_beams_, map_);
 }
@@ -1512,7 +1519,7 @@ AmclNode::initTransforms()
     get_node_timers_interface(),
     callback_group_);
   tf_buffer_->setCreateTimerInterface(timer_interface);
-  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this, true);
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(shared_from_this());
 
   sent_first_transform_ = false;
