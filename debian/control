@@ -1,0 +1,12 @@
+Source: ros-jazzy-nav2-dwb-controller
+Section: misc
+Priority: optional
+Maintainer: Carl Delsey <carl.r.delsey@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-costmap-queue, ros-jazzy-dwb-core, ros-jazzy-dwb-critics, ros-jazzy-dwb-msgs, ros-jazzy-dwb-plugins, ros-jazzy-nav-2d-msgs, ros-jazzy-nav-2d-utils, ros-jazzy-ros-workspace
+Homepage: 
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-nav2-dwb-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-costmap-queue, ros-jazzy-dwb-core, ros-jazzy-dwb-critics, ros-jazzy-dwb-msgs, ros-jazzy-dwb-plugins, ros-jazzy-nav-2d-msgs, ros-jazzy-nav-2d-utils, ros-jazzy-ros-workspace
+Description: ROS2 controller (DWB) metapackage
