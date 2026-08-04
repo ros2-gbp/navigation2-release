@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-map-server
+Section: misc
+Priority: optional
+Maintainer: "Brian Wilcox" <brian.wilcox@intel.com>
+Build-Depends: debhelper (>= 9.0.0), graphicsmagick-libmagick-dev-compat, libeigen3-dev, libgraphicsmagick++1-dev, ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-gtest <!nocheck>, ros-lyrical-ament-cmake-pytest <!nocheck>, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-launch <!nocheck>, ros-lyrical-launch-ros, ros-lyrical-launch-testing <!nocheck>, ros-lyrical-lifecycle-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-common, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-rclcpp, ros-lyrical-rclcpp-lifecycle, ros-lyrical-std-msgs, ros-lyrical-tf2, ros-lyrical-tf2-ros, ros-lyrical-yaml-cpp-vendor, uuid-dev, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_map_server/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-map-server
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, graphicsmagick-libmagick-dev-compat, libgraphicsmagick++1-dev, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-launch-ros, ros-lyrical-lifecycle-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-rclcpp, ros-lyrical-rclcpp-lifecycle, ros-lyrical-std-msgs, ros-lyrical-tf2, ros-lyrical-tf2-ros, ros-lyrical-yaml-cpp-vendor, uuid-dev, ros-lyrical-ros-workspace
+Description: Refactored map server for ROS2 Navigation
