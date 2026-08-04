@@ -22,32 +22,31 @@
 #define NAV2_AMCL__AMCL_NODE_HPP_
 
 #include <atomic>
+#include <fstream>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "message_filters/subscriber.hpp"
+#include "rclcpp/version.h"
+
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "message_filters/subscriber.h"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav2_amcl/motion_model/motion_model.hpp"
 #include "nav2_amcl/sensors/laser/laser.hpp"
 #include "nav2_msgs/msg/particle.hpp"
 #include "nav2_msgs/msg/particle_cloud.hpp"
 #include "nav2_msgs/srv/set_initial_pose.hpp"
 #include "nav_msgs/srv/set_map.hpp"
-#include "sensor_msgs/msg/laser_scan.hpp"
-#include "std_srvs/srv/empty.hpp"
-#include "tf2_ros/transform_broadcaster.h"
-#include "tf2_ros/transform_listener.h"
 #include "pluginlib/class_loader.hpp"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#pragma GCC diagnostic ignored "-Wreorder"
-#include "tf2_ros/message_filter.h"
-#pragma GCC diagnostic pop
+#include "rclcpp/node_options.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"
+#include "nav2_ros_common/service_server.hpp"
+#include "std_srvs/srv/empty.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 #define NEW_UNIFORM_SAMPLING 1
 
@@ -57,7 +56,7 @@ namespace nav2_amcl
  * @class AmclNode
  * @brief ROS wrapper for AMCL
  */
-class AmclNode : public nav2_util::LifecycleNode
+class AmclNode : public nav2::LifecycleNode
 {
 public:
   /*
@@ -74,33 +73,46 @@ protected:
   /*
    * @brief Lifecycle configure
    */
-  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
   /*
    * @brief Lifecycle activate
    */
-  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
   /*
    * @brief Lifecycle deactivate
    */
-  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
   /*
    * @brief Lifecycle cleanup
    */
-  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
   /*
    * @brief Lifecycle shutdown
    */
-  nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   /**
-   * @brief Callback executed when a parameter change is detected
-   * @param event ParameterEvent message
+   * @brief Validate incoming parameter updates before applying them.
+   * This callback is triggered when one or more parameters are about to be updated.
+   * It checks the validity of parameter values and rejects updates that would lead
+   * to invalid or inconsistent configurations
+   * @param parameters List of parameters that are being updated.
+   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
    */
-  rcl_interfaces::msg::SetParametersResult
-  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
+    const std::vector<rclcpp::Parameter> & parameters);
+
+  /**
+   * @brief Apply parameter updates after validation
+   * This callback is executed when parameters have been successfully updated.
+   * It updates the internal configuration of the node with the new parameter values.
+   * @param parameters List of parameters that have been updated.
+   */
+  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
 
   // Dynamic parameters handler
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handler_;
 
   // Since the sensor data from gazebo or the robot is not lifecycle enabled, we won't
   // respond until we're in the active state
@@ -110,13 +122,13 @@ protected:
   // in order to isolate TF timer used in message filter.
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
-  std::unique_ptr<nav2_util::NodeThread> executor_thread_;
+  std::unique_ptr<nav2::NodeThread> executor_thread_;
 
   // Pose hypothesis
   typedef struct
   {
     double weight;             // Total weight (weights sum to 1)
-    pf_vector_t pf_pose_mean;  // Mean of pose esimate
+    pf_vector_t pf_pose_mean;  // Mean of pose estimate
     pf_matrix_t pf_pose_cov;   // Covariance of pose estimate
   } amcl_hyp_t;
 
@@ -125,7 +137,7 @@ protected:
    * @brief Get new map from ROS topic to localize in
    * @param msg Map message
    */
-  void mapReceived(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+  void mapReceived(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr & msg);
   /*
    * @brief Handle a new map message
    * @param msg Map message
@@ -150,7 +162,7 @@ protected:
   std::atomic<bool> first_map_received_{false};
   amcl_hyp_t * initial_pose_hyp_;
   std::recursive_mutex mutex_;
-  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::ConstSharedPtr map_sub_;
+  nav2::Subscription<nav_msgs::msg::OccupancyGrid>::ConstSharedPtr map_sub_;
 #if NEW_UNIFORM_SAMPLING
   struct Point2D { int32_t x; int32_t y; };
   static std::vector<Point2D> free_space_indices;
@@ -161,9 +173,9 @@ protected:
    * @brief Initialize required ROS transformations
    */
   void initTransforms();
-  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
-  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  nav2::TransformBroadcaster::SharedPtr tf_broadcaster_;
+  nav2::TransformListener::SharedPtr tf_listener_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
   bool sent_first_transform_{false};
   bool latest_tf_valid_{false};
   tf2::Transform latest_tf_;
@@ -173,9 +185,16 @@ protected:
    * @brief Initialize incoming data message subscribers and filters
    */
   void initMessageFilters();
+
+  // To Support Kilted and Older from Message Filters API change
+  #if RCLCPP_VERSION_GTE(29, 6, 0)
+  std::unique_ptr<message_filters::Subscriber<sensor_msgs::msg::LaserScan>> laser_scan_sub_;
+  #else
   std::unique_ptr<message_filters::Subscriber<sensor_msgs::msg::LaserScan,
     rclcpp_lifecycle::LifecycleNode>> laser_scan_sub_;
-  std::unique_ptr<tf2_ros::MessageFilter<sensor_msgs::msg::LaserScan>> laser_scan_filter_;
+  #endif
+
+  nav2::MessageFilter<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_filter_;
   message_filters::Connection laser_scan_connection_;
 
   // Publishers and subscribers
@@ -183,16 +202,17 @@ protected:
    * @brief Initialize pub subs of AMCL
    */
   void initPubSub();
-  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::ConstSharedPtr
+  nav2::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::ConstSharedPtr
     initial_pose_sub_;
-  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
+  nav2::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr
     pose_pub_;
-  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::ParticleCloud>::SharedPtr
+  nav2::Publisher<nav2_msgs::msg::ParticleCloud>::SharedPtr
     particle_cloud_pub_;
   /*
    * @brief Handle with an initial pose estimate is received
    */
-  void initialPoseReceived(geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg);
+  void initialPoseReceived(
+    const geometry_msgs::msg::PoseWithCovarianceStamped::ConstSharedPtr & msg);
   /*
    * @brief Handle when a laser scan is received
    */
@@ -203,7 +223,7 @@ protected:
    * @brief Initialize state services
    */
   void initServices();
-  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr global_loc_srv_;
+  nav2::ServiceServer<std_srvs::srv::Empty>::SharedPtr global_loc_srv_;
   /*
    * @brief Service callback for a global relocalization request
    */
@@ -213,7 +233,7 @@ protected:
     std::shared_ptr<std_srvs::srv::Empty::Response> response);
 
   // service server for providing an initial pose guess
-  rclcpp::Service<nav2_msgs::srv::SetInitialPose>::SharedPtr initial_guess_srv_;
+  nav2::ServiceServer<nav2_msgs::srv::SetInitialPose>::SharedPtr initial_guess_srv_;
   /*
    * @brief Service callback for an initial pose guess request
    */
@@ -223,7 +243,7 @@ protected:
     std::shared_ptr<nav2_msgs::srv::SetInitialPose::Response> response);
 
   // Let amcl update samples without requiring motion
-  rclcpp::Service<std_srvs::srv::Empty>::SharedPtr nomotion_update_srv_;
+  nav2::ServiceServer<std_srvs::srv::Empty>::SharedPtr nomotion_update_srv_;
   /*
    * @brief Request an AMCL update even though the robot hasn't moved
    */
@@ -270,6 +290,7 @@ protected:
   bool pf_init_;
   pf_vector_t pf_odom_pose_;
   int resample_count_{0};
+  int random_seed_{-1};
 
   // Laser scan related
   /*
@@ -341,7 +362,22 @@ protected:
    * @brief Handle a new pose estimate callback
    */
   void handleInitialPose(geometry_msgs::msg::PoseWithCovarianceStamped & msg);
+  /*
+   * @brief Save current pose to file for persistence
+   */
+  void savePoseToFile();
+  /*
+   * @brief Load pose from file for initialization
+   * @param pose Output pose loaded from file
+   * @return true if pose was successfully loaded
+   */
+  bool loadPoseFromFile(geometry_msgs::msg::PoseWithCovarianceStamped & pose);
+  /*
+   * @brief Timer callback for periodic pose saving
+   */
+  void savePoseTimerCallback();
   bool init_pose_received_on_inactive{false};
+  double save_pose_rate_{0.5};  // Hz
   bool initial_pose_is_known_{false};
   bool set_initial_pose_{false};
   bool always_reset_initial_pose_;
@@ -380,7 +416,9 @@ protected:
   double alpha_slow_;
   int resample_interval_;
   std::string robot_model_type_;
-  tf2::Duration save_pose_period_;
+  bool initialize_at_saved_pose_;
+  std::string saved_pose_filepath_;
+  rclcpp::TimerBase::SharedPtr save_pose_timer_;
   double sigma_hit_;
   bool tf_broadcast_;
   tf2::Duration transform_tolerance_;
@@ -393,6 +431,7 @@ protected:
   std::string scan_topic_{"scan"};
   std::string map_topic_{"map"};
   bool freespace_downsampling_ = false;
+  bool allow_parameter_qos_overrides_ = true;
 };
 
 }  // namespace nav2_amcl

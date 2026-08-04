@@ -33,6 +33,11 @@ void ComputePathToPoseAction::on_tick()
   getInput("goal", goal_.goal);
   getInput("planner_id", goal_.planner_id);
 
+  // use waypoints if available
+  if (!getInput("viapoints", goal_.viapoints)) {
+    goal_.viapoints = std::vector<geometry_msgs::msg::PoseStamped>();
+  }
+
   // if "use_start" is provided try to enforce it (true or false), but we cannot enforce true if
   // start is not provided
   goal_.use_start = false;
@@ -41,9 +46,9 @@ void ComputePathToPoseAction::on_tick()
       // in case we don't have a "start" pose
       goal_.use_start = false;
       RCLCPP_ERROR(
-          node_->get_logger(),
-          "use_start is set to true but no start pose was provided, falling back to default "
-          "behavior, i.e. using the current robot pose");
+        node_->get_logger(),
+        "use_start is set to true but no start pose was provided, falling back to default "
+        "behavior, i.e. using the current robot pose");
     }
   } else {
     // else if "use_start" is not provided, but "start" is, then use it in order to not change
@@ -59,6 +64,7 @@ BT::NodeStatus ComputePathToPoseAction::on_success()
   setOutput("path", result_.result->path);
   // Set empty error code, action was successful
   setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -67,6 +73,7 @@ BT::NodeStatus ComputePathToPoseAction::on_aborted()
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
   setOutput("error_code_id", result_.result->error_code);
+  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
@@ -76,6 +83,7 @@ BT::NodeStatus ComputePathToPoseAction::on_cancelled()
   setOutput("path", empty_path);
   // Set empty error code, action was cancelled
   setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -83,6 +91,8 @@ void ComputePathToPoseAction::halt()
 {
   nav_msgs::msg::Path empty_path;
   setOutput("path", empty_path);
+  // DO NOT reset "error_code_id" output port, we want to read it later
+  // DO NOT reset "error_msg" output port, we want to read it later
   BtActionNode::halt();
 }
 

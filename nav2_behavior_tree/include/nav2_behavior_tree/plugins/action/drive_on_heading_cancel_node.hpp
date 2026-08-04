@@ -21,12 +21,18 @@
 #include "nav2_msgs/action/drive_on_heading.hpp"
 
 #include "nav2_behavior_tree/bt_cancel_action_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::DriveOnHeading
+ *
+ * Usage in XML:
+ * @code
+ * <CancelDriveOnHeading server_name="drive_on_heading" server_timeout="10"/>
+ * @endcode
  */
 class DriveOnHeadingCancel : public BtCancelActionNode<nav2_msgs::action::DriveOnHeading>
 {

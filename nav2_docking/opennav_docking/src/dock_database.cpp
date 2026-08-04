@@ -13,11 +13,12 @@
 // limitations under the License.
 
 #include "opennav_docking/dock_database.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace opennav_docking
 {
 
-DockDatabase::DockDatabase(std::shared_ptr<std::mutex> mutex)
+DockDatabase::DockDatabase(std::mutex & mutex)
 : mutex_(mutex),
   dock_loader_("opennav_docking_core", "opennav_docking_core::ChargingDock")
 {}
@@ -26,11 +27,12 @@ DockDatabase::~DockDatabase()
 {
   dock_instances_.clear();
   dock_plugins_.clear();
+  reload_db_service_.reset();
 }
 
 bool DockDatabase::initialize(
-  const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-  std::shared_ptr<tf2_ros::Buffer> tf)
+  const nav2::LifecycleNode::WeakPtr & parent,
+  nav2::TransformBuffer::SharedPtr tf)
 {
   node_ = parent;
   auto node = node_.lock();
@@ -58,7 +60,7 @@ bool DockDatabase::initialize(
     "~/reload_database",
     std::bind(
       &DockDatabase::reloadDbCb, this,
-      std::placeholders::_1, std::placeholders::_2));
+      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
   return true;
 }
@@ -80,10 +82,11 @@ void DockDatabase::deactivate()
 }
 
 void DockDatabase::reloadDbCb(
+  const std::shared_ptr<rmw_request_id_t>/*request_header*/,
   const std::shared_ptr<nav2_msgs::srv::ReloadDockDatabase::Request> request,
   std::shared_ptr<nav2_msgs::srv::ReloadDockDatabase::Response> response)
 {
-  if (!mutex_->try_lock()) {
+  if (!mutex_.try_lock()) {
     RCLCPP_ERROR(node_.lock()->get_logger(), "Cannot reload database while docking!");
     response->success = false;
     return;
@@ -97,11 +100,11 @@ void DockDatabase::reloadDbCb(
     RCLCPP_INFO(
       node->get_logger(),
       "Dock database reloaded from file %s.", request->filepath.c_str());
-    mutex_->unlock();
+    mutex_.unlock();
     return;
   }
   response->success = false;
-  mutex_->unlock();
+  mutex_.unlock();
 }
 
 Dock * DockDatabase::findDock(const std::string & dock_id)
@@ -145,14 +148,13 @@ ChargingDock::Ptr DockDatabase::findDockPlugin(const std::string & type)
 }
 
 bool DockDatabase::getDockPlugins(
-  const rclcpp_lifecycle::LifecycleNode::SharedPtr & node,
-  std::shared_ptr<tf2_ros::Buffer> tf)
+  const nav2::LifecycleNode::SharedPtr & node,
+  nav2::TransformBuffer::SharedPtr tf)
 {
   std::vector<std::string> docks_plugins;
-  if (!node->has_parameter("dock_plugins")) {
-    node->declare_parameter("dock_plugins", rclcpp::ParameterType::PARAMETER_STRING_ARRAY);
-  }
-  if (!node->get_parameter("dock_plugins", docks_plugins)) {
+  try {
+    docks_plugins = node->declare_or_get_parameter<std::vector<std::string>>("dock_plugins");
+  } catch (...) {
     RCLCPP_ERROR(node->get_logger(), "Charging dock plugins not given!");
     return false;
   }
@@ -164,7 +166,7 @@ bool DockDatabase::getDockPlugins(
 
   for (size_t i = 0; i != docks_plugins.size(); i++) {
     try {
-      std::string plugin_type = nav2_util::get_plugin_type_param(
+      std::string plugin_type = nav2::get_plugin_type_param(
         node, docks_plugins[i]);
       opennav_docking_core::ChargingDock::Ptr dock =
         dock_loader_.createUniqueInstance(plugin_type);
@@ -184,17 +186,12 @@ bool DockDatabase::getDockPlugins(
   return true;
 }
 
-bool DockDatabase::getDockInstances(const rclcpp_lifecycle::LifecycleNode::SharedPtr & node)
+bool DockDatabase::getDockInstances(const nav2::LifecycleNode::SharedPtr & node)
 {
-  using rclcpp::ParameterType::PARAMETER_STRING;
-  using rclcpp::ParameterType::PARAMETER_STRING_ARRAY;
-
   // Attempt to obtain docks from separate file
   std::string dock_filepath;
-  if (!node->has_parameter("dock_database")) {
-    node->declare_parameter("dock_database", PARAMETER_STRING);
-  }
-  if (node->get_parameter("dock_database", dock_filepath)) {
+  try {
+    dock_filepath = node->declare_or_get_parameter<std::string>("dock_database");
     RCLCPP_INFO(
       node->get_logger(), "Loading dock from database file  %s.", dock_filepath.c_str());
     try {
@@ -206,16 +203,18 @@ bool DockDatabase::getDockInstances(const rclcpp_lifecycle::LifecycleNode::Share
       return false;
     }
     return true;
+  } catch (...) {
+    // pass
   }
 
   // Attempt to obtain docks from parameter file
   std::vector<std::string> docks_param;
-  if (!node->has_parameter("docks")) {
-    node->declare_parameter("docks", PARAMETER_STRING_ARRAY);
-  }
-  if (node->get_parameter("docks", docks_param)) {
+  try {
+    docks_param = node->declare_or_get_parameter<std::vector<std::string>>("docks");
     RCLCPP_INFO(node->get_logger(), "Loading docks from parameter file.");
     return utils::parseDockParams(docks_param, node, dock_instances_);
+  } catch (...) {
+    // pass
   }
 
   RCLCPP_WARN(

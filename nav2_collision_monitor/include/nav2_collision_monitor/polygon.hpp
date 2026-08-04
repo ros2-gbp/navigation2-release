@@ -23,13 +23,15 @@
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/polygon_stamped.hpp"
 
-#include "tf2/time.h"
-#include "tf2_ros/buffer.h"
+#include "tf2/time.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav2_costmap_2d/footprint_subscriber.hpp"
 
 #include "nav2_collision_monitor/types.hpp"
+
+using rcl_interfaces::msg::ParameterType;
 
 namespace nav2_collision_monitor
 {
@@ -51,9 +53,9 @@ public:
    * @param transform_tolerance Transform tolerance
    */
   Polygon(
-    const nav2_util::LifecycleNode::WeakPtr & node,
+    const nav2::LifecycleNode::WeakPtr & node,
     const std::string & polygon_name,
-    const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+    const nav2::TransformBuffer::SharedPtr tf_buffer,
     const std::string & base_frame_id,
     const tf2::Duration & transform_tolerance);
   /**
@@ -96,6 +98,21 @@ public:
    * @return Minimum number of data readings within a zone to trigger the action
    */
   int getMinPoints() const;
+
+  /**
+   * @brief Temporal debounce for min_points trigger.
+   * @param points Input array of points to be checked.
+   * @param out_triggering_points Output array of triggering points.
+   * @return true if trigger should be considered active after debounce/hold logic.
+   */
+  bool isTriggered(
+    const std::unordered_map<std::string, std::vector<Point>> & sources_collision_points_map,
+    std::vector<Point> & out_triggering_points);
+
+  /**
+   * @brief Reset temporal debounce state.
+   */
+  void resetTriggerState();
   /**
    * @brief Obtains speed slowdown ratio for current polygon.
    * Applicable for SLOWDOWN model.
@@ -147,39 +164,61 @@ public:
   /**
    * @brief Gets number of points inside given polygon
    * @param points Input array of points to be checked
+   * @param out_triggering_points Output array of triggering points.
    * @return Number of points inside polygon. If there are no points,
    * returns zero value.
    */
-  virtual int getPointsInside(const std::vector<Point> & points) const;
+  virtual int getPointsInside(
+    const std::vector<Point> & points,
+    std::vector<Point> & out_triggering_points) const;
+
+  /**
+   * @brief Gets indices of points inside given polygon
+   * @param points Input array of points to be checked
+   * @param out_triggering_indices Output array of triggering points indices
+   * @return Number of points inside polygon. If there are no points,
+   * returns zero value.
+   */
+  virtual int getPointsInside(
+    const std::vector<Point> & points,
+    std::vector<std::size_t> & out_triggering_indices) const;
 
   /**
    * @brief Gets number of points inside given polygon
    * @param sources_collision_points_map Map containing source name as key,
    * and input array of source's points to be checked as value
+   * @param out_triggering_points Output array of triggering points.
    * @return Number of points inside polygon,
    * for sources in map that are associated with current polygon.
    * If there are no points, returns zero value.
    */
   virtual int getPointsInside(
-    const std::unordered_map<std::string, std::vector<Point>> & sources_collision_points_map) const;
+    const std::unordered_map<std::string, std::vector<Point>> & sources_collision_points_map,
+    std::vector<Point> & out_triggering_points) const;
+
 
   /**
    * @brief Obtains estimated (simulated) time before a collision.
    * Applicable for APPROACH model.
-   * @param sources_collision_points_map Map containing source name as key,
-   * and input array of source's 2D obstacle points as value
+   * @param collision_points Input 2D obstacle points
    * @param velocity Simulated robot velocity
+   * @param out_triggering_points Output vector receiving the original points
+   * responsible for the collision (populated only on a triggering step)
    * @return Estimated time before a collision. If there is no collision,
    * return value will be negative.
    */
   double getCollisionTime(
     const std::unordered_map<std::string, std::vector<Point>> & sources_collision_points_map,
-    const Velocity & velocity) const;
+    const Velocity & velocity,
+    std::vector<Point> & out_triggering_points) const;
 
   /**
    * @brief Publishes polygon message into a its own topic
    */
   void publish();
+
+private:
+  bool isTriggeredInternal(int points_inside);
 
 protected:
   /**
@@ -233,23 +272,29 @@ protected:
   void polygonCallback(geometry_msgs::msg::PolygonStamped::ConstSharedPtr msg);
 
   /**
-   * @brief Callback executed when a parameter change is detected
-   * @param event ParameterEvent message
+   * @brief Apply parameter updates after validation
+   * This callback is executed when parameters have been successfully updated.
+   * It updates the internal configuration of the node with the new parameter values.
+   * @param parameters List of parameters that have been updated.
    */
-  rcl_interfaces::msg::SetParametersResult dynamicParametersCallback(
-    std::vector<rclcpp::Parameter> parameters);
+  void
+  updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
 
   /**
-   * @brief Checks if point is inside polygon
-   * @param point Given point to check
-   * @return True if given point is inside polygon, otherwise false
+   * @brief Validate incoming parameter updates before applying them.
+   * This callback is triggered when one or more parameters are about to be updated.
+   * It checks the validity of parameter values and rejects updates that would lead
+   * to invalid or inconsistent configurations
+   * @param parameters List of parameters that are being updated.
+   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
    */
-  bool isPointInside(const Point & point) const;
+  rcl_interfaces::msg::SetParametersResult
+  validateParameterUpdatesCallback(const std::vector<rclcpp::Parameter> & parameters);
 
   /**
    * @brief Extracts Polygon points from a string with of the form [[x1,y1],[x2,y2],[x3,y3]...]
    * @param poly_string Input String containing the verteceis of the polygon
-   * @param polygon Output Point vector with all the vertecies of the polygon
+   * @param polygon Output Point vector with all the vertices of the polygon
    * @return True if all parameters were obtained or false in failure case
    */
   bool getPolygonFromString(std::string & poly_string, std::vector<Point> & polygon);
@@ -257,11 +302,13 @@ protected:
   // ----- Variables -----
 
   /// @brief Collision Monitor node
-  nav2_util::LifecycleNode::WeakPtr node_;
+  nav2::LifecycleNode::WeakPtr node_;
   /// @brief Collision monitor node logger stored for further usage
   rclcpp::Logger logger_{rclcpp::get_logger("collision_monitor")};
   /// @brief Dynamic parameters handler
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+  mutable std::mutex mutex_;
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handler_;
 
   // Basic parameters
   /// @brief Name of polygon
@@ -270,6 +317,16 @@ protected:
   ActionType action_type_;
   /// @brief Minimum number of data readings within a zone to trigger the action
   int min_points_;
+  /// @brief Number of consecutive hits required to trigger action
+  int trigger_consecutive_points_;
+  /// @brief Number of consecutive misses required to release action
+  int release_consecutive_points_;
+  /// @brief Current consecutive hit counter
+  int trigger_hits_;
+  /// @brief Current consecutive miss counter
+  int release_hits_;
+  /// @brief Latched trigger state after temporal debounce
+  bool trigger_active_;
   /// @brief Robot slowdown (share of its actual speed)
   double slowdown_ratio_;
   /// @brief Robot linear limit
@@ -282,10 +339,10 @@ protected:
   double simulation_time_step_;
   /// @brief Whether polygon is enabled
   bool enabled_;
-  /// @brief Wether the subscription to polygon topic has transient local QoS durability
+  /// @brief Whether the subscription to polygon topic has transient local QoS durability
   bool polygon_subscribe_transient_local_;
   /// @brief Polygon subscription
-  rclcpp::Subscription<geometry_msgs::msg::PolygonStamped>::SharedPtr polygon_sub_;
+  nav2::Subscription<geometry_msgs::msg::PolygonStamped>::SharedPtr polygon_sub_;
   /// @brief Footprint subscriber
   std::unique_ptr<nav2_costmap_2d::FootprintSubscriber> footprint_sub_;
   /// @brief Name of the observation sources to check for polygon
@@ -293,11 +350,13 @@ protected:
 
   // Global variables
   /// @brief TF buffer
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
   /// @brief Base frame ID
   std::string base_frame_id_;
   /// @brief Transform tolerance
   tf2::Duration transform_tolerance_;
+  /// @brief Collision monitor node's clock
+  rclcpp::Clock::SharedPtr node_clock_;
 
   // Visualization
   /// @brief Whether to publish the polygon
@@ -305,7 +364,7 @@ protected:
   /// @brief Polygon, used for: 1. visualization; 2. storing latest dynamic polygon message
   geometry_msgs::msg::PolygonStamped polygon_;
   /// @brief Polygon publisher for visualization purposes
-  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PolygonStamped>::SharedPtr polygon_pub_;
+  nav2::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr polygon_pub_;
 
   /// @brief Polygon points (vertices) in a base_frame_id_
   std::vector<Point> poly_;

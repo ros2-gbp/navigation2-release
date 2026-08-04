@@ -21,12 +21,18 @@
 #include "nav2_msgs/action/follow_path.hpp"
 
 #include "nav2_behavior_tree/bt_cancel_action_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::FollowPath
+ *
+ * Usage in XML:
+ * @code
+ * <CancelControl server_name="FollowPath" server_timeout="10"/>
+ * @endcode
  */
 class ControllerCancel : public BtCancelActionNode<nav2_msgs::action::FollowPath>
 {

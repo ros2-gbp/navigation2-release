@@ -16,13 +16,14 @@
 #include <string>
 
 #include "nav2_route/plugins/edge_cost_functions/penalty_scorer.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_route
 {
 
 void PenaltyScorer::configure(
-  const nav2_util::LifecycleNode::SharedPtr node,
-  const std::shared_ptr<tf2_ros::Buffer>/* tf_buffer */,
+  const nav2::LifecycleNode::SharedPtr node,
+  const nav2::TransformBuffer::SharedPtr/* tf_buffer */,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>/* costmap_subscriber */,
   const std::string & name)
 {
@@ -30,14 +31,12 @@ void PenaltyScorer::configure(
   name_ = name;
 
   // Find the tag at high the speed limit information is stored
-  nav2_util::declare_parameter_if_not_declared(
-    node, getName() + ".penalty_tag", rclcpp::ParameterValue("penalty"));
-  penalty_tag_ = node->get_parameter(getName() + ".penalty_tag").as_string();
+  penalty_tag_ = node->declare_or_get_parameter(
+    getName() + ".penalty_tag", std::string("penalty"));
 
   // Find the proportional weight to apply, if multiple cost functions
-  nav2_util::declare_parameter_if_not_declared(
-    node, getName() + ".weight", rclcpp::ParameterValue(1.0));
-  weight_ = static_cast<float>(node->get_parameter(getName() + ".weight").as_double());
+  weight_ = static_cast<float>(
+    node->declare_or_get_parameter(getName() + ".weight", 1.0));
 }
 
 bool PenaltyScorer::score(

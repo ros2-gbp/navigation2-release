@@ -39,7 +39,6 @@
 #define NAV2_COSTMAP_2D__VOXEL_LAYER_HPP_
 
 #include <vector>
-#include "message_filters/subscriber.h"
 
 #include <rclcpp/rclcpp.hpp>
 #include <nav2_costmap_2d/layer.hpp>
@@ -82,6 +81,16 @@ public:
    * @brief Initialization process of layer on startup
    */
   virtual void onInitialize();
+
+  /**
+   * @brief Deactivate the layer
+   */
+  virtual void deactivate();
+
+  /**
+   * @brief Activate the layer
+   */
+  virtual void activate();
 
   /**
    * @brief Update the bounds of the master costmap by this layer's update dimensions
@@ -143,15 +152,15 @@ protected:
     double * max_y);
 
   bool publish_voxel_;
-  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::VoxelGrid>::SharedPtr voxel_pub_;
+  nav2::Publisher<nav2_msgs::msg::VoxelGrid>::SharedPtr voxel_pub_;
   nav2_voxel_grid::VoxelGrid voxel_grid_;
   double z_resolution_, origin_z_;
   int unknown_threshold_, mark_threshold_, size_z_;
-  rclcpp_lifecycle::LifecyclePublisher<sensor_msgs::msg::PointCloud2>::SharedPtr
+  nav2::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr
     clearing_endpoints_pub_;
 
   /**
-   * @brief Covert world coordinates into map coordinates
+   * @brief Convert world coordinates into map coordinates
    */
   inline bool worldToMap3DFloat(
     double wx, double wy, double wz, double & mx, double & my,
@@ -171,7 +180,7 @@ protected:
   }
 
   /**
-   * @brief Covert world coordinates into map coordinates
+   * @brief Convert world coordinates into map coordinates
    */
   inline bool worldToMap3D(
     double wx, double wy, double wz, unsigned int & mx, unsigned int & my,
@@ -193,7 +202,7 @@ protected:
   }
 
   /**
-   * @brief Covert map coordinates into world coordinates
+   * @brief Convert map coordinates into world coordinates
    */
   inline void mapToWorld3D(
     unsigned int mx, unsigned int my, unsigned int mz, double & wx,
@@ -219,18 +228,31 @@ protected:
    */
   double getSizeInMetersZ() const
   {
-    return (size_z_ - 1 + 0.5) * z_resolution_;
+    return size_z_ * z_resolution_;
   }
 
   /**
-   * @brief Callback executed when a parameter change is detected
-   * @param event ParameterEvent message
+   * @brief Validate incoming parameter updates before applying them.
+   * This callback is triggered when one or more parameters are about to be updated.
+   * It checks the validity of parameter values and rejects updates that would lead
+   * to invalid or inconsistent configurations
+   * @param parameters List of parameters that are being updated.
+   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
    */
-  rcl_interfaces::msg::SetParametersResult
-  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
+    const std::vector<rclcpp::Parameter> & parameters);
+
+  /**
+   * @brief Apply parameter updates after validation
+   * This callback is executed when parameters have been successfully updated.
+   * It updates the internal configuration of the node with the new parameter values.
+   * @param parameters List of parameters that have been updated.
+   */
+  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
 
   // Dynamic parameters handler
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handler_;
 };
 
 }  // namespace nav2_costmap_2d

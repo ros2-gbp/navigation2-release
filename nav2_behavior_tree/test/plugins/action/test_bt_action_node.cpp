@@ -14,6 +14,7 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <cstdint>
 #include <memory>
 #include <set>
 #include <vector>
@@ -25,6 +26,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 #include "nav2_behavior_tree/bt_action_node.hpp"
+#include "nav2_behavior_tree/utils/loop_rate.hpp"
 
 #include "test_msgs/action/fibonacci.hpp"
 
@@ -59,6 +61,11 @@ public:
     server_loop_rate_ = server_loop_rate;
   }
 
+  void setGoalResponse(rclcpp_action::GoalResponse goal_response)
+  {
+    goal_response_ = goal_response;
+  }
+
 protected:
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID &,
@@ -68,7 +75,7 @@ protected:
     if (sleep_duration_ > 0ms) {
       std::this_thread::sleep_for(sleep_duration_);
     }
-    return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
+    return goal_response_;
   }
 
   rclcpp_action::CancelResponse handle_cancel(
@@ -122,6 +129,7 @@ protected:
   rclcpp_action::Server<test_msgs::action::Fibonacci>::SharedPtr action_server_;
   std::chrono::milliseconds sleep_duration_;
   std::chrono::nanoseconds server_loop_rate_;
+  rclcpp_action::GoalResponse goal_response_{rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE};
 };
 
 class FibonacciAction : public nav2_behavior_tree::BtActionNode<test_msgs::action::Fibonacci>
@@ -153,9 +161,27 @@ public:
     return BT::NodeStatus::SUCCESS;
   }
 
+  void on_goal_rejected() override
+  {
+    setOutput("error_code_id", GOAL_REJECTED_ERROR_CODE);
+    config().blackboard->set("on_goal_rejected_triggered", true);
+  }
+
+  void on_send_goal_failure() override
+  {
+    setOutput("error_code_id", SEND_GOAL_FAILURE_ERROR_CODE);
+    config().blackboard->set("on_send_goal_failure_triggered", true);
+  }
+
+  static constexpr uint16_t GOAL_REJECTED_ERROR_CODE = 1;
+  static constexpr uint16_t SEND_GOAL_FAILURE_ERROR_CODE = 2;
+
   static BT::PortsList providedPorts()
   {
-    return providedBasicPorts({BT::InputPort<int>("order", "Fibonacci order")});
+    return providedBasicPorts(
+    {
+      BT::InputPort<int>("order", "Fibonacci order"),
+      });
   }
 };
 
@@ -164,7 +190,7 @@ class BTActionNodeTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<rclcpp::Node>("bt_action_node_test_fixture");
+    node_ = std::make_shared<nav2::LifecycleNode>("bt_action_node_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -178,6 +204,8 @@ public:
     config_->blackboard->set<std::chrono::milliseconds>("wait_for_service_timeout", 1000ms);
     config_->blackboard->set("initial_pose_received", false);
     config_->blackboard->set("on_cancelled_triggered", false);
+    config_->blackboard->set("on_goal_rejected_triggered", false);
+    config_->blackboard->set("on_send_goal_failure_triggered", false);
 
     BT::NodeBuilder builder =
       [](const std::string & name, const BT::NodeConfiguration & config)
@@ -203,8 +231,10 @@ public:
     action_server_ = std::make_shared<FibonacciActionServer>();
     server_thread_ = std::make_shared<std::thread>(
       []() {
+        rclcpp::executors::SingleThreadedExecutor executor;
+        executor.add_node(action_server_);
         while (rclcpp::ok() && BTActionNodeTestFixture::action_server_ != nullptr) {
-          rclcpp::spin_some(BTActionNodeTestFixture::action_server_);
+          executor.spin_some();
           std::this_thread::sleep_for(100ns);
         }
       });
@@ -212,6 +242,8 @@ public:
 
   void TearDown() override
   {
+    // Sleep for some time to avoid race condition
+    std::this_thread::sleep_for(std::chrono::milliseconds(80));
     action_server_.reset();
     tree_.reset();
     server_thread_->join();
@@ -221,14 +253,14 @@ public:
   static std::shared_ptr<FibonacciActionServer> action_server_;
 
 protected:
-  static rclcpp::Node::SharedPtr node_;
+  static nav2::LifecycleNode::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
   static std::shared_ptr<std::thread> server_thread_;
 };
 
-rclcpp::Node::SharedPtr BTActionNodeTestFixture::node_ = nullptr;
+nav2::LifecycleNode::SharedPtr BTActionNodeTestFixture::node_ = nullptr;
 std::shared_ptr<FibonacciActionServer> BTActionNodeTestFixture::action_server_ = nullptr;
 BT::NodeConfiguration * BTActionNodeTestFixture::config_ = nullptr;
 std::shared_ptr<BT::BehaviorTreeFactory> BTActionNodeTestFixture::factory_ = nullptr;
@@ -262,7 +294,8 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_success)
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   // BT loop execution rate
-  rclcpp::WallRate loopRate(10ms);
+  nav2_behavior_tree::LoopRate loopRate(
+    10ms, tree_.get(), std::make_shared<rclcpp::Clock>(RCL_STEADY_TIME));
 
   // main BT execution loop
   while (rclcpp::ok() && result == BT::NodeStatus::RUNNING) {
@@ -398,6 +431,28 @@ TEST_F(BTActionNodeTestFixture, test_server_timeout_failure)
   // since the server timeout was smaller than the action server goal handling duration
   // the BT should have failed
   EXPECT_EQ(result, BT::NodeStatus::SUCCESS);
+}
+
+TEST_F(BTActionNodeTestFixture, test_goal_rejected)
+{
+  std::string xml_txt =
+    R"(
+      <root BTCPP_format="4">
+        <BehaviorTree ID="MainTree">
+            <Fibonacci order="2" error_code_id="{fibonacci_error_code}" />
+        </BehaviorTree>
+      </root>)";
+
+  config_->blackboard->set<std::chrono::milliseconds>("server_timeout", 100ms);
+  config_->blackboard->set("on_goal_rejected_triggered", false);
+  action_server_->setGoalResponse(rclcpp_action::GoalResponse::REJECT);
+
+  tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
+
+  EXPECT_EQ(tree_->tickOnce(), BT::NodeStatus::FAILURE);
+  EXPECT_TRUE(config_->blackboard->get<bool>("on_goal_rejected_triggered"));
+  EXPECT_EQ(config_->blackboard->get<uint16_t>("fibonacci_error_code"),
+    FibonacciAction::GOAL_REJECTED_ERROR_CODE);
 }
 
 TEST_F(BTActionNodeTestFixture, test_server_cancel)

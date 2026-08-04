@@ -17,12 +17,13 @@
 
 #include <memory>
 #include <string>
+#include <chrono>
 
 #include "std_msgs/msg/string.hpp"
 
 #include "behaviortree_cpp/action_node.h"
 
-#include "rclcpp/rclcpp.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -33,6 +34,14 @@ namespace nav2_behavior_tree
  * to get the decision about what progress_checker must be used. It is usually used before of
  * the FollowPath. The selected_progress_checker output port is passed to progress_checker_id
  * input port of the FollowPath
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <ProgressCheckerSelector selected_progress_checker="{selected_progress_checker}"
+ *                          default_progress_checker="precise_progress_checker"
+ *                          topic_name="progress_checker_selector"/>
+ * @endcode
  */
 class ProgressCheckerSelector : public BT::SyncActionNode
 {
@@ -71,6 +80,15 @@ public:
 
 private:
   /**
+   * @brief Function to read parameters and initialize class variables
+   */
+  void initialize();
+  /**
+   * @brief Function to create ROS interfaces
+   */
+  void createROSInterfaces();
+
+  /**
    * @brief Function to perform some user-defined operation on tick
    */
   BT::NodeStatus tick() override;
@@ -80,15 +98,18 @@ private:
    *
    * @param msg the message with the id of the progress_checker_selector
    */
-  void callbackProgressCheckerSelect(const std_msgs::msg::String::SharedPtr msg);
+  void callbackProgressCheckerSelect(const std_msgs::msg::String::ConstSharedPtr & msg);
 
-  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr progress_checker_selector_sub_;
+  nav2::Subscription<std_msgs::msg::String>::SharedPtr progress_checker_selector_sub_;
 
   std::string last_selected_progress_checker_;
 
-  rclcpp::Node::SharedPtr node_;
+  nav2::LifecycleNode::SharedPtr node_;
+  rclcpp::CallbackGroup::SharedPtr callback_group_;
+  rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
 
   std::string topic_name_;
+  std::chrono::milliseconds bt_loop_duration_;
 };
 
 }  // namespace nav2_behavior_tree

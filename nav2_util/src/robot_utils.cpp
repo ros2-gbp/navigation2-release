@@ -18,7 +18,11 @@
 #include <cmath>
 #include <memory>
 
-#include "tf2/convert.h"
+#include "tf2/convert.hpp"
+#include "tf2/utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+
 #include "nav2_util/robot_utils.hpp"
 #include "rclcpp/logger.hpp"
 
@@ -27,7 +31,7 @@ namespace nav2_util
 
 bool getCurrentPose(
   geometry_msgs::msg::PoseStamped & global_pose,
-  tf2_ros::Buffer & tf_buffer, const std::string global_frame,
+  nav2::TransformBuffer & tf_buffer, const std::string global_frame,
   const std::string robot_frame, const double transform_timeout,
   const rclcpp::Time stamp)
 {
@@ -42,10 +46,15 @@ bool getCurrentPose(
 bool transformPoseInTargetFrame(
   const geometry_msgs::msg::PoseStamped & input_pose,
   geometry_msgs::msg::PoseStamped & transformed_pose,
-  tf2_ros::Buffer & tf_buffer, const std::string target_frame,
+  nav2::TransformBuffer & tf_buffer, const std::string target_frame,
   const double transform_timeout)
 {
   static rclcpp::Logger logger = rclcpp::get_logger("transformPoseInTargetFrame");
+
+  if (input_pose.header.frame_id == target_frame) {
+    transformed_pose = input_pose;
+    return true;
+  }
 
   try {
     transformed_pose = tf_buffer.transform(
@@ -81,7 +90,7 @@ bool getTransform(
   const std::string & source_frame_id,
   const std::string & target_frame_id,
   const tf2::Duration & transform_tolerance,
-  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+  const nav2::TransformBuffer::SharedPtr tf_buffer,
   geometry_msgs::msg::TransformStamped & transform_msg)
 {
   if (source_frame_id == target_frame_id) {
@@ -108,7 +117,7 @@ bool getTransform(
   const std::string & source_frame_id,
   const std::string & target_frame_id,
   const tf2::Duration & transform_tolerance,
-  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+  const nav2::TransformBuffer::SharedPtr tf_buffer,
   tf2::Transform & tf2_transform)
 {
   tf2_transform.setIdentity();  // initialize by identical transform
@@ -128,7 +137,7 @@ bool getTransform(
   const rclcpp::Time & target_time,
   const std::string & fixed_frame_id,
   const tf2::Duration & transform_tolerance,
-  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+  const nav2::TransformBuffer::SharedPtr tf_buffer,
   geometry_msgs::msg::TransformStamped & transform_msg)
 {
   try {
@@ -156,7 +165,7 @@ bool getTransform(
   const rclcpp::Time & target_time,
   const std::string & fixed_frame_id,
   const tf2::Duration & transform_tolerance,
-  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+  const nav2::TransformBuffer::SharedPtr tf_buffer,
   tf2::Transform & tf2_transform)
 {
   geometry_msgs::msg::TransformStamped transform;
@@ -200,11 +209,6 @@ bool validateTwist(const geometry_msgs::msg::Twist & msg)
   }
 
   return true;
-}
-
-bool validateTwist(const geometry_msgs::msg::TwistStamped & msg)
-{
-  return validateTwist(msg.twist);
 }
 
 }  // end namespace nav2_util

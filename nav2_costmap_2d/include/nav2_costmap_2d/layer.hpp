@@ -37,15 +37,16 @@
 #ifndef NAV2_COSTMAP_2D__LAYER_HPP_
 #define NAV2_COSTMAP_2D__LAYER_HPP_
 
+#include <atomic>
 #include <string>
 #include <vector>
 #include <unordered_set>
 
-#include "tf2_ros/buffer.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -73,8 +74,8 @@ public:
   void initialize(
     LayeredCostmap * parent,
     std::string name,
-    tf2_ros::Buffer * tf,
-    const nav2_util::LifecycleNode::WeakPtr & node,
+    nav2::TransformBuffer * tf,
+    const nav2::LifecycleNode::WeakPtr & node,
     rclcpp::CallbackGroup::SharedPtr callback_group);
   /** @brief Stop publishers. */
   virtual void deactivate() {}
@@ -139,6 +140,15 @@ public:
     return current_;
   }
 
+  /**
+   * @brief Set whether the data in the layer is up to date.
+   * @param current Whether the layer is current.
+   */
+  void setCurrent(bool current)
+  {
+    current_ = current;
+  }
+
   /**@brief Gets whether the layer is enabled. */
   bool isEnabled() const
   {
@@ -147,26 +157,33 @@ public:
 
   /** @brief Convenience function for layered_costmap_->getFootprint(). */
   const std::vector<geometry_msgs::msg::Point> & getFootprint() const;
-
-  /** @brief Convenience functions for declaring ROS parameters */
-  void declareParameter(
-    const std::string & param_name,
-    const rclcpp::ParameterValue & value);
-  /** @brief Convenience functions for declaring ROS parameters */
-  void declareParameter(
-    const std::string & param_name,
-    const rclcpp::ParameterType & param_type);
-  /** @brief Convenience functions for declaring ROS parameters */
-  bool hasParameter(const std::string & param_name);
   /** @brief Convenience functions for declaring ROS parameters */
   std::string getFullName(const std::string & param_name);
+
+  /**
+   * Joins the specified topic with the parent namespace of the layer node.
+   * If the topic has an absolute path, it is returned instead.
+   *
+   * This is necessary for user defined relative topics to work as expected since costmap layers
+   * add an additional `costmap_name` namespace to the topic.
+   * For example:
+   *   * User chosen namespace is `tb4`.
+   *   * User chosen topic is `scan`.
+   *   * Costmap node namespace will be `/tb4/global_costmap`.
+   *   * Without this function, the topic would be `/tb4/global_costmap/scan`.
+   *   * With this function, topic will be remapped to `/tb4/scan`.
+   * Use global topic `/scan` if you do not wish the node namespace to apply
+   *
+   * @param topic the topic to parse
+   */
+  std::string joinWithParentNamespace(const std::string & topic);
 
 protected:
   LayeredCostmap * layered_costmap_;
   std::string name_;
-  tf2_ros::Buffer * tf_;
+  nav2::TransformBuffer * tf_;
   rclcpp::CallbackGroup::SharedPtr callback_group_;
-  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
+  nav2::LifecycleNode::WeakPtr node_;
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_{rclcpp::get_logger("nav2_costmap_2d")};
 
@@ -177,13 +194,10 @@ protected:
    */
   virtual void onInitialize() {}
 
-  bool current_;
+  std::atomic_bool current_;
   // Currently this var is managed by subclasses.
   // TODO(bpwilcox): make this managed by this class and/or container class.
   bool enabled_;
-
-  // Names of the parameters declared on the ROS node
-  std::unordered_set<std::string> local_params_;
 
 private:
   std::vector<geometry_msgs::msg::Point> footprint_spec_;

@@ -19,12 +19,21 @@
 
 #include "nav2_behavior_tree/bt_action_node.hpp"
 #include "nav2_msgs/action/drive_on_heading.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::DriveOnHeading
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <DriveOnHeading dist_to_travel="0.2" speed="0.05"
+ *                 server_name="backup_server" server_timeout="10" disable_collision_checks="false"
+ *                 error_code_id="{drive_on_heading_error_code}" error_msg="{drive_on_heading_error_msg}"/>
+ * @endcode
  */
 class DriveOnHeadingAction : public BtActionNode<nav2_msgs::action::DriveOnHeading>
 {
@@ -59,8 +68,7 @@ public:
         BT::InputPort<double>("dist_to_travel", 0.15, "Distance to travel"),
         BT::InputPort<double>("speed", 0.025, "Speed at which to travel"),
         BT::InputPort<double>("time_allowance", 10.0, "Allowed time for driving on heading"),
-        BT::OutputPort<Action::Result::_error_code_type>(
-          "error_code_id", "The drive on heading behavior server error code")
+        BT::InputPort<bool>("disable_collision_checks", false, "Disable collision checking"),
       });
   }
 
@@ -83,9 +91,6 @@ public:
    * @brief Function to perform some user-defined operation upon cancellation of the action
    */
   BT::NodeStatus on_cancelled() override;
-
-private:
-  bool initalized_;
 };
 
 }  // namespace nav2_behavior_tree

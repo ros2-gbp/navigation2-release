@@ -22,12 +22,13 @@
 #include "std_msgs/msg/float32.hpp"
 
 #include "nav2_collision_monitor/polygon.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_collision_monitor
 {
 
 /**
- * @brief Circle shape implementaiton.
+ * @brief Circle shape implementation.
  * For STOP/SLOWDOWN/LIMIT model it represents zone around the robot
  * while for APPROACH model it represents robot footprint.
  */
@@ -43,9 +44,9 @@ public:
    * @param transform_tolerance Transform tolerance
    */
   Circle(
-    const nav2_util::LifecycleNode::WeakPtr & node,
+    const nav2::LifecycleNode::WeakPtr & node,
     const std::string & polygon_name,
-    const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+    const nav2::TransformBuffer::SharedPtr tf_buffer,
     const std::string & base_frame_id,
     const tf2::Duration & transform_tolerance);
   /**
@@ -63,10 +64,24 @@ public:
   /**
    * @brief Gets number of points inside circle
    * @param points Input array of points to be checked
+   * @param out_triggering_points Output array of triggering points
    * @return Number of points inside circle. If there are no points,
    * returns zero value.
    */
-  int getPointsInside(const std::vector<Point> & points) const override;
+  int getPointsInside(
+    const std::vector<Point> & points,
+    std::vector<Point> & out_triggering_points) const override;
+
+  /**
+   * @brief Gets indices of points inside circle
+   * @param points Input array of points to be checked
+   * @param out_triggering_indices Output array of triggering points indices
+   * @return Number of points inside circle. If there are no points,
+   * returns zero value.
+   */
+  int getPointsInside(
+    const std::vector<Point> & points,
+    std::vector<std::size_t> & out_triggering_indices) const override;
 
   /**
    * @brief Returns true if circle radius is set.
@@ -99,7 +114,7 @@ protected:
    * @brief Updates polygon from radius value
    * @param radius New circle radius to update polygon
    */
-  void updatePolygon(double radius);
+  void updatePolygonFromRadius(double radius);
 
   /**
    * @brief Dynamic circle radius callback
@@ -115,7 +130,7 @@ protected:
   /// @brief (radius * radius) value. Stored for optimization.
   double radius_squared_ = -1.0;
   /// @brief Radius subscription
-  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr radius_sub_;
+  nav2::Subscription<std_msgs::msg::Float32>::SharedPtr radius_sub_;
 };  // class Circle
 
 }  // namespace nav2_collision_monitor

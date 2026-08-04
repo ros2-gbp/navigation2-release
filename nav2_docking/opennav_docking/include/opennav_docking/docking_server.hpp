@@ -15,24 +15,27 @@
 #ifndef OPENNAV_DOCKING__DOCKING_SERVER_HPP_
 #define OPENNAV_DOCKING__DOCKING_SERVER_HPP_
 
-#include <vector>
-#include <memory>
-#include <string>
-#include <mutex>
 #include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_util/lifecycle_node.hpp"
-#include "nav2_util/node_utils.hpp"
-#include "nav2_util/simple_action_server.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_ros_common/simple_action_server.hpp"
 #include "nav2_util/twist_publisher.hpp"
+#include "nav2_util/odometry_utils.hpp"
 #include "opennav_docking/controller.hpp"
 #include "opennav_docking/utils.hpp"
 #include "opennav_docking/types.hpp"
 #include "opennav_docking/dock_database.hpp"
 #include "opennav_docking/navigator.hpp"
+#include "opennav_docking/parameter_handler.hpp"
 #include "opennav_docking_core/charging_dock.hpp"
-#include "tf2_ros/transform_listener.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace opennav_docking
 {
@@ -40,11 +43,11 @@ namespace opennav_docking
  * @class opennav_docking::DockingServer
  * @brief An action server which implements charger docking node for AMRs
  */
-class DockingServer : public nav2_util::LifecycleNode
+class DockingServer : public nav2::LifecycleNode
 {
 public:
-  using DockingActionServer = nav2_util::SimpleActionServer<DockRobot>;
-  using UndockingActionServer = nav2_util::SimpleActionServer<UndockRobot>;
+  using DockingActionServer = nav2::SimpleActionServer<DockRobot>;
+  using UndockingActionServer = nav2::SimpleActionServer<UndockRobot>;
 
   /**
    * @brief A constructor for opennav_docking::DockingServer
@@ -87,24 +90,32 @@ public:
    * @brief Use control law and dock perception to approach the charge dock.
    * @param dock Dock instance, gets queried for refined pose and docked state.
    * @param dock_pose Initial dock pose, will be refined by perception.
+   * @param backward If true, the robot will drive backwards.
    * @returns True if dock successfully approached, False if cancelled. For
    *          any internal error, will throw.
    */
-  bool approachDock(Dock * dock, geometry_msgs::msg::PoseStamped & dock_pose);
+  bool approachDock(Dock * dock, geometry_msgs::msg::PoseStamped & dock_pose, bool backward);
+
+  /**
+   * @brief Perform a pure rotation to dock orientation.
+   * @param dock_pose The target pose that will be used to rotate.
+   */
+  void rotateToDock(const geometry_msgs::msg::PoseStamped & dock_pose);
 
   /**
    * @brief Wait for charging to begin.
    * @param dock Dock instance, used to query isCharging().
-   * @returns True if charging successfully started within alloted time.
+   * @returns True if charging successfully started within allotted time.
    */
   bool waitForCharge(Dock * dock);
 
   /**
    * @brief Reset the robot for another approach by controlling back to staging pose.
    * @param staging_pose The target pose that will reset for another approach.
+   * @param backward If true, the robot will drive backwards.
    * @returns True if reset is successful.
    */
-  bool resetApproach(const geometry_msgs::msg::PoseStamped & staging_pose);
+  bool resetApproach(const geometry_msgs::msg::PoseStamped & staging_pose, bool backward);
 
   /**
    * @brief Run a single iteration of the control loop to approach a pose.
@@ -136,7 +147,7 @@ public:
   template<typename ActionT>
   void getPreemptedGoalIfRequested(
     typename std::shared_ptr<const typename ActionT::Goal> goal,
-    const std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server);
+    const typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server);
 
   /**
    * @brief Checks and logs warning if action canceled
@@ -146,7 +157,7 @@ public:
    */
   template<typename ActionT>
   bool checkAndWarnIfCancelled(
-    std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server,
+    typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server,
     const std::string & name);
 
   /**
@@ -157,7 +168,7 @@ public:
    */
   template<typename ActionT>
   bool checkAndWarnIfPreempted(
-    std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server,
+    typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server,
     const std::string & name);
 
   /**
@@ -165,35 +176,35 @@ public:
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Activate member variables
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Deactivate member variables
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Reset member variables
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Called when in shutdown state
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Publish zero velocity at terminal condition
@@ -211,55 +222,28 @@ protected:
    */
   void undockRobot();
 
-  /**
-   * @brief Callback executed when a parameter change is detected
-   * @param event ParameterEvent message
-   */
-  rcl_interfaces::msg::SetParametersResult
-  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+  // Parameter handler
+  std::unique_ptr<opennav_docking::ParameterHandler> param_handler_;
+  Parameters * params_;
 
-  // Dynamic parameters handler
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
-
-  // Mutex for dynamic parameters and dock database
-  std::shared_ptr<std::mutex> mutex_;
-
-  // Frequency to run control loops
-  double controller_frequency_;
-  // Timeout for initially detecting the charge dock
-  double initial_perception_timeout_;
-  // Timeout after making contact with dock for charging to start
-  // If this is exceeded, the robot returns to the staging pose and retries
-  double wait_charge_timeout_;
-  // Timeout to approach into the dock and reset its approach is retrying
-  double dock_approach_timeout_;
-  // When undocking, these are the tolerances for arriving at the staging pose
-  double undock_linear_tolerance_, undock_angular_tolerance_;
   // Maximum number of times the robot will return to staging pose and retry docking
-  int max_retries_, num_retries_;
-  // This is the root frame of the robot - typically "base_link"
-  std::string base_frame_;
-  // This is our fixed frame for controlling - typically "odom"
-  std::string fixed_frame_;
-  // Does the robot drive backwards onto the dock? Default is forwards
-  bool dock_backwards_;
-  // The tolerance to the dock's staging pose not requiring navigation
-  double dock_prestaging_tolerance_;
+  int num_retries_;
 
   // This is a class member so it can be accessed in publish feedback
   rclcpp::Time action_start_time_;
 
   std::unique_ptr<nav2_util::TwistPublisher> vel_publisher_;
-  std::unique_ptr<DockingActionServer> docking_action_server_;
-  std::unique_ptr<UndockingActionServer> undocking_action_server_;
+  std::unique_ptr<nav2_util::OdomSmoother> odom_sub_;
+  typename DockingActionServer::SharedPtr docking_action_server_;
+  typename UndockingActionServer::SharedPtr undocking_action_server_;
 
   std::unique_ptr<DockDatabase> dock_db_;
   std::unique_ptr<Navigator> navigator_;
   std::unique_ptr<Controller> controller_;
   std::string curr_dock_type_;
 
-  std::shared_ptr<tf2_ros::Buffer> tf2_buffer_;
-  std::unique_ptr<tf2_ros::TransformListener> tf2_listener_;
+  nav2::TransformBuffer::SharedPtr tf2_buffer_;
+  nav2::TransformListener::SharedPtr tf2_listener_;
 };
 
 }  // namespace opennav_docking

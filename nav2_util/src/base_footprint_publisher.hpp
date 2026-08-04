@@ -21,12 +21,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "tf2_ros/create_timer_ros.h"
-#include "tf2_ros/transform_listener.h"
-#include "tf2_ros/transform_broadcaster.h"
-#include "tf2_ros/buffer.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "tf2/utils.h"
+#include "tf2/utils.hpp"
+#include "nav2_ros_common/node_utils.hpp"
 
 namespace nav2_util
 {
@@ -36,19 +34,18 @@ namespace nav2_util
  * to inject base footprint publisher removing Z, Pitch, and Roll for
  * 3D state estimation but desiring a 2D frame for navigation, visualization, or other reasons
  */
-class BaseFootprintPublisherListener : public tf2_ros::TransformListener
+class BaseFootprintPublisherListener : public nav2::TransformListener
 {
 public:
+  //  nosemgrep
   BaseFootprintPublisherListener(tf2::BufferCore & buffer, bool spin_thread, rclcpp::Node & node)
-  : tf2_ros::TransformListener(buffer, spin_thread)
+  : nav2::TransformListener(buffer, spin_thread)
   {
-    node.declare_parameter(
-      "base_link_frame", rclcpp::ParameterValue(std::string("base_link")));
-    node.declare_parameter(
-      "base_footprint_frame", rclcpp::ParameterValue(std::string("base_footprint")));
-    base_link_frame_ = node.get_parameter("base_link_frame").as_string();
-    base_footprint_frame_ = node.get_parameter("base_footprint_frame").as_string();
-    tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(node);
+    base_link_frame_ = nav2::declare_or_get_parameter(
+      &node, "base_link_frame", std::string("base_link"));
+    base_footprint_frame_ = nav2::declare_or_get_parameter(
+      &node, "base_footprint_frame", std::string("base_footprint"));
+    tf_broadcaster_ = nav2::create_transform_broadcaster(&node);
   }
 
   /**
@@ -90,7 +87,7 @@ public:
   }
 
 protected:
-  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  nav2::TransformBroadcaster::SharedPtr tf_broadcaster_;
   std::string base_link_frame_, base_footprint_frame_;
 };
 
@@ -100,7 +97,7 @@ protected:
  * stripping away the Z, Roll, and Pitch of the full 3D state to provide
  * a 2D projection for navigation when state estimation is full 3D
  */
-class BaseFootprintPublisher : public rclcpp::Node
+class BaseFootprintPublisher : public rclcpp::Node  //  nosemgrep
 {
 public:
   /**
@@ -110,17 +107,13 @@ public:
   : Node("base_footprint_publisher", options)
   {
     RCLCPP_INFO(get_logger(), "Creating base footprint publisher");
-    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
-    auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
-      get_node_base_interface(),
-      get_node_timers_interface());
-    tf_buffer_->setCreateTimerInterface(timer_interface);
+    tf_buffer_ = nav2::create_transform_buffer(this);
     listener_publisher_ = std::make_shared<BaseFootprintPublisherListener>(
       *tf_buffer_, true, *this);
   }
 
 protected:
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
   std::shared_ptr<BaseFootprintPublisherListener> listener_publisher_;
 };
 

@@ -16,6 +16,7 @@
 #include <chrono>
 #include "nav2_mppi_controller/controller.hpp"
 #include "nav2_mppi_controller/tools/utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 // #define BENCHMARK_TESTING
 
@@ -23,27 +24,34 @@ namespace nav2_mppi_controller
 {
 
 void MPPIController::configure(
-  const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-  std::string name, const std::shared_ptr<tf2_ros::Buffer> tf,
+  const nav2::LifecycleNode::WeakPtr & parent,
+  std::string name, const nav2::TransformBuffer::SharedPtr tf,
   const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
 {
   parent_ = parent;
   costmap_ros_ = costmap_ros;
   tf_buffer_ = tf;
   name_ = name;
-  parameters_handler_ = std::make_unique<ParametersHandler>(parent);
+  parameters_handler_ = std::make_unique<ParametersHandler>(parent, name_);
 
   auto node = parent_.lock();
   // Get high-level controller parameters
   auto getParam = parameters_handler_->getParamGetter(name_);
   getParam(visualize_, "visualize", false);
+  getParam(critic_index_to_visualize_, "critic_index_to_visualize", 0);
+
+  getParam(publish_optimal_trajectory_, "publish_optimal_trajectory", false);
 
   // Configure composed objects
-  optimizer_.initialize(parent_, name_, costmap_ros_, parameters_handler_.get());
-  path_handler_.initialize(parent_, name_, costmap_ros_, tf_buffer_, parameters_handler_.get());
+  optimizer_.initialize(parent_, name_, costmap_ros_, tf_buffer_, parameters_handler_.get());
   trajectory_visualizer_.on_configure(
     parent_, name_,
     costmap_ros_->getGlobalFrameID(), parameters_handler_.get());
+
+  if (publish_optimal_trajectory_) {
+    opt_traj_pub_ = node->create_publisher<nav_msgs::msg::Trajectory>(
+      "~/optimal_trajectory");
+  }
 
   RCLCPP_INFO(logger_, "Configured MPPI Controller: %s", name_.c_str());
 }
@@ -53,19 +61,27 @@ void MPPIController::cleanup()
   optimizer_.shutdown();
   trajectory_visualizer_.on_cleanup();
   parameters_handler_.reset();
+  opt_traj_pub_.reset();
   RCLCPP_INFO(logger_, "Cleaned up MPPI Controller: %s", name_.c_str());
 }
 
 void MPPIController::activate()
 {
+  auto node = parent_.lock();
   trajectory_visualizer_.on_activate();
   parameters_handler_->start();
+  if (opt_traj_pub_) {
+    opt_traj_pub_->on_activate();
+  }
   RCLCPP_INFO(logger_, "Activated MPPI Controller: %s", name_.c_str());
 }
 
 void MPPIController::deactivate()
 {
   trajectory_visualizer_.on_deactivate();
+  if (opt_traj_pub_) {
+    opt_traj_pub_->on_deactivate();
+  }
   RCLCPP_INFO(logger_, "Deactivated MPPI Controller: %s", name_.c_str());
 }
 
@@ -77,22 +93,22 @@ void MPPIController::reset()
 geometry_msgs::msg::TwistStamped MPPIController::computeVelocityCommands(
   const geometry_msgs::msg::PoseStamped & robot_pose,
   const geometry_msgs::msg::Twist & robot_speed,
-  nav2_core::GoalChecker * goal_checker)
+  nav2_core::GoalChecker * goal_checker,
+  const nav_msgs::msg::Path & transformed_global_plan,
+  const geometry_msgs::msg::PoseStamped & global_goal)
 {
 #ifdef BENCHMARK_TESTING
   auto start = std::chrono::system_clock::now();
 #endif
 
   std::lock_guard<std::mutex> param_lock(*parameters_handler_->getLock());
-  geometry_msgs::msg::Pose goal = path_handler_.getTransformedGoal(robot_pose.header.stamp).pose;
-
-  nav_msgs::msg::Path transformed_plan = path_handler_.transformPath(robot_pose);
 
   nav2_costmap_2d::Costmap2D * costmap = costmap_ros_->getCostmap();
   std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> costmap_lock(*(costmap->getMutex()));
 
-  geometry_msgs::msg::TwistStamped cmd =
-    optimizer_.evalControl(robot_pose, robot_speed, transformed_plan, goal, goal_checker);
+  auto [cmd, optimal_trajectory] =
+    optimizer_.evalControl(robot_pose, robot_speed, transformed_global_plan, global_goal.pose,
+      goal_checker);
 
 #ifdef BENCHMARK_TESTING
   auto end = std::chrono::system_clock::now();
@@ -100,25 +116,49 @@ geometry_msgs::msg::TwistStamped MPPIController::computeVelocityCommands(
   RCLCPP_INFO(logger_, "Control loop execution time: %ld [ms]", duration);
 #endif
 
+  if (publish_optimal_trajectory_ && opt_traj_pub_ && opt_traj_pub_->get_subscription_count() > 0) {
+    std_msgs::msg::Header trajectory_header;
+    trajectory_header.stamp = cmd.header.stamp;
+    trajectory_header.frame_id = costmap_ros_->getGlobalFrameID();
+
+    auto trajectory_msg = utils::toTrajectoryMsg(
+      optimal_trajectory,
+      optimizer_.getOptimalControlSequence(),
+      optimizer_.getSettings().model_dt,
+      trajectory_header);
+    opt_traj_pub_->publish(std::move(trajectory_msg));
+  }
+
   if (visualize_) {
-    visualize(std::move(transformed_plan), cmd.header.stamp);
+    visualize(cmd.header.stamp, optimal_trajectory);
   }
 
   return cmd;
 }
 
 void MPPIController::visualize(
-  nav_msgs::msg::Path transformed_plan,
-  const builtin_interfaces::msg::Time & cmd_stamp)
+  const builtin_interfaces::msg::Time & cmd_stamp,
+  const Eigen::ArrayXXf & optimal_trajectory)
 {
-  trajectory_visualizer_.add(optimizer_.getGeneratedTrajectories(), "Candidate Trajectories");
-  trajectory_visualizer_.add(optimizer_.getOptimizedTrajectory(), "Optimal Trajectory", cmd_stamp);
-  trajectory_visualizer_.visualize(std::move(transformed_plan));
+  const auto & critic_costs = optimizer_.getCriticCosts();
+  const Eigen::ArrayXf & costs =
+    (critic_index_to_visualize_ <= 0 ||
+    critic_index_to_visualize_ > static_cast<int>(critic_costs.size())) ?
+    optimizer_.getCosts() :
+    critic_costs[critic_index_to_visualize_ - 1].second;
+
+  trajectory_visualizer_.add(
+    optimizer_.getGeneratedTrajectories(),
+    costs,
+    optimizer_.getCollisionFlags(),
+    cmd_stamp);
+
+  trajectory_visualizer_.add(optimal_trajectory, "Optimal Trajectory", cmd_stamp);
+  trajectory_visualizer_.visualize();
 }
 
-void MPPIController::setPlan(const nav_msgs::msg::Path & path)
+void MPPIController::newPathReceived(const nav_msgs::msg::Path & /*raw_global_path*/)
 {
-  path_handler_.setPath(path);
 }
 
 void MPPIController::setSpeedLimit(const double & speed_limit, const bool & percentage)

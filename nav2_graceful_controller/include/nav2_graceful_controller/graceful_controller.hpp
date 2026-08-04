@@ -27,10 +27,10 @@
 #include "rclcpp/rclcpp.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "pluginlib/class_list_macros.hpp"
-#include "nav2_graceful_controller/path_handler.hpp"
 #include "nav2_graceful_controller/parameter_handler.hpp"
 #include "nav2_graceful_controller/smooth_control_law.hpp"
 #include "nav2_graceful_controller/utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_graceful_controller
 {
@@ -60,8 +60,8 @@ public:
    * @param costmap_ros Costmap2DROS object of environment
    */
   void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
+    const nav2::LifecycleNode::WeakPtr & parent,
+    std::string name, nav2::TransformBuffer::SharedPtr tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   /**
@@ -84,18 +84,22 @@ public:
    * @param pose      Current robot pose
    * @param velocity  Current robot velocity
    * @param goal_checker Ptr to the goal checker for this task in case useful in computing commands
+   * @param transformed_global_plan The global plan after being processed by the path handler
+   * @param global_goal The last pose of the global plan
    * @return          Best command
    */
   geometry_msgs::msg::TwistStamped computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped & pose,
     const geometry_msgs::msg::Twist & velocity,
-    nav2_core::GoalChecker * goal_checker) override;
+    nav2_core::GoalChecker * goal_checker,
+    const nav_msgs::msg::Path & transformed_global_plan,
+    const geometry_msgs::msg::PoseStamped & global_goal) override;
 
   /**
-   * @brief nav2_core setPlan - Sets the global plan.
-   * @param path The global plan
+   * @brief nav2_core newPathReceived - Receives a new plan from the Planner Server
+   * @param raw_global_path The global plan from the Planner Server
    */
-  void setPlan(const nav_msgs::msg::Path & path) override;
+  void newPathReceived(const nav_msgs::msg::Path & raw_global_path) override;
 
   /**
    * @brief Limits the maximum linear speed of the robot.
@@ -107,6 +111,58 @@ public:
   void setSpeedLimit(const double & speed_limit, const bool & percentage) override;
 
 protected:
+  /**
+   * @brief Validate a given target pose for calculating command velocity
+   * @param target_pose Target pose to validate
+   * @param dist_to_target Distance to target pose
+   * @param trajectory Trajectory to validate in simulation
+   * @param costmap_transform Transform between global and local costmap
+   * @param cmd_vel Initial command velocity to validate in simulation
+   * @return true if target pose is valid, false otherwise
+   */
+  bool validateTargetPose(
+    geometry_msgs::msg::PoseStamped & target_pose,
+    double dist_to_target,
+    nav_msgs::msg::Path & trajectory,
+    geometry_msgs::msg::TransformStamped & costmap_transform,
+    geometry_msgs::msg::TwistStamped & cmd_vel);
+
+  /**
+   * @brief Validate a given target pose for calculating command velocity on approach to goal
+   * @param target_pose Target pose to validate
+   * @param dist_to_target Distance to target pose
+   * @param dist_to_goal Distance to navigation goal
+   * @param trajectory Trajectory to validate in simulation
+   * @param costmap_transform Transform between global and local costmap
+   * @param cmd_vel Initial command velocity to validate in simulation
+   * @return true if target pose is valid, false otherwise
+   */
+  bool validateTargetPoseOnApproach(
+    geometry_msgs::msg::PoseStamped & target_pose,
+    double dist_to_target,
+    double dist_to_goal,
+    nav_msgs::msg::Path & trajectory,
+    geometry_msgs::msg::TransformStamped & costmap_transform,
+    geometry_msgs::msg::TwistStamped & cmd_vel);
+
+  /**
+   * @brief Find the best approach trajectory by searching multiple orientations
+   * @param target_pose Base target pose (position will be used)
+   * @param dist_to_target Distance to target
+   * @param costmap_transform Transform
+   * @param safety_cost Safety cost threshold
+   * @param best_trajectory Reference to store best trajectory
+   * @param best_cmd_vel Reference to store best cmd_vel
+   * @return true if a valid trajectory was found
+   */
+  bool findBestApproachTrajectory(
+    geometry_msgs::msg::PoseStamped & target_pose,
+    double dist_to_target,
+    geometry_msgs::msg::TransformStamped & costmap_transform,
+    double safety_cost,
+    nav_msgs::msg::Path & best_trajectory,
+    geometry_msgs::msg::TwistStamped & best_cmd_vel);
+
   /**
    * @brief Simulate trajectory calculating in every step the new velocity command based on
    * a new curvature value and checking for collisions.
@@ -138,9 +194,22 @@ protected:
    * @param x The x coordinate of the robot in global frame
    * @param y The y coordinate of the robot in global frame
    * @param theta The orientation of the robot in global frame
+   * @param inflation_scale Scaling factor for the robot footprint
    * @return Whether in collision
    */
-  bool inCollision(const double & x, const double & y, const double & theta);
+  bool inCollision(
+    const double & x, const double & y, const double & theta,
+    double inflation_scale = 1.0);
+
+  /**
+   * @brief Get the maximum cost of a path
+   * @param path Path to check
+   * @param costmap_transform Transform between global and local costmap
+   * @return Maximum cost encountered
+   */
+  double getMaxCost(
+    const nav_msgs::msg::Path & path,
+    geometry_msgs::msg::TransformStamped & costmap_transform);
 
   /**
    * @brief Compute the distance to each pose in a path
@@ -157,7 +226,7 @@ protected:
    */
   void validateOrientations(std::vector<geometry_msgs::msg::PoseStamped> & path);
 
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
   std::string plugin_name_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::unique_ptr<nav2_costmap_2d::FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>>
@@ -165,19 +234,15 @@ protected:
   rclcpp::Logger logger_{rclcpp::get_logger("GracefulController")};
 
   Parameters * params_;
-  double goal_dist_tolerance_;
-  bool goal_reached_;
 
   // True from the time a new path arrives until we have completed an initial rotation
   bool do_initial_rotation_;
 
-  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> transformed_plan_pub_;
-  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> local_plan_pub_;
-  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PoseStamped>>
-  motion_target_pub_;
-  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::Marker>>
-  slowdown_pub_;
-  std::unique_ptr<nav2_graceful_controller::PathHandler> path_handler_;
+  std::optional<double> safe_approach_angle_;
+
+  nav2::Publisher<nav_msgs::msg::Path>::SharedPtr local_plan_pub_;
+  nav2::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr motion_target_pub_;
+  nav2::Publisher<visualization_msgs::msg::Marker>::SharedPtr slowdown_pub_;
   std::unique_ptr<nav2_graceful_controller::ParameterHandler> param_handler_;
   std::unique_ptr<nav2_graceful_controller::SmoothControlLaw> control_law_;
 };

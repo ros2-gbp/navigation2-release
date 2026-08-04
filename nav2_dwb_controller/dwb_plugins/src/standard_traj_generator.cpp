@@ -38,46 +38,22 @@
 #include <algorithm>
 #include <memory>
 #include "dwb_plugins/xy_theta_iterator.hpp"
-#include "nav_2d_utils/parameters.hpp"
 #include "pluginlib/class_list_macros.hpp"
 #include "dwb_core/exceptions.hpp"
-#include "nav2_util/node_utils.hpp"
+#include "tf2/utils.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 namespace dwb_plugins
 {
 
 void StandardTrajectoryGenerator::initialize(
-  const nav2_util::LifecycleNode::SharedPtr & nh,
+  const nav2::LifecycleNode::SharedPtr & nh,
   const std::string & plugin_name)
 {
   plugin_name_ = plugin_name;
   kinematics_handler_ = std::make_shared<KinematicsHandler>();
   kinematics_handler_->initialize(nh, plugin_name_);
   initializeIterator(nh);
-
-  nav2_util::declare_parameter_if_not_declared(
-    nh,
-    plugin_name + ".sim_time", rclcpp::ParameterValue(1.7));
-  nav2_util::declare_parameter_if_not_declared(
-    nh,
-    plugin_name + ".discretize_by_time", rclcpp::ParameterValue(false));
-
-  nav2_util::declare_parameter_if_not_declared(
-    nh,
-    plugin_name + ".time_granularity", rclcpp::ParameterValue(0.5));
-  nav2_util::declare_parameter_if_not_declared(
-    nh,
-    plugin_name + ".linear_granularity", rclcpp::ParameterValue(0.5));
-  nav2_util::declare_parameter_if_not_declared(
-    nh,
-    plugin_name + ".angular_granularity", rclcpp::ParameterValue(0.025));
-  nav2_util::declare_parameter_if_not_declared(
-    nh,
-    plugin_name + ".include_last_point", rclcpp::ParameterValue(true));
-
-  nav2_util::declare_parameter_if_not_declared(
-    nh,
-    plugin_name + ".limit_vel_cmd_in_traj", rclcpp::ParameterValue(false));
 
   /*
    * If discretize_by_time, then sim_granularity represents the amount of time that should be between
@@ -87,17 +63,34 @@ void StandardTrajectoryGenerator::initialize(
    *  two successive points on the trajectory, and angular_sim_granularity is the maximum amount of
    *  angular distance between two successive points.
    */
-  nh->get_parameter(plugin_name + ".sim_time", sim_time_);
-  nh->get_parameter(plugin_name + ".discretize_by_time", discretize_by_time_);
-  nh->get_parameter(plugin_name + ".time_granularity", time_granularity_);
-  nh->get_parameter(plugin_name + ".linear_granularity", linear_granularity_);
-  nh->get_parameter(plugin_name + ".angular_granularity", angular_granularity_);
-  nh->get_parameter(plugin_name + ".include_last_point", include_last_point_);
-  nh->get_parameter(plugin_name + ".limit_vel_cmd_in_traj", limit_vel_cmd_in_traj_);
+  sim_time_ = nh->declare_or_get_parameter(
+    plugin_name + ".sim_time", 1.7);
+  discretize_by_time_ = nh->declare_or_get_parameter(
+    plugin_name + ".discretize_by_time", false);
+  time_granularity_ = nh->declare_or_get_parameter(
+    plugin_name + ".time_granularity", 0.5);
+  linear_granularity_ = nh->declare_or_get_parameter(
+    plugin_name + ".linear_granularity", 0.5);
+  angular_granularity_ = nh->declare_or_get_parameter(
+    plugin_name + ".angular_granularity", 0.025);
+  include_last_point_ = nh->declare_or_get_parameter(
+    plugin_name + ".include_last_point", true);
+  limit_vel_cmd_in_traj_ = nh->declare_or_get_parameter(
+    plugin_name + ".limit_vel_cmd_in_traj", false);
+}
+
+void StandardTrajectoryGenerator::activate()
+{
+  kinematics_handler_->activate();
+}
+
+void StandardTrajectoryGenerator::deactivate()
+{
+  kinematics_handler_->deactivate();
 }
 
 void StandardTrajectoryGenerator::initializeIterator(
-  const nav2_util::LifecycleNode::SharedPtr & nh)
+  const nav2::LifecycleNode::SharedPtr & nh)
 {
   velocity_iterator_ = std::make_shared<XYThetaIterator>();
   velocity_iterator_->initialize(nh, kinematics_handler_, plugin_name_);
@@ -149,14 +142,14 @@ std::vector<double> StandardTrajectoryGenerator::getTimeSteps(
 }
 
 dwb_msgs::msg::Trajectory2D StandardTrajectoryGenerator::generateTrajectory(
-  const geometry_msgs::msg::Pose2D & start_pose,
+  const geometry_msgs::msg::Pose & start_pose,
   const nav_2d_msgs::msg::Twist2D & start_vel,
   const nav_2d_msgs::msg::Twist2D & cmd_vel)
 {
   dwb_msgs::msg::Trajectory2D traj;
   traj.velocity = cmd_vel;
   //  simulate the trajectory
-  geometry_msgs::msg::Pose2D pose = start_pose;
+  geometry_msgs::msg::Pose pose = start_pose;
   nav_2d_msgs::msg::Twist2D vel = start_vel;
   double running_time = 0.0;
   std::vector<double> steps = getTimeSteps(cmd_vel);
@@ -208,16 +201,23 @@ nav_2d_msgs::msg::Twist2D StandardTrajectoryGenerator::computeNewVelocity(
   return new_vel;
 }
 
-geometry_msgs::msg::Pose2D StandardTrajectoryGenerator::computeNewPosition(
-  const geometry_msgs::msg::Pose2D start_pose,
+geometry_msgs::msg::Pose StandardTrajectoryGenerator::computeNewPosition(
+  const geometry_msgs::msg::Pose start_pose,
   const nav_2d_msgs::msg::Twist2D & vel, const double dt)
 {
-  geometry_msgs::msg::Pose2D new_pose;
-  new_pose.x = start_pose.x +
-    (vel.x * cos(start_pose.theta) + vel.y * cos(M_PI_2 + start_pose.theta)) * dt;
-  new_pose.y = start_pose.y +
-    (vel.x * sin(start_pose.theta) + vel.y * sin(M_PI_2 + start_pose.theta)) * dt;
-  new_pose.theta = start_pose.theta + vel.theta * dt;
+  geometry_msgs::msg::Pose new_pose;
+
+  double theta = tf2::getYaw(start_pose.orientation);
+  new_pose.position.x = start_pose.position.x +
+    (vel.x * cos(theta) + vel.y * cos(M_PI_2 + theta)) * dt;
+  new_pose.position.y = start_pose.position.y +
+    (vel.x * sin(theta) + vel.y * sin(M_PI_2 + theta)) * dt;
+
+  double new_theta = theta + vel.theta * dt;
+  tf2::Quaternion q;
+  q.setRPY(0.0, 0.0, new_theta);
+  new_pose.orientation = tf2::toMsg(q);
+
   return new_pose;
 }
 

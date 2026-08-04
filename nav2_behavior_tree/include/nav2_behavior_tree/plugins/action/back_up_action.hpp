@@ -19,12 +19,21 @@
 
 #include "nav2_behavior_tree/bt_action_node.hpp"
 #include "nav2_msgs/action/back_up.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::BackUp
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <BackUp backup_dist="-0.2" backup_speed="0.05" server_name="backup_server"
+ *         server_timeout="10" disable_collision_checks="false"
+ *         error_code_id="{backup_error_code}" error_msg="{backup_error_msg}"/>
+ * @endcode
  */
 class BackUpAction : public BtActionNode<nav2_msgs::action::BackUp>
 {
@@ -80,8 +89,7 @@ public:
         BT::InputPort<double>("backup_dist", 0.15, "Distance to backup"),
         BT::InputPort<double>("backup_speed", 0.025, "Speed at which to backup"),
         BT::InputPort<double>("time_allowance", 10.0, "Allowed time for reversing"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The back up behavior server error code")
+        BT::InputPort<bool>("disable_collision_checks", false, "Disable collision checking"),
       });
   }
 };

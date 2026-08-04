@@ -19,26 +19,19 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav2_navfn_planner/navfn_planner.hpp"
 #include "rclcpp/rclcpp.hpp"
-
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
+#include "nav2_ros_common/tf2_factories.hpp"
 
 TEST(NavfnTest, testDynamicParameter)
 {
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("Navfntest");
+  auto node = std::make_shared<nav2::LifecycleNode>("Navfntest");
   auto costmap = std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
   costmap->on_configure(rclcpp_lifecycle::State());
   auto planner =
     std::make_unique<nav2_navfn_planner::NavfnPlanner>();
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto tf = nav2::create_transform_buffer(node);
   planner->configure(node, "test", tf, costmap);
   planner->activate();
 
@@ -61,4 +54,27 @@ TEST(NavfnTest, testDynamicParameter)
   EXPECT_EQ(node->get_parameter("test.use_astar").as_bool(), true);
   EXPECT_EQ(node->get_parameter("test.allow_unknown").as_bool(), true);
   EXPECT_EQ(node->get_parameter("test.use_final_approach_orientation").as_bool(), true);
+
+  results = rec_param->set_parameters_atomically(
+    {rclcpp::Parameter("test.tolerance", -1.0)});
+
+  rclcpp::spin_until_future_complete(
+    node->get_node_base_interface(),
+    results);
+
+  // Invalid value should not be set
+  EXPECT_EQ(node->get_parameter("test.tolerance").as_double(), 1.0);
+}
+
+int main(int argc, char ** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

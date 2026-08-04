@@ -21,12 +21,18 @@
 #include "nav2_msgs/action/back_up.hpp"
 
 #include "nav2_behavior_tree/bt_cancel_action_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::BackUp
+ *
+ * Usage in XML:
+ * @code
+ * <CancelBackUp server_name="BackUp" server_timeout="10"/>
+ * @endcode
  */
 class BackUpCancel : public BtCancelActionNode<nav2_msgs::action::BackUp>
 {

@@ -36,7 +36,7 @@ class ClearEntireCostmapServiceTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<rclcpp::Node>("clear_entire_costmap_test_fixture");
+    node_ = std::make_shared<nav2::LifecycleNode>("clear_entire_costmap_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -84,13 +84,13 @@ public:
   static std::shared_ptr<ClearEntireCostmapService> server_;
 
 protected:
-  static rclcpp::Node::SharedPtr node_;
+  static nav2::LifecycleNode::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-rclcpp::Node::SharedPtr ClearEntireCostmapServiceTestFixture::node_ = nullptr;
+nav2::LifecycleNode::SharedPtr ClearEntireCostmapServiceTestFixture::node_ = nullptr;
 std::shared_ptr<ClearEntireCostmapService> ClearEntireCostmapServiceTestFixture::server_ = nullptr;
 BT::NodeConfiguration * ClearEntireCostmapServiceTestFixture::config_ = nullptr;
 std::shared_ptr<BT::BehaviorTreeFactory> ClearEntireCostmapServiceTestFixture::factory_ = nullptr;
@@ -110,6 +110,51 @@ TEST_F(ClearEntireCostmapServiceTestFixture, test_tick)
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 0);
   EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 1);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->plugins.empty());
+}
+
+TEST_F(ClearEntireCostmapServiceTestFixture, test_tick_with_plugins)
+{
+  std::string xml_txt =
+    R"(
+      <root BTCPP_format="4">
+        <BehaviorTree ID="MainTree">
+            <ClearEntireCostmap service_name="clear_entire_costmap" plugins="obstacle_layer;inflation_layer"/>
+        </BehaviorTree>
+      </root>)";
+
+  tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
+  EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 0);
+  EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
+  EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 1);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->plugins.size(), 2u);
+  EXPECT_EQ(request->plugins[0], "obstacle_layer");
+  EXPECT_EQ(request->plugins[1], "inflation_layer");
+}
+
+TEST_F(ClearEntireCostmapServiceTestFixture, test_tick_with_single_plugin)
+{
+  std::string xml_txt =
+    R"(
+      <root BTCPP_format="4">
+        <BehaviorTree ID="MainTree">
+            <ClearEntireCostmap service_name="clear_entire_costmap" plugins="obstacle_layer"/>
+        </BehaviorTree>
+      </root>)";
+
+  tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
+  EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->plugins.size(), 1u);
+  EXPECT_EQ(request->plugins[0], "obstacle_layer");
 }
 
 class ClearCostmapExceptRegionService : public TestService<nav2_msgs::srv::ClearCostmapExceptRegion>
@@ -125,7 +170,7 @@ class ClearCostmapExceptRegionServiceTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<rclcpp::Node>("clear_costmap_except_region_test_fixture");
+    node_ = std::make_shared<nav2::LifecycleNode>("clear_costmap_except_region_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -174,13 +219,13 @@ public:
   static std::shared_ptr<ClearCostmapExceptRegionService> server_;
 
 protected:
-  static rclcpp::Node::SharedPtr node_;
+  static nav2::LifecycleNode::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-rclcpp::Node::SharedPtr
+nav2::LifecycleNode::SharedPtr
 ClearCostmapExceptRegionServiceTestFixture::node_ = nullptr;
 std::shared_ptr<ClearCostmapExceptRegionService>
 ClearCostmapExceptRegionServiceTestFixture::server_ = nullptr;
@@ -205,6 +250,31 @@ TEST_F(ClearCostmapExceptRegionServiceTestFixture, test_tick)
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 0);
   EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 1);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->plugins.empty());
+}
+
+TEST_F(ClearCostmapExceptRegionServiceTestFixture, test_tick_with_plugins)
+{
+  std::string xml_txt =
+    R"(
+      <root BTCPP_format="4">
+        <BehaviorTree ID="MainTree">
+            <ClearCostmapExceptRegion service_name="clear_costmap_except_region"
+              reset_distance="2.0" plugins="obstacle_layer"/>
+        </BehaviorTree>
+      </root>)";
+
+  tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
+  EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->plugins.size(), 1u);
+  EXPECT_EQ(request->plugins[0], "obstacle_layer");
+  EXPECT_DOUBLE_EQ(request->reset_distance, 2.0);
 }
 //******************************************
 class ClearCostmapAroundRobotService : public TestService<nav2_msgs::srv::ClearCostmapAroundRobot>
@@ -220,7 +290,7 @@ class ClearCostmapAroundRobotServiceTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<rclcpp::Node>("clear_costmap_around_robot_test_fixture");
+    node_ = std::make_shared<nav2::LifecycleNode>("clear_costmap_around_robot_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -269,13 +339,13 @@ public:
   static std::shared_ptr<ClearCostmapAroundRobotService> server_;
 
 protected:
-  static rclcpp::Node::SharedPtr node_;
+  static nav2::LifecycleNode::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-rclcpp::Node::SharedPtr
+nav2::LifecycleNode::SharedPtr
 ClearCostmapAroundRobotServiceTestFixture::node_ = nullptr;
 std::shared_ptr<ClearCostmapAroundRobotService>
 ClearCostmapAroundRobotServiceTestFixture::server_ = nullptr;
@@ -300,6 +370,32 @@ TEST_F(ClearCostmapAroundRobotServiceTestFixture, test_tick)
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 0);
   EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 1);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->plugins.empty());
+}
+
+TEST_F(ClearCostmapAroundRobotServiceTestFixture, test_tick_with_plugins)
+{
+  std::string xml_txt =
+    R"(
+      <root BTCPP_format="4">
+        <BehaviorTree ID="MainTree">
+            <ClearCostmapAroundRobot service_name="clear_costmap_around_robot"
+              reset_distance="1.5" plugins="obstacle_layer;voxel_layer"/>
+        </BehaviorTree>
+      </root>)";
+
+  tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
+  EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->plugins.size(), 2u);
+  EXPECT_EQ(request->plugins[0], "obstacle_layer");
+  EXPECT_EQ(request->plugins[1], "voxel_layer");
+  EXPECT_DOUBLE_EQ(request->reset_distance, 1.5);
 }
 
 class ClearCostmapAroundPoseService : public TestService<nav2_msgs::srv::ClearCostmapAroundPose>
@@ -315,7 +411,7 @@ class ClearCostmapAroundPoseServiceTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<rclcpp::Node>("clear_costmap_around_pose_test_fixture");
+    node_ = std::make_shared<nav2::LifecycleNode>("clear_costmap_around_pose_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -364,13 +460,13 @@ public:
   static std::shared_ptr<ClearCostmapAroundPoseService> server_;
 
 protected:
-  static rclcpp::Node::SharedPtr node_;
+  static nav2::LifecycleNode::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-rclcpp::Node::SharedPtr
+nav2::LifecycleNode::SharedPtr
 ClearCostmapAroundPoseServiceTestFixture::node_ = nullptr;
 std::shared_ptr<ClearCostmapAroundPoseService>
 ClearCostmapAroundPoseServiceTestFixture::server_ = nullptr;
@@ -395,6 +491,31 @@ TEST_F(ClearCostmapAroundPoseServiceTestFixture, test_tick)
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 0);
   EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 1);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->plugins.empty());
+}
+
+TEST_F(ClearCostmapAroundPoseServiceTestFixture, test_tick_with_plugins)
+{
+  std::string xml_txt =
+    R"(
+      <root BTCPP_format="4">
+        <BehaviorTree ID="MainTree">
+            <ClearCostmapAroundPose service_name="clear_costmap_around_pose"
+              reset_distance="2.5" plugins="obstacle_layer"/>
+        </BehaviorTree>
+      </root>)";
+
+  tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
+  EXPECT_EQ(tree_->rootNode()->executeTick(), BT::NodeStatus::SUCCESS);
+
+  auto request = server_->getCurrentRequest();
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->plugins.size(), 1u);
+  EXPECT_EQ(request->plugins[0], "obstacle_layer");
+  EXPECT_DOUBLE_EQ(request->reset_distance, 2.5);
 }
 
 int main(int argc, char ** argv)

@@ -18,12 +18,13 @@
 #include <string>
 #include <memory>
 
-#include "rclcpp/rclcpp.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "behaviortree_cpp/condition_node.h"
 #include "behaviortree_cpp/json_export.h"
-#include "tf2_ros/buffer.h"
 #include "nav2_behavior_tree/bt_utils.hpp"
 #include "nav2_behavior_tree/json_utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+
 
 namespace nav2_behavior_tree
 {
@@ -31,6 +32,12 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::ConditionNode that returns SUCCESS when a specified goal
  * is reached and FAILURE otherwise
+ * @note  It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <GoalReached goal="{goal}" robot_base_frame="base_link"/>
+ * @endcode
  */
 class GoalReachedCondition : public BT::ConditionNode
 {
@@ -79,7 +86,6 @@ public:
 
     return {
       BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination"),
-      BT::InputPort<std::string>("global_frame", "Global frame"),
       BT::InputPort<std::string>("robot_base_frame", "Robot base frame")
     };
   }
@@ -92,8 +98,8 @@ protected:
   {}
 
 private:
-  rclcpp::Node::SharedPtr node_;
-  std::shared_ptr<tf2_ros::Buffer> tf_;
+  nav2::LifecycleNode::SharedPtr node_;
+  nav2::TransformBuffer::SharedPtr tf_;
 
   double goal_reached_tol_;
   double transform_tolerance_;

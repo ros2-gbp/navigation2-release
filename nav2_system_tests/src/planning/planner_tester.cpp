@@ -20,6 +20,7 @@
 #include <memory>
 #include <iostream>
 #include <chrono>
+#include <thread>
 #include <sstream>
 #include <iomanip>
 
@@ -38,12 +39,11 @@ namespace nav2_system_tests
 {
 
 PlannerTester::PlannerTester()
-: Node("PlannerTester"), is_active_(false),
+: nav2::LifecycleNode("PlannerTester"), is_active_(false),
   map_set_(false), costmap_set_(false),
   using_fake_costmap_(true), trinary_costmap_(true),
   track_unknown_space_(false), lethal_threshold_(100), unknown_cost_value_(-1),
-  testCostmapType_(TestCostmap::open_space), base_transform_(nullptr),
-  map_publish_rate_(100s)
+  testCostmapType_(TestCostmap::open_space), base_transform_(nullptr)
 {
 }
 
@@ -56,7 +56,7 @@ void PlannerTester::activate()
   is_active_ = true;
 
   // Launch a thread to process the messages for this node
-  spin_thread_ = std::make_unique<nav2_util::NodeThread>(this);
+  spin_thread_ = std::make_unique<nav2::NodeThread>(this);
 
   // We start with a 10x10 grid with no obstacles
   costmap_ = std::make_unique<Costmap>(this);
@@ -69,13 +69,14 @@ void PlannerTester::activate()
   planner_tester_ = std::make_shared<NavFnPlannerTester>();
   planner_tester_->declare_parameter(
     "GridBased.use_astar", rclcpp::ParameterValue(true));
-  planner_tester_->set_parameter(
-    rclcpp::Parameter(std::string("GridBased.use_astar"), rclcpp::ParameterValue(true)));
-  planner_tester_->set_parameter(
-    rclcpp::Parameter(std::string("expected_planner_frequency"), rclcpp::ParameterValue(-1.0)));
+  planner_tester_->declare_parameter(
+    "expected_planner_frequency", rclcpp::ParameterValue(-1.0));
+  planner_tester_->declare_parameter(
+    "costmap_update_timeout", rclcpp::ParameterValue(0.0));
   planner_tester_->onConfigure(state);
   publishRobotTransform();
-  map_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("map", 1);
+  map_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("map");
+  map_pub_->on_activate();
   path_valid_client_ = this->create_client<nav2_msgs::srv::IsPathValid>("is_path_valid");
   rclcpp::Rate r(1);
   r.sleep();
@@ -112,7 +113,7 @@ PlannerTester::~PlannerTester()
 void PlannerTester::startRobotTransform()
 {
   // Provide the robot pose transform
-  tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+  tf_broadcaster_ = nav2::create_transform_broadcaster(this);
 
   // Set an initial pose
   geometry_msgs::msg::Point robot_position;
@@ -348,7 +349,7 @@ bool PlannerTester::defaultPlannerRandomTests(
     "Tested with %u tests. Planner failed on %u. Test time %ld ms",
     number_tests, num_fail, elapsed.count());
 
-  if ((num_fail / number_tests) > acceptable_fail_ratio) {
+  if ((static_cast<float>(num_fail) / static_cast<float>(number_tests)) > acceptable_fail_ratio) {
     return false;
   }
 
@@ -364,7 +365,7 @@ bool PlannerTester::plannerTest(
 
   // First make available the current robot position for the planner to take as starting point
   updateRobotPosition(robot_position);
-  sleep(0.05);
+  std::this_thread::sleep_for(50ms);
 
   // Then request to compute a path
   TaskStatus status = createPlan(goal, path);
@@ -397,13 +398,23 @@ TaskStatus PlannerTester::createPlan(
   return TaskStatus::FAILED;
 }
 
-bool PlannerTester::isPathValid(nav_msgs::msg::Path & path)
+std::shared_ptr<nav2_msgs::srv::IsPathValid::Response> PlannerTester::isPathValid(
+  nav_msgs::msg::Path & path, unsigned int max_cost,
+  bool consider_unknown_as_obstacle, const std::string & layer_name,
+  const std::string & footprint, bool stop_at_first_collision,
+  double max_lookahead_distance)
 {
   planner_tester_->setCostmap(costmap_.get());
   // create a fake service request
   auto request = std::make_shared<nav2_msgs::srv::IsPathValid::Request>();
   request->path = path;
-  auto result = path_valid_client_->async_send_request(request);
+  request->max_cost = max_cost;
+  request->consider_unknown_as_obstacle = consider_unknown_as_obstacle;
+  request->layer_name = layer_name;
+  request->footprint = footprint;
+  request->stop_at_first_collision = stop_at_first_collision;
+  request->max_lookahead_distance = max_lookahead_distance;
+  auto result = path_valid_client_->async_call(request);
 
   RCLCPP_INFO(this->get_logger(), "Waiting for service complete");
   if (rclcpp::spin_until_future_complete(
@@ -411,10 +422,10 @@ bool PlannerTester::isPathValid(nav_msgs::msg::Path & path)
       std::chrono::milliseconds(100)) ==
     rclcpp::FutureReturnCode::SUCCESS)
   {
-    return result.get()->is_valid;
+    return result.get();
   } else {
     RCLCPP_INFO(get_logger(), "Failed to call is_path_valid service");
-    return false;
+    return nullptr;
   }
 }
 

@@ -16,28 +16,35 @@
 #define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__GET_CURRENT_POSE_ACTION_HPP_
 
 #include <memory>
+#include <vector>
 #include <string>
 
+#include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "tf2_ros/buffer.h"
-#include "rclcpp/rclcpp.hpp"
-#include "behaviortree_cpp/action_node.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "nav2_behavior_tree/bt_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
+#include "nav2_behavior_tree/bt_utils.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
+
+#include "behaviortree_cpp/action_node.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
- * @brief Action Node to get the current robot pose from TF
+ * @brief A BT::ActionNodeBase to shorten path by some distance
+ *
+ * Usage in XML:
+ * @code
+ * <GetCurrentPose current_pose="{current_pose}"/>
+ * @endcode
  */
 class GetCurrentPoseAction : public BT::ActionNodeBase
 {
 public:
   /**
-   * @brief Constructor
+   * @brief A nav2_behavior_tree::GetCurrentPoseAction constructor
    * @param xml_tag_name Name for the XML tag for this node
    * @param conf BT node configuration
    */
@@ -47,19 +54,19 @@ public:
 
   /**
    * @brief Creates list of BT ports
-   * @return BT::PortsList
+   * @return BT::PortsList Containing basic ports along with node-specific ports
    */
   static BT::PortsList providedPorts()
   {
     return {
       BT::InputPort<std::string>("global_frame", "Global reference frame"),
-      BT::InputPort<std::string>("robot_base_frame", "Robot base frame"),
+      BT::InputPort<std::string>("robot_base_frame", "robot base frame"),
       BT::OutputPort<geometry_msgs::msg::PoseStamped>("current_pose", "Current pose output"),
     };
   }
 
 private:
-   /**
+  /**
    * @brief The other (optional) override required by a BT action.
    */
   void halt() override {}
@@ -71,8 +78,8 @@ private:
   BT::NodeStatus tick() override;
 
   std::string global_frame_, robot_base_frame_;
-  std::shared_ptr<tf2_ros::Buffer> tf_;
-  double transform_tolerance_;
+  nav2::TransformBuffer::SharedPtr tf_;
+  double transform_tolerance_{0.1};
 };
 
 }  // namespace nav2_behavior_tree

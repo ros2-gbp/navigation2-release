@@ -21,12 +21,18 @@
 #include "nav2_msgs/action/spin.hpp"
 
 #include "nav2_behavior_tree/bt_cancel_action_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::Wait
+ *
+ * Usage in XML:
+ * @code
+ * <CancelSpin server_name="Spin" server_timeout="10"/>
+ * @endcode
  */
 class SpinCancel : public BtCancelActionNode<nav2_msgs::action::Spin>
 {

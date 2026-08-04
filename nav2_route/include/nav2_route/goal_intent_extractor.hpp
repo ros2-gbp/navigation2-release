@@ -19,10 +19,10 @@
 #include <memory>
 #include <vector>
 
-#include "tf2_ros/transform_listener.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 #include "nav2_core/route_exceptions.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_util/node_utils.hpp"
+#include "nav2_ros_common/node_utils.hpp"
 #include "nav2_msgs/action/compute_route.hpp"
 #include "nav2_msgs/action/compute_and_track_route.hpp"
 #include "nav2_costmap_2d/costmap_subscriber.hpp"
@@ -62,17 +62,15 @@ public:
    * @param tf TF buffer for transformations
    * @param costmap_subscriber Costmap subscriber to use for traversability
    * @param route_frame Planning frame
-   * @param global_frame Global frame for costmap
    * @param base_frame Robot reference frame
    */
   void configure(
-    nav2_util::LifecycleNode::SharedPtr node,
+    nav2::LifecycleNode::SharedPtr node,
     Graph & graph,
     GraphToIDMap * id_to_graph_map,
-    std::shared_ptr<tf2_ros::Buffer> tf,
+    nav2::TransformBuffer::SharedPtr tf,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & route_frame,
-    const std::string & global_frame,
     const std::string & base_frame);
 
   /**
@@ -131,11 +129,10 @@ protected:
   std::shared_ptr<NodeSpatialTree> node_spatial_tree_;
   GraphToIDMap * id_to_graph_map_;
   Graph * graph_;
-  std::shared_ptr<tf2_ros::Buffer> tf_;
+  nav2::TransformBuffer::SharedPtr tf_;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber_;
   std::string route_frame_;
   std::string base_frame_;
-  std::string global_frame_;
   geometry_msgs::msg::PoseStamped start_, goal_;
   bool prune_goal_, enable_search_;
   int max_nn_search_iterations_;

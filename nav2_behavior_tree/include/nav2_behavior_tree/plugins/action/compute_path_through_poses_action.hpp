@@ -18,10 +18,10 @@
 #include <string>
 #include <vector>
 
-#include "behaviortree_cpp/json_export.h"
 #include "nav2_msgs/action/compute_path_through_poses.hpp"
-#include "nav_msgs/msg/path.h"
+#include "nav_msgs/msg/path.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -29,6 +29,14 @@ namespace nav2_behavior_tree
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::ComputePathThroughPoses
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <ComputePathThroughPoses goals="{goals}" path="{path}" planner_id="GridBased"
+ *                          server_name="ComputePathThroughPoses" server_timeout="10"
+ *                          error_code_id="{compute_path_error_code}" error_msg="{compute_path_error_msg}"/>
+ * @endcode
  */
 class ComputePathThroughPosesAction
   : public BtActionNode<nav2_msgs::action::ComputePathThroughPoses>
@@ -64,9 +72,20 @@ public:
   BT::NodeStatus on_aborted() override;
 
   /**
-   * @brief Function to perform some user-defined operation upon cancelation of the action
+   * @brief Function to perform some user-defined operation upon cancellation of the action
    */
   BT::NodeStatus on_cancelled() override;
+
+  /**
+   * @brief Function to perform work in a BT Node when the action server times out
+   * Such as setting the error code ID status to timed out for action clients.
+   */
+  void on_timeout() override;
+
+  /**
+   * \brief Override required by the a BT action. Cancel the action and set the path output
+   */
+  void halt() override;
 
   /**
    * @brief Creates list of BT ports
@@ -80,7 +99,7 @@ public:
 
     return providedBasicPorts(
       {
-        BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
+        BT::InputPort<nav_msgs::msg::Goals>(
           "goals",
           "Destinations to plan through"),
         BT::InputPort<geometry_msgs::msg::PoseStamped>(
@@ -89,8 +108,8 @@ public:
           "planner_id", "",
           "Mapped name to the planner plugin type to use"),
         BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputePathThroughPoses node"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The compute path through poses error code"),
+        BT::OutputPort<int>(
+          "last_reached_index", "Index of the last reachable pose from requested list of poses"),
       });
   }
 };

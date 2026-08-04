@@ -19,7 +19,7 @@
 
 #include "pluginlib/class_list_macros.hpp"
 
-#include "nav2_util/node_utils.hpp"
+#include "nav2_ros_common/node_utils.hpp"
 
 namespace nav2_waypoint_follower
 {
@@ -32,31 +32,22 @@ PhotoAtWaypoint::~PhotoAtWaypoint()
 }
 
 void PhotoAtWaypoint::initialize(
-  const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+  const nav2::LifecycleNode::WeakPtr & parent,
   const std::string & plugin_name)
 {
   auto node = parent.lock();
 
   curr_frame_msg_ = std::make_shared<sensor_msgs::msg::Image>();
 
-  nav2_util::declare_parameter_if_not_declared(
-    node, plugin_name + ".enabled",
-    rclcpp::ParameterValue(true));
-  nav2_util::declare_parameter_if_not_declared(
-    node, plugin_name + ".image_topic",
-    rclcpp::ParameterValue("/camera/color/image_raw"));
-  nav2_util::declare_parameter_if_not_declared(
-    node, plugin_name + ".save_dir",
-    rclcpp::ParameterValue("/tmp/waypoint_images"));
-  nav2_util::declare_parameter_if_not_declared(
-    node, plugin_name + ".image_format",
-    rclcpp::ParameterValue("png"));
-
   std::string save_dir_as_string;
-  node->get_parameter(plugin_name + ".enabled", is_enabled_);
-  node->get_parameter(plugin_name + ".image_topic", image_topic_);
-  node->get_parameter(plugin_name + ".save_dir", save_dir_as_string);
-  node->get_parameter(plugin_name + ".image_format", image_format_);
+  save_dir_as_string = node->declare_or_get_parameter(
+    plugin_name + ".save_dir", std::string("/tmp/waypoint_images"));
+  image_topic_ = node->declare_or_get_parameter(
+    plugin_name + ".image_topic", std::string("/camera/color/image_raw"));
+  image_format_ = node->declare_or_get_parameter(
+    plugin_name + ".image_format", std::string("png"));
+  is_enabled_ = node->declare_or_get_parameter(
+    plugin_name + ".enabled", true);
 
   // get inputted save directory and make sure it exists, if not log and create  it
   save_dir_ = save_dir_as_string;
@@ -93,7 +84,7 @@ void PhotoAtWaypoint::initialize(
       logger_, "Initializing photo at waypoint plugin, subscribing to camera topic named; %s",
       image_topic_.c_str());
     camera_image_subscriber_ = node->create_subscription<sensor_msgs::msg::Image>(
-      image_topic_, rclcpp::SystemDefaultsQoS(),
+      image_topic_,
       std::bind(&PhotoAtWaypoint::imageCallback, this, std::placeholders::_1));
   }
 }
@@ -119,10 +110,10 @@ bool PhotoAtWaypoint::processAtWaypoint(
     std::lock_guard<std::mutex> guard(global_mutex_);
     cv::Mat curr_frame_mat;
     deepCopyMsg2Mat(curr_frame_msg_, curr_frame_mat);
-    cv::imwrite(full_path_image_path.c_str(), curr_frame_mat);
+    cv::imwrite(full_path_image_path.string().c_str(), curr_frame_mat);
     RCLCPP_INFO(
       logger_,
-      "Photo has been taken sucessfully at waypoint %i", curr_waypoint_index);
+      "Photo has been taken successfully at waypoint %i", curr_waypoint_index);
   } catch (const std::exception & e) {
     RCLCPP_ERROR(
       logger_,
@@ -135,14 +126,14 @@ bool PhotoAtWaypoint::processAtWaypoint(
   return true;
 }
 
-void PhotoAtWaypoint::imageCallback(const sensor_msgs::msg::Image::SharedPtr msg)
+void PhotoAtWaypoint::imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
 {
   std::lock_guard<std::mutex> guard(global_mutex_);
   curr_frame_msg_ = msg;
 }
 
 void PhotoAtWaypoint::deepCopyMsg2Mat(
-  const sensor_msgs::msg::Image::SharedPtr & msg,
+  const sensor_msgs::msg::Image::ConstSharedPtr & msg,
   cv::Mat & mat)
 {
   cv_bridge::CvImageConstPtr cv_bridge_ptr = cv_bridge::toCvShare(msg, msg->encoding);

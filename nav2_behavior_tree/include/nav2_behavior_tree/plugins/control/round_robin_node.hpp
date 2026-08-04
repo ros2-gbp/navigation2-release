@@ -49,7 +49,12 @@ namespace nav2_behavior_tree
  * If all children return FAILURE, RoundRobin will return FAILURE
  * and halt all children, ending the sequence.
  *
- * Usage in XML: <RoundRobin>
+ * Usage in XML:
+ * @code
+ * <RoundRobin wrap_around="false">
+ *     <!--Add tree components here-->
+ * </RoundRobin>
+ * @endcode
  */
 class RoundRobinNode : public BT::ControlNode
 {
@@ -82,11 +87,18 @@ public:
    * @brief Creates list of BT ports
    * @return BT::PortsList Containing basic ports along with node-specific ports
    */
-  static BT::PortsList providedPorts() {return {};}
+  static BT::PortsList providedPorts()
+  {
+    return {
+      BT::InputPort<bool>("wrap_around", false,
+          "Enable wrap-around to first child after last child fails")
+    };
+  }
 
 private:
   unsigned int current_child_idx_{0};
   unsigned int num_failed_children_{0};
+  bool wrap_around_{false};
 };
 
 }  // namespace nav2_behavior_tree

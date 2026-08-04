@@ -25,7 +25,7 @@
 #include "behaviortree_cpp/loggers/groot2_publisher.h"
 #include "behaviortree_cpp/xml_parsing.h"
 
-#include "rclcpp/rclcpp.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -35,6 +35,16 @@ namespace nav2_behavior_tree
  * @brief An enum class representing BT execution status
  */
 enum class BtStatus { SUCCEEDED, FAILED, CANCELED };
+
+/**
+ * @struct nav2_behavior_tree::BTInfo
+ * @brief A struct to hold Behavior Tree ID information
+ */
+struct BTInfo
+{
+  std::string main_id;
+  std::vector<std::string> behavior_tree_ids;
+};
 
 /**
  * @class nav2_behavior_tree::BehaviorTreeEngine
@@ -49,7 +59,7 @@ public:
    */
   explicit BehaviorTreeEngine(
     const std::vector<std::string> & plugin_libraries,
-    rclcpp::Node::SharedPtr node);
+    nav2::LifecycleNode::SharedPtr node);
   virtual ~BehaviorTreeEngine() {}
 
   /**
@@ -87,6 +97,23 @@ public:
     BT::Blackboard::Ptr blackboard);
 
   /**
+   * @brief Function to parse Behavior Tree information from an XML file
+   * @param filename Path to BT XML file
+   * @return BTInfo Struct containing BT ID information
+   */
+  BTInfo parseTreeInfo(const std::string & filename);
+
+  /**
+ * @brief Function to create a BT from a BehaviorTree ID
+ * @param tree_id BehaviorTree ID
+ * @param blackboard Blackboard for BT
+ * @return BT::Tree Created behavior tree
+  */
+  BT::Tree createTree(
+    const std::string & tree_id,
+    BT::Blackboard::Ptr blackboard);
+
+  /**
    * @brief Add Groot2 monitor to publish BT status changes
    * @param tree BT to monitor
    * @param server_port Groot2 Server port, first of the pair (server_port, publisher_port)
@@ -99,6 +126,12 @@ public:
   void resetGrootMonitor();
 
   /**
+   * @brief Function to register a BT from an XML file
+   * @param file_path Path to BT XML file
+   */
+  void registerTreeFromFile(const std::string & file_path);
+
+  /**
    * @brief Function to explicitly reset all BT nodes to initial state
    * @param tree Tree to halt
    */
@@ -108,8 +141,8 @@ protected:
   // The factory that will be used to dynamically construct the behavior tree
   BT::BehaviorTreeFactory factory_;
 
-  // Clock
-  rclcpp::Clock::SharedPtr clock_;
+  // Node handle used to obtain clocks at run time
+  nav2::LifecycleNode::WeakPtr node_;
 
   // Groot2 monitor
   std::unique_ptr<BT::Groot2Publisher> groot_monitor_;

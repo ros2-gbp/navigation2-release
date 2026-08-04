@@ -19,17 +19,10 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav2_route/utils.hpp"
 #include "nav2_route/types.hpp"
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route;  // NOLINT
 
@@ -167,8 +160,8 @@ TEST(UtilsTest, test_to_visualization_msg_conversion)
     expected_edge_markers + expected_node_markers +
     expected_edge_id_text_markers + expected_node_id_text_markers;
 
-  EXPECT_EQ(graph_msg.markers.size(), expected_total_markers);
-  for (auto & marker : graph_msg.markers) {
+  EXPECT_EQ(graph_msg->markers.size(), expected_total_markers);
+  for (auto & marker : graph_msg->markers) {
     if (marker.ns == "route_graph_ids") {
       EXPECT_EQ(marker.type, visualization_msgs::msg::Marker::TEXT_VIEW_FACING);
     } else if (marker.ns == "route_graph") {
@@ -351,4 +344,13 @@ TEST(UtilsTest, test_routing_state)
   EXPECT_EQ(state.closest_pt_on_edge.x, 0.0);
   EXPECT_EQ(state.rerouting_start_id, std::numeric_limits<unsigned int>::max());
   EXPECT_EQ(state.rerouting_start_pose.pose.position.x, 0.0);
+}
+
+int main(int argc, char ** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+  rclcpp::init(argc, argv);
+  int result = RUN_ALL_TESTS();
+  rclcpp::shutdown();
+  return result;
 }

@@ -41,7 +41,6 @@
 #include <memory>
 #include "dwb_core/exceptions.hpp"
 #include "nav2_costmap_2d/cost_values.hpp"
-#include "nav2_util/node_utils.hpp"
 
 using std::abs;
 using costmap_queue::CellData;
@@ -60,7 +59,7 @@ void MapGridCritic::onInit()
   costmap_ = costmap_ros_->getCostmap();
   queue_ = std::make_shared<MapGridQueue>(*costmap_, *this);
 
-  // Always set to true, but can be overriden by subclasses
+  // Always set to true, but can be overridden by subclasses
   stop_on_failure_ = true;
 
   auto node = node_.lock();
@@ -68,13 +67,9 @@ void MapGridCritic::onInit()
     throw std::runtime_error{"Failed to lock node"};
   }
 
-  nav2_util::declare_parameter_if_not_declared(
-    node,
+  std::string aggro_str = node->declare_or_get_parameter(
     dwb_plugin_name_ + "." + name_ + ".aggregation_type",
-    rclcpp::ParameterValue(std::string("last")));
-
-  std::string aggro_str;
-  node->get_parameter(dwb_plugin_name_ + "." + name_ + ".aggregation_type", aggro_str);
+    std::string("last"));
   std::transform(aggro_str.begin(), aggro_str.end(), aggro_str.begin(), ::tolower);
   if (aggro_str == "last") {
     aggregationType_ = ScoreAggregationType::Last;
@@ -105,7 +100,7 @@ void MapGridCritic::reset()
   std::fill(cell_values_.begin(), cell_values_.end(), unreachable_score_);
 }
 
-void MapGridCritic::propogateManhattanDistances()
+void MapGridCritic::propagateManhattanDistances()
 {
   while (!queue_->isEmpty()) {
     costmap_queue::CellData cell = queue_->getNextCell();
@@ -155,11 +150,11 @@ double MapGridCritic::scoreTrajectory(const dwb_msgs::msg::Trajectory2D & traj)
   return score;
 }
 
-double MapGridCritic::scorePose(const geometry_msgs::msg::Pose2D & pose)
+double MapGridCritic::scorePose(const geometry_msgs::msg::Pose & pose)
 {
   unsigned int cell_x, cell_y;
   // we won't allow trajectories that go off the map... shouldn't happen that often anyways
-  if (!costmap_->worldToMap(pose.x, pose.y, cell_x, cell_y)) {
+  if (!costmap_->worldToMap(pose.position.x, pose.position.y, cell_x, cell_y)) {
     throw dwb_core::
           IllegalTrajectoryException(name_, "Trajectory Goes Off Grid.");
   }

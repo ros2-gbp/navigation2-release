@@ -19,7 +19,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "utils/test_action_server.hpp"
+#include "nav2_behavior_tree/utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/assisted_teleop_action.hpp"
 
 class AssistedTeleopActionServer : public TestActionServer<nav2_msgs::action::AssistedTeleop>
@@ -52,7 +52,7 @@ class AssistedTeleopActionTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<rclcpp::Node>("backup_action_test_fixture");
+    node_ = std::make_shared<nav2::LifecycleNode>("backup_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
     config_ = new BT::NodeConfiguration();
 
@@ -106,13 +106,13 @@ public:
   static std::shared_ptr<AssistedTeleopActionServer> action_server_;
 
 protected:
-  static rclcpp::Node::SharedPtr node_;
+  static nav2::LifecycleNode::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-rclcpp::Node::SharedPtr AssistedTeleopActionTestFixture::node_ = nullptr;
+nav2::LifecycleNode::SharedPtr AssistedTeleopActionTestFixture::node_ = nullptr;
 std::shared_ptr<AssistedTeleopActionServer>
 AssistedTeleopActionTestFixture::action_server_ = nullptr;
 BT::NodeConfiguration * AssistedTeleopActionTestFixture::config_ = nullptr;

@@ -62,67 +62,75 @@ void VoxelLayer::onInitialize()
 {
   ObstacleLayer::onInitialize();
 
-  declareParameter("enabled", rclcpp::ParameterValue(true));
-  declareParameter("footprint_clearing_enabled", rclcpp::ParameterValue(true));
-  declareParameter("min_obstacle_height", rclcpp::ParameterValue(0.0));
-  declareParameter("max_obstacle_height", rclcpp::ParameterValue(2.0));
-  declareParameter("z_voxels", rclcpp::ParameterValue(10));
-  declareParameter("origin_z", rclcpp::ParameterValue(0.0));
-  declareParameter("z_resolution", rclcpp::ParameterValue(0.2));
-  declareParameter("unknown_threshold", rclcpp::ParameterValue(15));
-  declareParameter("mark_threshold", rclcpp::ParameterValue(0));
-  declareParameter("combination_method", rclcpp::ParameterValue(1));
-  declareParameter("publish_voxel_map", rclcpp::ParameterValue(false));
-
   auto node = node_.lock();
   if (!node) {
     throw std::runtime_error{"Failed to lock node"};
   }
 
-  node->get_parameter(name_ + "." + "enabled", enabled_);
-  node->get_parameter(name_ + "." + "footprint_clearing_enabled", footprint_clearing_enabled_);
-  node->get_parameter(name_ + "." + "min_obstacle_height", min_obstacle_height_);
-  node->get_parameter(name_ + "." + "max_obstacle_height", max_obstacle_height_);
-  node->get_parameter(name_ + "." + "z_voxels", size_z_);
-  node->get_parameter(name_ + "." + "origin_z", origin_z_);
-  node->get_parameter(name_ + "." + "z_resolution", z_resolution_);
-  node->get_parameter(name_ + "." + "unknown_threshold", unknown_threshold_);
-  node->get_parameter(name_ + "." + "mark_threshold", mark_threshold_);
-  node->get_parameter(name_ + "." + "publish_voxel_map", publish_voxel_);
-
-  int combination_method_param{};
-  node->get_parameter(name_ + "." + "combination_method", combination_method_param);
+  enabled_ = node->declare_or_get_parameter(name_ + "." + "enabled", true);
+  footprint_clearing_enabled_ = node->declare_or_get_parameter(
+    name_ + "." + "footprint_clearing_enabled", true);
+  min_obstacle_height_ = node->declare_or_get_parameter(
+    name_ + "." + "min_obstacle_height", 0.0);
+  max_obstacle_height_ = node->declare_or_get_parameter(
+    name_ + "." + "max_obstacle_height", 2.0);
+  size_z_ = node->declare_or_get_parameter(name_ + "." + "z_voxels", 10);
+  origin_z_ = node->declare_or_get_parameter(name_ + "." + "origin_z", 0.0);
+  z_resolution_ = node->declare_or_get_parameter(name_ + "." + "z_resolution", 0.2);
+  unknown_threshold_ = node->declare_or_get_parameter(
+    name_ + "." + "unknown_threshold", 15);
+  mark_threshold_ = node->declare_or_get_parameter(name_ + "." + "mark_threshold", 0);
+  int combination_method_param = node->declare_or_get_parameter(
+    name_ + "." + "combination_method", 1);
+  publish_voxel_ = node->declare_or_get_parameter(
+    name_ + "." + "publish_voxel_map", false);
   combination_method_ = combination_method_from_int(combination_method_param);
-
-  auto custom_qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable();
 
   if (publish_voxel_) {
     voxel_pub_ = node->create_publisher<nav2_msgs::msg::VoxelGrid>(
-      "voxel_grid", custom_qos);
+      "voxel_grid", nav2::qos::LatchedPublisherQoS(1));
     voxel_pub_->on_activate();
   }
 
   clearing_endpoints_pub_ = node->create_publisher<sensor_msgs::msg::PointCloud2>(
-    "clearing_endpoints", custom_qos);
+    "clearing_endpoints", nav2::qos::LatchedPublisherQoS());
   clearing_endpoints_pub_->on_activate();
 
   unknown_threshold_ += (VOXEL_BITS - size_z_);
   matchSize();
+}
 
+void VoxelLayer::activate()
+{
+  ObstacleLayer::activate();
+  auto node = node_.lock();
   // Add callback for dynamic parameters
-  dyn_params_handler_ = node->add_on_set_parameters_callback(
+  post_set_params_handler_ = node->add_post_set_parameters_callback(
     std::bind(
-      &VoxelLayer::dynamicParametersCallback,
+      &VoxelLayer::updateParametersCallback,
       this, std::placeholders::_1));
+  on_set_params_handler_ = node->add_on_set_parameters_callback(
+    std::bind(
+      &VoxelLayer::validateParameterUpdatesCallback,
+      this, std::placeholders::_1));
+}
+
+void VoxelLayer::deactivate()
+{
+  ObstacleLayer::deactivate();
+  auto node = node_.lock();
+  if (post_set_params_handler_ && node) {
+    node->remove_post_set_parameters_callback(post_set_params_handler_.get());
+  }
+  post_set_params_handler_.reset();
+  if (on_set_params_handler_ && node) {
+    node->remove_on_set_parameters_callback(on_set_params_handler_.get());
+  }
+  on_set_params_handler_.reset();
 }
 
 VoxelLayer::~VoxelLayer()
 {
-  auto node = node_.lock();
-  if (dyn_params_handler_ && node) {
-    node->remove_on_set_parameters_callback(dyn_params_handler_.get());
-  }
-  dyn_params_handler_.reset();
 }
 
 void VoxelLayer::matchSize()
@@ -165,7 +173,7 @@ void VoxelLayer::updateBounds(
   useExtraBounds(min_x, min_y, max_x, max_y);
 
   bool current = true;
-  std::vector<Observation> observations, clearing_observations;
+  std::vector<Observation::ConstSharedPtr> observations, clearing_observations;
 
   // get the marking observations
   current = getMarkingObservations(observations) && current;
@@ -174,20 +182,18 @@ void VoxelLayer::updateBounds(
   current = getClearingObservations(clearing_observations) && current;
 
   // update the global current status
-  current_ = current;
+  setCurrent(current);
 
   // raytrace freespace
-  for (unsigned int i = 0; i < clearing_observations.size(); ++i) {
-    raytraceFreespace(clearing_observations[i], min_x, min_y, max_x, max_y);
+  for (const auto & clearing_observation : clearing_observations) {
+    raytraceFreespace(*clearing_observation, min_x, min_y, max_x, max_y);
   }
 
   // place the new obstacles into a priority queue... each with a priority of zero to begin with
-  for (std::vector<Observation>::const_iterator it = observations.begin(); it != observations.end();
-    ++it)
-  {
-    const Observation & obs = *it;
+  for (const auto & observation : observations) {
+    const Observation & obs = *observation;
 
-    const sensor_msgs::msg::PointCloud2 & cloud = *(obs.cloud_);
+    const sensor_msgs::msg::PointCloud2 & cloud = obs.cloud_;
 
     double sq_obstacle_max_range = obs.obstacle_max_range_ * obs.obstacle_max_range_;
     double sq_obstacle_min_range = obs.obstacle_min_range_ * obs.obstacle_min_range_;
@@ -277,7 +283,7 @@ void VoxelLayer::raytraceFreespace(
 {
   auto clearing_endpoints_ = std::make_unique<sensor_msgs::msg::PointCloud2>();
 
-  if (clearing_observation.cloud_->height == 0 || clearing_observation.cloud_->width == 0) {
+  if (clearing_observation.cloud_.height == 0 || clearing_observation.cloud_.width == 0) {
     return;
   }
 
@@ -311,8 +317,8 @@ void VoxelLayer::raytraceFreespace(
   }
 
   clearing_endpoints_->data.clear();
-  clearing_endpoints_->width = clearing_observation.cloud_->width;
-  clearing_endpoints_->height = clearing_observation.cloud_->height;
+  clearing_endpoints_->width = clearing_observation.cloud_.width;
+  clearing_endpoints_->height = clearing_observation.cloud_.height;
   clearing_endpoints_->is_dense = true;
   clearing_endpoints_->is_bigendian = false;
 
@@ -326,14 +332,14 @@ void VoxelLayer::raytraceFreespace(
   sensor_msgs::PointCloud2Iterator<float> clearing_endpoints_iter_y(*clearing_endpoints_, "y");
   sensor_msgs::PointCloud2Iterator<float> clearing_endpoints_iter_z(*clearing_endpoints_, "z");
 
-  // we can pre-compute the enpoints of the map outside of the inner loop... we'll need these later
+  // we can pre-compute the endpoints of the map outside of the inner loop... we'll need these later
   double map_end_x = origin_x_ + getSizeInMetersX();
   double map_end_y = origin_y_ + getSizeInMetersY();
   double map_end_z = origin_z_ + getSizeInMetersZ();
 
-  sensor_msgs::PointCloud2ConstIterator<float> iter_x(*(clearing_observation.cloud_), "x");
-  sensor_msgs::PointCloud2ConstIterator<float> iter_y(*(clearing_observation.cloud_), "y");
-  sensor_msgs::PointCloud2ConstIterator<float> iter_z(*(clearing_observation.cloud_), "z");
+  sensor_msgs::PointCloud2ConstIterator<float> iter_x(clearing_observation.cloud_, "x");
+  sensor_msgs::PointCloud2ConstIterator<float> iter_y(clearing_observation.cloud_, "y");
+  sensor_msgs::PointCloud2ConstIterator<float> iter_z(clearing_observation.cloud_, "z");
 
   for (; iter_x != iter_x.end(); ++iter_x, ++iter_y, ++iter_z) {
     double wpx = *iter_x;
@@ -431,7 +437,7 @@ void VoxelLayer::raytraceFreespace(
 
   if (publish_clearing_points) {
     clearing_endpoints_->header.frame_id = global_frame_;
-    clearing_endpoints_->header.stamp = clearing_observation.cloud_->header.stamp;
+    clearing_endpoints_->header.stamp = clearing_observation.cloud_.header.stamp;
 
     clearing_endpoints_pub_->publish(std::move(clearing_endpoints_));
   }
@@ -445,7 +451,7 @@ void VoxelLayer::updateOrigin(double new_origin_x, double new_origin_y)
   cell_oy = static_cast<int>((new_origin_y - origin_y_) / resolution_);
 
   // compute the associated world coordinates for the origin cell
-  // beacuase we want to keep things grid-aligned
+  // because we want to keep things grid-aligned
   double new_grid_ox, new_grid_oy;
   new_grid_ox = origin_x_ + cell_ox * resolution_;
   new_grid_oy = origin_y_ + cell_oy * resolution_;
@@ -504,55 +510,97 @@ void VoxelLayer::updateOrigin(double new_origin_x, double new_origin_y)
   delete[] local_voxel_map;
 }
 
-/**
-  * @brief Callback executed when a parameter change is detected
-  * @param event ParameterEvent message
-  */
-rcl_interfaces::msg::SetParametersResult
-VoxelLayer::dynamicParametersCallback(
-  std::vector<rclcpp::Parameter> parameters)
+rcl_interfaces::msg::SetParametersResult VoxelLayer::validateParameterUpdatesCallback(
+  const std::vector<rclcpp::Parameter> & parameters)
 {
-  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
   rcl_interfaces::msg::SetParametersResult result;
-  bool resize_map_needed = false;
-
-  for (auto parameter : parameters) {
+  result.successful = true;
+  for (const auto & parameter : parameters) {
     const auto & param_type = parameter.get_type();
     const auto & param_name = parameter.get_name();
+    if (param_name.find(name_ + ".") != 0) {
+      continue;
+    }
+    if (param_name == name_ + "." + "publish_voxel_map") {
+      RCLCPP_WARN(
+        logger_, "publish voxel map is not a dynamic parameter "
+        "cannot be changed while running. Rejecting parameter update.");
+      result.successful = false;
+    } else if (param_type == ParameterType::PARAMETER_DOUBLE) {
+      if (parameter.as_double() < 0.0 && param_name == name_ + "." + "z_resolution") {
+        RCLCPP_WARN(
+        logger_, "The value of parameter '%s' is incorrectly set to %f, "
+        "it should be >=0. Ignoring parameter update.",
+        param_name.c_str(), parameter.as_double());
+        result.successful = false;
+      }
+    }
+  }
+  return result;
+}
+
+void
+VoxelLayer::updateParametersCallback(
+  const std::vector<rclcpp::Parameter> & parameters)
+{
+  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
+  bool resize_map_needed = false;
+
+  for (const auto & parameter : parameters) {
+    const auto & param_type = parameter.get_type();
+    const auto & param_name = parameter.get_name();
+    if (param_name.find(name_ + ".") != 0) {
+      continue;
+    }
 
     if (param_type == ParameterType::PARAMETER_DOUBLE) {
-      if (param_name == name_ + "." + "min_obstacle_height") {
+      if (param_name == name_ + "." + "min_obstacle_height" &&
+        min_obstacle_height_ != parameter.as_double())
+      {
         min_obstacle_height_ = parameter.as_double();
-      } else if (param_name == name_ + "." + "max_obstacle_height") {
+        setCurrent(false);
+      } else if (param_name == name_ + "." + "max_obstacle_height" &&  // NOLINT(readability/braces)
+        max_obstacle_height_ != parameter.as_double())
+      {
         max_obstacle_height_ = parameter.as_double();
-      } else if (param_name == name_ + "." + "origin_z") {
+        setCurrent(false);
+      } else if (param_name == name_ + "." + "origin_z" &&  // NOLINT(readability/braces)
+        origin_z_ != parameter.as_double())
+      {
         origin_z_ = parameter.as_double();
         resize_map_needed = true;
-      } else if (param_name == name_ + "." + "z_resolution") {
+        setCurrent(false);
+      } else if (param_name == name_ + "." + "z_resolution" &&  // NOLINT(readability/braces)
+        z_resolution_ != parameter.as_double())
+      {
         z_resolution_ = parameter.as_double();
         resize_map_needed = true;
+        setCurrent(false);
       }
+
     } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == name_ + "." + "enabled") {
+      if (param_name == name_ + "." + "enabled" &&
+        enabled_ != parameter.as_bool())
+      {
         enabled_ = parameter.as_bool();
-        current_ = false;
+        setCurrent(false);
       } else if (param_name == name_ + "." + "footprint_clearing_enabled") {
         footprint_clearing_enabled_ = parameter.as_bool();
-      } else if (param_name == name_ + "." + "publish_voxel_map") {
-        RCLCPP_WARN(
-          logger_, "publish voxel map is not a dynamic parameter "
-          "cannot be changed while running. Rejecting parameter update.");
-        continue;
       }
 
     } else if (param_type == ParameterType::PARAMETER_INTEGER) {
-      if (param_name == name_ + "." + "z_voxels") {
+      if (param_name == name_ + "." + "z_voxels" &&
+        size_z_ != parameter.as_int())
+      {
         size_z_ = parameter.as_int();
         resize_map_needed = true;
+        setCurrent(false);
       } else if (param_name == name_ + "." + "unknown_threshold") {
         unknown_threshold_ = parameter.as_int() + (VOXEL_BITS - size_z_);
+        setCurrent(false);
       } else if (param_name == name_ + "." + "mark_threshold") {
         mark_threshold_ = parameter.as_int();
+        setCurrent(false);
       } else if (param_name == name_ + "." + "combination_method") {
         combination_method_ = combination_method_from_int(parameter.as_int());
       }
@@ -562,9 +610,6 @@ VoxelLayer::dynamicParametersCallback(
   if (resize_map_needed) {
     matchSize();
   }
-
-  result.successful = true;
-  return result;
 }
 
 }  // namespace nav2_costmap_2d

@@ -21,7 +21,7 @@
 #include "nav2_msgs/action/compute_and_track_route.hpp"
 
 #include "nav2_behavior_tree/bt_cancel_action_node.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -29,6 +29,11 @@ namespace nav2_behavior_tree
 /**
  * @brief A nav2_behavior_tree::BtActionNode class
  * that wraps nav2_msgs::action::ComputeAndTrackRoute cancellation
+ *
+ * Usage in XML:
+ * @code
+ * <CancelComputeAndTrackRoute server_name="compute_and_track_route" server_timeout="10"/>
+ * @endcode
  */
 class ComputeAndTrackRouteCancel
   : public BtCancelActionNode<nav2_msgs::action::ComputeAndTrackRoute>

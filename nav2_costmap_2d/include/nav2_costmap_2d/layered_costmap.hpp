@@ -190,7 +190,7 @@ public:
   /** @brief Returns the latest footprint stored with setFootprint(). */
   const std::vector<geometry_msgs::msg::Point> & getFootprint()
   {
-    return *std::atomic_load(&footprint_);
+    return *footprint_.load();
   }
 
   /** @brief The radius of a circle centered at the origin of the
@@ -216,13 +216,12 @@ private:
   // combined_costmap_ is a final costmap where all results produced by plugins and filters (if any)
   // to be merged.
   // The separation is aimed to avoid interferences of work between plugins and filters.
-  // primay_costmap_ and combined_costmap_ have the same sizes, origins and default values.
+  // primary_costmap_ and combined_costmap_ have the same sizes, origins and default values.
   Costmap2D primary_costmap_, combined_costmap_;
   std::string global_frame_;
 
   bool rolling_window_;  /// < @brief Whether or not the costmap should roll with the robot
 
-  bool current_;
   double minx_, miny_, maxx_, maxy_;
   unsigned int bx0_, bxn_, by0_, byn_;
 
@@ -232,7 +231,7 @@ private:
   bool initialized_;
   bool size_locked_;
   std::atomic<double> circumscribed_radius_, inscribed_radius_;
-  std::shared_ptr<std::vector<geometry_msgs::msg::Point>> footprint_;
+  std::atomic<std::shared_ptr<std::vector<geometry_msgs::msg::Point>>> footprint_;
 };
 
 }  // namespace nav2_costmap_2d

@@ -19,15 +19,24 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
+from nav2_common.launch import RewrittenYaml
 
 
-def generate_launch_description():
+def generate_launch_description() -> LaunchDescription:
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
     config = os.path.join(
         get_package_share_directory('nav2_bringup'), 'params', 'nav2_params.yaml'
     )
     map_file = os.path.join(nav2_bringup_dir, 'maps', 'tb3_sandbox.yaml')
     lifecycle_nodes = ['map_server', 'planner_server']
+    config = RewrittenYaml(
+        source_file=config, root_key='', param_rewrites={},
+        value_rewrites={
+            'KEEPOUT_ZONE_ENABLED': 'False',
+            'SPEED_ZONE_ENABLED': 'False',
+        },
+        convert_types=True
+    )
 
     return LaunchDescription(
         [
@@ -94,7 +103,7 @@ def generate_launch_description():
                 PythonLaunchDescriptionSource(
                     os.path.join(nav2_bringup_dir, 'launch', 'rviz_launch.py')
                 ),
-                launch_arguments={'namespace': '', 'use_namespace': 'False'}.items(),
+                launch_arguments={'namespace': ''}.items(),
             ),
         ]
     )

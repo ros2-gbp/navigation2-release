@@ -14,22 +14,20 @@
 
 #include <gtest/gtest.h>
 
-#include <math.h>
 #include <chrono>
+#include <cmath>
+#include <limits>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
-#include <string>
-#include <limits>
 
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "geometry_msgs/msg/point32.hpp"
 #include "geometry_msgs/msg/polygon_stamped.hpp"
 
-#include "tf2_ros/buffer.h"
-#include "tf2_ros/transform_listener.h"
-#include "tf2_ros/transform_broadcaster.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 #include "nav2_collision_monitor/types.hpp"
 #include "nav2_collision_monitor/polygon.hpp"
@@ -68,50 +66,42 @@ static const bool IS_NOT_HOLONOMIC{false};
 static const int MIN_POINTS{2};
 static const tf2::Duration TRANSFORM_TOLERANCE{tf2::durationFromSec(0.1)};
 
-class TestNode : public nav2_util::LifecycleNode
+class TestNode : public nav2::LifecycleNode
 {
 public:
   TestNode()
-  : nav2_util::LifecycleNode("test_node"), polygon_received_(nullptr)
+  : nav2::LifecycleNode("test_node"), polygon_received_(nullptr)
   {
-    polygon_sub_ = this->create_subscription<geometry_msgs::msg::PolygonStamped>(
-      POLYGON_PUB_TOPIC, rclcpp::SystemDefaultsQoS(),
-      std::bind(&TestNode::polygonCallback, this, std::placeholders::_1));
   }
 
   ~TestNode() {}
 
-  void polygonCallback(geometry_msgs::msg::PolygonStamped::SharedPtr msg)
+  nav2::CallbackReturn on_configure(
+    const rclcpp_lifecycle::State & /*previous_state*/) override
+  {
+    polygon_sub_ = this->create_subscription<geometry_msgs::msg::PolygonStamped>(
+      POLYGON_PUB_TOPIC,
+      std::bind(&TestNode::polygonCallback, this, std::placeholders::_1));
+    return nav2::CallbackReturn::SUCCESS;
+  }
+
+  void polygonCallback(geometry_msgs::msg::PolygonStamped::ConstSharedPtr msg)
   {
     polygon_received_ = msg;
   }
 
-  geometry_msgs::msg::PolygonStamped::SharedPtr waitPolygonReceived(
-    const std::chrono::nanoseconds & timeout)
-  {
-    rclcpp::Time start_time = this->now();
-    while (rclcpp::ok() && this->now() - start_time <= rclcpp::Duration(timeout)) {
-      if (polygon_received_) {
-        return polygon_received_;
-      }
-      rclcpp::spin_some(this->get_node_base_interface());
-      std::this_thread::sleep_for(10ms);
-    }
-    return nullptr;
-  }
-
 private:
-  rclcpp::Subscription<geometry_msgs::msg::PolygonStamped>::SharedPtr polygon_sub_;
-  geometry_msgs::msg::PolygonStamped::SharedPtr polygon_received_;
+  nav2::Subscription<geometry_msgs::msg::PolygonStamped>::SharedPtr polygon_sub_;
+  geometry_msgs::msg::PolygonStamped::ConstSharedPtr polygon_received_;
 };  // TestNode
 
 class VelocityPolygonWrapper : public nav2_collision_monitor::VelocityPolygon
 {
 public:
   VelocityPolygonWrapper(
-    const nav2_util::LifecycleNode::WeakPtr & node,
+    const nav2::LifecycleNode::WeakPtr & node,
     const std::string & polygon_name,
-    const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+    const nav2::TransformBuffer::SharedPtr tf_buffer,
     const std::string & base_frame_id,
     const tf2::Duration & transform_tolerance)
   : nav2_collision_monitor::VelocityPolygon(
@@ -161,20 +151,25 @@ protected:
     std::vector<nav2_collision_monitor::Point> & poly);
 
   std::shared_ptr<TestNode> test_node_;
+  rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
 
   std::shared_ptr<VelocityPolygonWrapper> velocity_polygon_;
 
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
+  nav2::TransformListener::SharedPtr tf_listener_;
 };  // Tester
 
 Tester::Tester()
 {
   test_node_ = std::make_shared<TestNode>();
+  executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
+  executor_->add_node(test_node_->get_node_base_interface());
+  test_node_->configure();
+  test_node_->activate();
 
-  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(test_node_->get_clock());
+  tf_buffer_ = nav2::create_transform_buffer(test_node_);
   tf_buffer_->setUsingDedicatedThread(true);  // One-thread broadcasting-listening model
-  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+  tf_listener_ = nav2::create_transform_listener(*tf_buffer_, test_node_);
 }
 
 Tester::~Tester()
@@ -191,37 +186,25 @@ void Tester::setCommonParameters(const std::string & polygon_name, const std::st
 {
   test_node_->declare_parameter(
     polygon_name + ".action_type", rclcpp::ParameterValue(action_type));
-  test_node_->set_parameter(
-    rclcpp::Parameter(polygon_name + ".action_type", action_type));
 
   test_node_->declare_parameter(
     polygon_name + ".min_points", rclcpp::ParameterValue(MIN_POINTS));
-  test_node_->set_parameter(
-    rclcpp::Parameter(polygon_name + ".min_points", MIN_POINTS));
 
   test_node_->declare_parameter(
     polygon_name + ".visualize", rclcpp::ParameterValue(true));
-  test_node_->set_parameter(
-    rclcpp::Parameter(polygon_name + ".visualize", true));
 
   test_node_->declare_parameter(
     polygon_name + ".polygon_pub_topic", rclcpp::ParameterValue(POLYGON_PUB_TOPIC));
-  test_node_->set_parameter(
-    rclcpp::Parameter(polygon_name + ".polygon_pub_topic", POLYGON_PUB_TOPIC));
 
   std::vector<std::string> default_observation_sources = {"source"};
   test_node_->declare_parameter(
     "observation_sources", rclcpp::ParameterValue(default_observation_sources));
-  test_node_->set_parameter(
-    rclcpp::Parameter("observation_sources", default_observation_sources));
 }
 
 void Tester::setVelocityPolygonParameters(const bool is_holonomic)
 {
   test_node_->declare_parameter(
     std::string(POLYGON_NAME) + ".holonomic", rclcpp::ParameterValue(is_holonomic));
-  test_node_->set_parameter(
-    rclcpp::Parameter(std::string(POLYGON_NAME) + ".holonomic", is_holonomic));
 
   std::vector<std::string> velocity_polygons =
   {SUB_POLYGON_FORWARD_NAME, SUB_POLYGON_BACKWARD_NAME};
@@ -271,8 +254,6 @@ void Tester::setVelocityPolygonParameters(const bool is_holonomic)
 
   test_node_->declare_parameter(
     std::string(POLYGON_NAME) + ".velocity_polygons", rclcpp::ParameterValue(velocity_polygons));
-  test_node_->set_parameter(
-    rclcpp::Parameter(std::string(POLYGON_NAME) + ".velocity_polygons", velocity_polygons));
 }
 
 void Tester::addPolygonVelocitySubPolygon(
@@ -285,48 +266,22 @@ void Tester::addPolygonVelocitySubPolygon(
   test_node_->declare_parameter(
     std::string(POLYGON_NAME) + "." + sub_polygon_name + ".points",
     rclcpp::ParameterValue(polygon_points));
-  test_node_->set_parameter(
-    rclcpp::Parameter(
-      std::string(
-        POLYGON_NAME) +
-      "." + sub_polygon_name + ".points",
-      polygon_points));
 
   test_node_->declare_parameter(
     std::string(POLYGON_NAME) + "." + sub_polygon_name + ".linear_min",
     rclcpp::ParameterValue(linear_min));
-  test_node_->set_parameter(
-    rclcpp::Parameter(
-      std::string(
-        POLYGON_NAME) +
-      "." + sub_polygon_name + ".linear_min",
-      linear_min));
 
   test_node_->declare_parameter(
     std::string(POLYGON_NAME) + "." + sub_polygon_name + ".linear_max",
     rclcpp::ParameterValue(linear_max));
-  test_node_->set_parameter(
-    rclcpp::Parameter(
-      std::string(
-        POLYGON_NAME) +
-      "." + sub_polygon_name + ".linear_max",
-      linear_max));
 
   test_node_->declare_parameter(
     std::string(POLYGON_NAME) + "." + sub_polygon_name + ".theta_min",
     rclcpp::ParameterValue(theta_min));
-  test_node_->set_parameter(
-    rclcpp::Parameter(
-      std::string(POLYGON_NAME) + "." + sub_polygon_name + ".theta_min",
-      theta_min));
 
   test_node_->declare_parameter(
     std::string(POLYGON_NAME) + "." + sub_polygon_name + ".theta_max",
     rclcpp::ParameterValue(theta_max));
-  test_node_->set_parameter(
-    rclcpp::Parameter(
-      std::string(POLYGON_NAME) + "." + sub_polygon_name + ".theta_max",
-      theta_max));
 
   if (is_holonomic) {
     test_node_->declare_parameter(
@@ -334,21 +289,12 @@ void Tester::addPolygonVelocitySubPolygon(
         POLYGON_NAME) +
       "." + sub_polygon_name + ".direction_end_angle",
       rclcpp::ParameterValue(direction_end_angle));
-    test_node_->set_parameter(
-      rclcpp::Parameter(
-        std::string(POLYGON_NAME) + "." + sub_polygon_name + ".direction_end_angle",
-        direction_end_angle));
 
     test_node_->declare_parameter(
       std::string(
         POLYGON_NAME) +
       "." + sub_polygon_name + ".direction_start_angle",
       rclcpp::ParameterValue(direction_start_angle));
-    test_node_->set_parameter(
-      rclcpp::Parameter(
-        std::string(POLYGON_NAME) + "." + sub_polygon_name +
-        ".direction_start_angle",
-        direction_start_angle));
   }
 }
 
@@ -358,7 +304,7 @@ void Tester::createVelocityPolygon(const std::string & action_type, const bool i
   setVelocityPolygonParameters(is_holonomic);
 
   velocity_polygon_ = std::make_shared<VelocityPolygonWrapper>(
-    test_node_, POLYGON_NAME,
+    test_node_->weak_from_this(), POLYGON_NAME,
     tf_buffer_, BASE_FRAME_ID, TRANSFORM_TOLERANCE);
   ASSERT_TRUE(velocity_polygon_->configure());
   velocity_polygon_->activate();
@@ -374,7 +320,7 @@ bool Tester::waitPolygon(
     if (poly.size() > 0) {
       return true;
     }
-    rclcpp::spin_some(test_node_->get_node_base_interface());
+    executor_->spin_some();
     std::this_thread::sleep_for(10ms);
   }
   return false;
@@ -434,13 +380,13 @@ TEST_F(Tester, testVelocityPolygonOutOfRangeVelocity)
   ASSERT_EQ(poly.size(), 0u);
 
 
-  // Publish out of range cmd_vel(linear) and check that polygon is still emtpy
+  // Publish out of range cmd_vel(linear) and check that polygon is still empty
   nav2_collision_monitor::Velocity vel{0.6, 0.0, 0.0};
   velocity_polygon_->updatePolygon(vel);
   ASSERT_FALSE(waitPolygon(500ms, poly));
   ASSERT_EQ(poly.size(), 0u);
 
-  // Publish out of range cmd_vel(rotation) and check that polygon is still emtpy
+  // Publish out of range cmd_vel(rotation) and check that polygon is still empty
   vel = {0.3, 0.0, 1.5};
   velocity_polygon_->updatePolygon(vel);
   ASSERT_FALSE(waitPolygon(500ms, poly));

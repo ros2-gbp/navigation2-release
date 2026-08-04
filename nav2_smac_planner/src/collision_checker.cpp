@@ -20,7 +20,7 @@ namespace nav2_smac_planner
 GridCollisionChecker::GridCollisionChecker(
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
   unsigned int num_quantizations,
-  rclcpp_lifecycle::LifecycleNode::SharedPtr node)
+  nav2::LifecycleNode::SharedPtr node)
 : FootprintCollisionChecker(costmap_ros ? costmap_ros->getCostmap() : nullptr)
 {
   if (node) {
@@ -116,7 +116,7 @@ bool GridCollisionChecker::inCollision(
 
   // Assumes setFootprint already set
   center_cost_ = static_cast<float>(costmap_->getCost(
-    static_cast<unsigned int>(x + 0.5f), static_cast<unsigned int>(y + 0.5f)));
+      static_cast<unsigned int>(x + 0.5f), static_cast<unsigned int>(y + 0.5f)));
 
   if (!footprint_is_radius_) {
     // if footprint, then we check for the footprint's points, but first see
@@ -127,11 +127,11 @@ bool GridCollisionChecker::inCollision(
 
     // If its inscribed, in collision, or unknown in the middle,
     // no need to even check the footprint, its invalid
-    if (center_cost_ == UNKNOWN && !traverse_unknown) {
+    if (center_cost_ == UNKNOWN_COST && !traverse_unknown) {
       return true;
     }
 
-    if (center_cost_ == INSCRIBED || center_cost_ == OCCUPIED) {
+    if (center_cost_ == INSCRIBED_COST || center_cost_ == OCCUPIED_COST) {
       return true;
     }
 
@@ -139,7 +139,7 @@ bool GridCollisionChecker::inCollision(
     // Use precomputed oriented footprints are done on initialization,
     // offset by translation value to collision check
     double wx, wy;
-    costmap_->mapToWorld(static_cast<double>(x), static_cast<double>(y), wx, wy);
+    costmap_->mapToWorld(static_cast<unsigned int>(x), static_cast<unsigned int>(y), wx, wy);
     geometry_msgs::msg::Point new_pt;
     const nav2_costmap_2d::Footprint & oriented_footprint = oriented_footprints_[angle_bin];
     nav2_costmap_2d::Footprint current_footprint;
@@ -152,20 +152,20 @@ bool GridCollisionChecker::inCollision(
 
     float footprint_cost = static_cast<float>(footprintCost(current_footprint));
 
-    if (footprint_cost == UNKNOWN && traverse_unknown) {
+    if (footprint_cost == UNKNOWN_COST && traverse_unknown) {
       return false;
     }
 
     // if occupied or unknown and not to traverse unknown space
-    return footprint_cost >= OCCUPIED;
+    return footprint_cost >= OCCUPIED_COST;
   } else {
     // if radius, then we can check the center of the cost assuming inflation is used
-    if (center_cost_ == UNKNOWN && traverse_unknown) {
+    if (center_cost_ == UNKNOWN_COST && traverse_unknown) {
       return false;
     }
 
     // if occupied or unknown and not to traverse unknown space
-    return center_cost_ >= INSCRIBED;
+    return center_cost_ >= INSCRIBED_COST;
   }
 }
 
@@ -174,12 +174,12 @@ bool GridCollisionChecker::inCollision(
   const bool & traverse_unknown)
 {
   center_cost_ = costmap_->getCost(i);
-  if (center_cost_ == UNKNOWN && traverse_unknown) {
+  if (center_cost_ == UNKNOWN_COST && traverse_unknown) {
     return false;
   }
 
   // if occupied or unknown and not to traverse unknown space
-  return center_cost_ >= INSCRIBED;
+  return center_cost_ >= INSCRIBED_COST;
 }
 
 float GridCollisionChecker::getCost()

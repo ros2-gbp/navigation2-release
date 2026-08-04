@@ -19,7 +19,7 @@
 #include <atomic>
 #include <deque>
 
-#include "rclcpp/rclcpp.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "behaviortree_cpp/condition_node.h"
 #include "nav_msgs/msg/odometry.hpp"
 
@@ -29,6 +29,11 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::ConditionNode that tracks robot odometry and returns SUCCESS
  * if robot is stuck somewhere and FAILURE otherwise
+ *
+ * Usage in XML:
+ * @code
+ * <IsStuck/>
+ * @endcode
  */
 class IsStuckCondition : public BT::ConditionNode
 {
@@ -53,7 +58,7 @@ public:
    * @brief Callback function for odom topic
    * @param msg Shared pointer to nav_msgs::msg::Odometry::SharedPtr message
    */
-  void onOdomReceived(const typename nav_msgs::msg::Odometry::SharedPtr msg);
+  void onOdomReceived(const nav_msgs::msg::Odometry::ConstSharedPtr & msg);
 
   /**
    * @brief The main override required by a BT action
@@ -85,7 +90,7 @@ public:
 
 private:
   // The node that will be used for any ROS operations
-  rclcpp::Node::SharedPtr node_;
+  nav2::LifecycleNode::SharedPtr node_;
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor callback_group_executor_;
   std::thread callback_group_executor_thread;
@@ -93,7 +98,7 @@ private:
   std::atomic<bool> is_stuck_;
 
   // Listen to odometry
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  nav2::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
   // Store history of odometry measurements
   std::deque<nav_msgs::msg::Odometry> odom_history_;
   std::deque<nav_msgs::msg::Odometry>::size_type odom_history_size_;
@@ -101,7 +106,7 @@ private:
   // Calculated states
   double current_accel_;
 
-  // Robot specific paramters
+  // Robot specific parameters
   double brake_accel_limit_;
 };
 

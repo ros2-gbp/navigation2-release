@@ -66,7 +66,7 @@ public:
    * @brief Initialize the filter and subscribe to the info topic
    */
   void initializeFilter(
-    const std::string & filter_info_topic);
+    const std::string & filter_info_topic) override;
 
   /**
    * @brief Process the keepout layer at the current pose / bounds / grid
@@ -74,27 +74,27 @@ public:
   void process(
     nav2_costmap_2d::Costmap2D & master_grid,
     int min_i, int min_j, int max_i, int max_j,
-    const geometry_msgs::msg::Pose2D & pose);
+    const geometry_msgs::msg::Pose & pose) override;
 
   /**
    * @brief Reset the costmap filter / topic / info
    */
-  void resetFilter();
+  void resetFilter() override;
 
   /**
    * @brief If this filter is active
    */
   bool isActive();
 
-private:
+protected:
   /**
    * @brief Callback for the filter information
    */
-  void filterInfoCallback(const nav2_msgs::msg::CostmapFilterInfo::SharedPtr msg);
+  void filterInfoCallback(const nav2_msgs::msg::CostmapFilterInfo::ConstSharedPtr & msg);
   /**
    * @brief Callback for the filter mask
    */
-  void maskCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
+  void maskCallback(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr & msg);
   /**
    * @brief Changes binary state of filter. Sends a message with new state.
    * @param state New binary state
@@ -102,14 +102,14 @@ private:
   void changeState(const bool state);
 
   // Working with filter info and mask
-  rclcpp::Subscription<nav2_msgs::msg::CostmapFilterInfo>::SharedPtr filter_info_sub_;
-  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mask_sub_;
+  nav2::Subscription<nav2_msgs::msg::CostmapFilterInfo>::SharedPtr filter_info_sub_;
+  nav2::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mask_sub_;
 
-  rclcpp_lifecycle::LifecyclePublisher<std_msgs::msg::Bool>::SharedPtr binary_state_pub_;
+  nav2::Publisher<std_msgs::msg::Bool>::SharedPtr binary_state_pub_;
 
-  nav_msgs::msg::OccupancyGrid::SharedPtr filter_mask_;
+  nav_msgs::msg::OccupancyGrid::ConstSharedPtr filter_mask_;
 
-  std::string global_frame_;  // Frame of currnet layer (master_grid)
+  std::string global_frame_;  // Frame of current layer (master_grid)
 
   double base_, multiplier_;
   // Filter values higher than this threshold,

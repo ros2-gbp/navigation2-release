@@ -17,7 +17,7 @@
 
 #include <string>
 
-#include "rclcpp/rclcpp.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "behaviortree_cpp/condition_node.h"
 #include "behaviortree_cpp/json_export.h"
 #include "nav_msgs/msg/path.hpp"
@@ -30,6 +30,11 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::ConditionNode that returns SUCCESS every time a specified
  * time period passes and FAILURE otherwise
+ *
+ * Usage in XML:
+ * @code
+ * <PathExpiringTimer seconds="15" path="{path}"/>
+ * @endcode
  */
 class PathExpiringTimerCondition : public BT::ConditionNode
 {
@@ -67,7 +72,7 @@ public:
   }
 
 private:
-  rclcpp::Node::SharedPtr node_;
+  nav2::LifecycleNode::SharedPtr node_;
   rclcpp::Time start_;
   nav_msgs::msg::Path prev_path_;
   double period_;

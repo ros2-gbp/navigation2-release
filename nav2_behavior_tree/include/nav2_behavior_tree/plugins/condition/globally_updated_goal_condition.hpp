@@ -18,11 +18,10 @@
 #include <string>
 #include <vector>
 
-#include "rclcpp/rclcpp.hpp"
-
-#include "behaviortree_cpp/json_export.h"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "behaviortree_cpp/condition_node.h"
-#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "behaviortree_cpp/json_export.h"
+#include "nav_msgs/msg/goals.hpp"
 #include "nav2_behavior_tree/bt_utils.hpp"
 #include "nav2_behavior_tree/json_utils.hpp"
 
@@ -32,6 +31,11 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::ConditionNode that returns SUCCESS when goal is
  * updated on the blackboard and FAILURE otherwise
+ *
+ * Usage in XML:
+ * @code
+ * <GlobalUpdatedGoal/>
+ * @endcode
  */
 class GloballyUpdatedGoalCondition : public BT::ConditionNode
 {
@@ -62,10 +66,10 @@ public:
   {
     // Register JSON definitions for the types used in the ports
     BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-    BT::RegisterJsonDefinition<std::vector<geometry_msgs::msg::PoseStamped>>();
+    BT::RegisterJsonDefinition<nav_msgs::msg::Goals>();
 
     return {
-      BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
+      BT::InputPort<nav_msgs::msg::Goals>(
         "goals", "Vector of navigation goals"),
       BT::InputPort<geometry_msgs::msg::PoseStamped>(
         "goal", "Navigation goal"),
@@ -74,9 +78,9 @@ public:
 
 private:
   bool first_time;
-  rclcpp::Node::SharedPtr node_;
+  nav2::LifecycleNode::SharedPtr node_;
   geometry_msgs::msg::PoseStamped goal_;
-  std::vector<geometry_msgs::msg::PoseStamped> goals_;
+  nav_msgs::msg::Goals goals_;
 };
 
 }  // namespace nav2_behavior_tree

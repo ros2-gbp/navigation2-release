@@ -36,6 +36,7 @@
 #include "nav2_voxel_grid/voxel_grid.hpp"
 #include "nav2_msgs/msg/voxel_grid.hpp"
 #include "nav2_util/execution_timer.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 static inline void mapToWorld3D(
   const unsigned int mx,
@@ -68,10 +69,10 @@ float g_colors_a[] = {0.0f, 0.5f, 1.0f};
 V_Cell g_marked;
 V_Cell g_unknown;
 
-rclcpp::Node::SharedPtr g_node;
+rclcpp::Node::SharedPtr g_node;  //  nosemgrep
 
-rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_marked;
-rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_unknown;
+rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_marked;  //  nosemgrep
+rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_unknown;  //  nosemgrep
 
 /**
  * @brief An helper function to fill pointcloud2 of both the marked and unknown points from voxel_grid
@@ -213,16 +214,16 @@ void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  g_node = rclcpp::Node::make_shared("costmap_2d_cloud");
+  g_node = rclcpp::Node::make_shared("costmap_2d_cloud");  //  nosemgrep
 
   RCLCPP_DEBUG(g_node->get_logger(), "Starting up costmap_2d_cloud");
 
   pub_marked = g_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-    "voxel_marked_cloud", 1);
+    "voxel_marked_cloud", nav2::qos::StandardTopicQoS());
   pub_unknown = g_node->create_publisher<sensor_msgs::msg::PointCloud2>(
-    "voxel_unknown_cloud", 1);
+    "voxel_unknown_cloud", nav2::qos::StandardTopicQoS());
   auto sub = g_node->create_subscription<nav2_msgs::msg::VoxelGrid>(
-    "voxel_grid", rclcpp::SystemDefaultsQoS(), voxelCallback);
+    "voxel_grid", nav2::qos::StandardTopicQoS(), voxelCallback);
 
   rclcpp::spin(g_node->get_node_base_interface());
 

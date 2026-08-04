@@ -20,12 +20,20 @@
 
 #include "nav2_behavior_tree/bt_action_node.hpp"
 #include "nav2_msgs/action/assisted_teleop.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::AssistedTeleop
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <AssistedTeleop is_recovery="false" server_name="assisted_teleop_server" server_timeout="10"
+ *                 error_code_id="{assisted_teleop_error_code}" error_msg="{assisted_teleop_error_msg}"/>
+ * @endcode
  */
 class AssistedTeleopAction : public BtActionNode<nav2_msgs::action::AssistedTeleop>
 {
@@ -79,8 +87,6 @@ public:
       {
         BT::InputPort<double>("time_allowance", 10.0, "Allowed time for running assisted teleop"),
         BT::InputPort<bool>("is_recovery", false, "If true the recovery count will be incremented"),
-        BT::OutputPort<ActionResult::_error_code_type>(
-          "error_code_id", "The assisted teleop behavior server error code")
       });
   }
 

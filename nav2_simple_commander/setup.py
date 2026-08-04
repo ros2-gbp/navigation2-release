@@ -3,7 +3,6 @@ import os
 
 from setuptools import setup
 
-
 package_name = 'nav2_simple_commander'
 
 setup(
@@ -21,13 +20,16 @@ setup(
     maintainer_email='stevenmacenski@gmail.com',
     description='An importable library for writing mobile robot applications in python3',
     license='Apache-2.0',
-    tests_require=['pytest'],
+    extras_require={
+        'test': ['pytest'],
+    },
     entry_points={
         'console_scripts': [
             'example_nav_to_pose = nav2_simple_commander.example_nav_to_pose:main',
             'example_nav_through_poses = nav2_simple_commander.example_nav_through_poses:main',
             'example_waypoint_follower = nav2_simple_commander.example_waypoint_follower:main',
             'example_follow_path = nav2_simple_commander.example_follow_path:main',
+            'example_route = nav2_simple_commander.example_route:main',
             'demo_picking = nav2_simple_commander.demo_picking:main',
             'demo_inspection = nav2_simple_commander.demo_inspection:main',
             'demo_security = nav2_simple_commander.demo_security:main',

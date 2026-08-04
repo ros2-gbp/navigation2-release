@@ -46,6 +46,7 @@
 #include "nav2_msgs/msg/voxel_grid.hpp"
 #include "nav2_voxel_grid/voxel_grid.hpp"
 #include "nav2_util/execution_timer.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 struct Cell
 {
@@ -62,8 +63,8 @@ float g_colors_b[] = {0.0f, 1.0f, 0.0f};
 float g_colors_a[] = {0.0f, 0.5f, 1.0f};
 
 V_Cell g_cells;
-rclcpp::Node::SharedPtr g_node;
-rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub;
+rclcpp::Node::SharedPtr g_node;  //  nosemgrep
+rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr pub;  //  nosemgrep
 
 void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
 {
@@ -148,15 +149,15 @@ void voxelCallback(const nav2_msgs::msg::VoxelGrid::ConstSharedPtr grid)
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  g_node = rclcpp::Node::make_shared("costmap_2d_marker");
+  g_node = rclcpp::Node::make_shared("costmap_2d_marker");  //  nosemgrep
 
   RCLCPP_DEBUG(g_node->get_logger(), "Starting costmap_2d_marker");
 
   pub = g_node->create_publisher<visualization_msgs::msg::Marker>(
-    "visualization_marker", 1);
+    "visualization_marker", nav2::qos::StandardTopicQoS());
 
   auto sub = g_node->create_subscription<nav2_msgs::msg::VoxelGrid>(
-    "voxel_grid", rclcpp::SystemDefaultsQoS(), voxelCallback);
+    "voxel_grid", nav2::qos::StandardTopicQoS(), voxelCallback);
 
   rclcpp::spin(g_node->get_node_base_interface());
 }

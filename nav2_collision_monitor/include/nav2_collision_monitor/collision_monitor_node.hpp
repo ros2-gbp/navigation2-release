@@ -25,11 +25,10 @@
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
 
-#include "tf2/time.h"
-#include "tf2_ros/buffer.h"
-#include "tf2_ros/transform_listener.h"
+#include "tf2/time.hpp"
 
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 #include "nav2_util/twist_publisher.hpp"
 #include "nav2_util/twist_subscriber.hpp"
 #include "nav2_msgs/msg/collision_monitor_state.hpp"
@@ -43,6 +42,7 @@
 #include "nav2_collision_monitor/scan.hpp"
 #include "nav2_collision_monitor/pointcloud.hpp"
 #include "nav2_collision_monitor/range.hpp"
+#include "nav2_collision_monitor/costmap.hpp"
 #include "nav2_collision_monitor/polygon_source.hpp"
 
 namespace nav2_collision_monitor
@@ -51,7 +51,7 @@ namespace nav2_collision_monitor
 /**
  * @brief Collision Monitor ROS2 node
  */
-class CollisionMonitor : public nav2_util::LifecycleNode
+class CollisionMonitor : public nav2::LifecycleNode
 {
 public:
   /**
@@ -71,39 +71,39 @@ protected:
    * @param state Lifecycle Node's state
    * @return Success or Failure
    */
-  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
   /**
    * @brief: Activates LifecyclePublishers, polygons and main processor, creates bond connection
    * @param state Lifecycle Node's state
    * @return Success or Failure
    */
-  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
   /**
    * @brief: Deactivates LifecyclePublishers, polygons and main processor, destroys bond connection
    * @param state Lifecycle Node's state
    * @return Success or Failure
    */
-  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
   /**
    * @brief: Resets all subscribers/publishers, polygons/data sources arrays
    * @param state Lifecycle Node's state
    * @return Success or Failure
    */
-  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
   /**
    * @brief Called in shutdown state
    * @param state Lifecycle Node's state
    * @return Success or Failure
    */
-  nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
+  nav2::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
 protected:
   /**
    * @brief Callback for input cmd_vel
    * @param msg Input cmd_vel message
    */
-  void cmdVelInCallbackStamped(geometry_msgs::msg::TwistStamped::SharedPtr msg);
-  void cmdVelInCallbackUnstamped(geometry_msgs::msg::Twist::SharedPtr msg);
+  void cmdVelInCallbackStamped(const geometry_msgs::msg::TwistStamped::ConstSharedPtr & msg);
+  void cmdVelInCallbackUnstamped(const geometry_msgs::msg::Twist::ConstSharedPtr & msg);
   /**
    * @brief Publishes output cmd_vel. If robot was stopped more than stop_pub_timeout_ seconds,
    * quit to publish 0-velocity.
@@ -197,9 +197,15 @@ protected:
     const Action & robot_action, const std::shared_ptr<Polygon> action_polygon) const;
 
   /**
-   * @brief Polygons publishing routine. Made for visualization.
+   * @brief Publishes all visualization topics (polygons and exclusion zones).
    */
-  void publishPolygons() const;
+  void publishVisualizations() const;
+
+  /**
+   * @brief Publishes action.triggering_points as markers, colour-coded by action type.
+   * @param action Current robot action
+   */
+  void publishTriggeringPoints(const Action & action);
 
   /**
    * @brief Enable/disable collision monitor service callback
@@ -214,9 +220,9 @@ protected:
   // ----- Variables -----
 
   /// @brief TF buffer
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
   /// @brief TF listener
-  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  nav2::TransformListener::SharedPtr tf_listener_;
 
   /// @brief Polygons array
   std::vector<std::shared_ptr<Polygon>> polygons_;
@@ -231,15 +237,25 @@ protected:
   std::unique_ptr<nav2_util::TwistPublisher> cmd_vel_out_pub_;
 
   /// @brief CollisionMonitor state publisher
-  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::CollisionMonitorState>::SharedPtr
+  nav2::Publisher<nav2_msgs::msg::CollisionMonitorState>::SharedPtr
     state_pub_;
 
   /// @brief Collision points marker publisher
-  rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+  nav2::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
     collision_points_marker_pub_;
 
+  /// @brief Triggering points marker publisher (points inside the active triggering zone)
+  nav2::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+    triggering_points_pub_;
+
   /// @brief Enable/disable collision monitor service
-  rclcpp::Service<nav2_msgs::srv::Toggle>::SharedPtr toggle_cm_service_;
+  nav2::ServiceServer<nav2_msgs::srv::Toggle>::SharedPtr toggle_cm_service_;
+
+  /// @brief Whether to include z in the collision_points_marker
+  bool collision_points_marker_3d_;
+
+  /// @brief Robot base frame ID
+  std::string base_frame_id_;
 
   /// @brief Whether collision monitor is enabled
   bool enabled_;

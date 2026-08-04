@@ -19,21 +19,12 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "tf2_ros/transform_broadcaster.h"
-#include "tf2_ros/create_timer_ros.h"
-#include "tf2_ros/transform_listener.h"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav2_core/route_exceptions.hpp"
 #include "nav2_route/route_tracker.hpp"
 #include "nav2_route/route_server.hpp"
 
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route;  // NOLINT
 
@@ -53,7 +44,7 @@ public:
 
 TEST(RouteTrackerTest, test_lifecycle)
 {
-  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
+  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
 
   RouteTracker tracker;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
@@ -62,14 +53,10 @@ TEST(RouteTrackerTest, test_lifecycle)
 
 TEST(RouteTrackerTest, test_get_robot_pose)
 {
-  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
-  auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
-    node->get_node_base_interface(),
-    node->get_node_timers_interface());
-  tf->setCreateTimerInterface(timer_interface);
-  auto transform_listener = std::make_shared<tf2_ros::TransformListener>(*tf);
-  tf2_ros::TransformBroadcaster broadcaster(node);
+  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
+  auto tf = nav2::create_transform_buffer(node);
+  auto transform_listener = nav2::create_transform_listener(*tf, node);
+  auto broadcaster = nav2::create_transform_broadcaster(node);
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
 
   RouteTracker tracker;
@@ -81,13 +68,13 @@ TEST(RouteTrackerTest, test_get_robot_pose)
   transform.header.frame_id = "map";
   transform.header.stamp = node->now();
   transform.child_frame_id = "base_link";
-  broadcaster.sendTransform(transform);
+  broadcaster->sendTransform(transform);
   EXPECT_NO_THROW(tracker.getRobotPose());
 }
 
 TEST(RouteTrackerTest, test_route_start_end)
 {
-  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
+  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
 
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
   RouteTrackerWrapper tracker;
@@ -121,7 +108,7 @@ TEST(RouteTrackerTest, test_route_start_end)
 
 TEST(RouteTrackerTest, test_feedback)
 {
-  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
+  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
   RouteTrackerWrapper tracker;
   tracker.configure(node, nullptr, costmap_subscriber, nullptr, "map", "base_link");
@@ -137,7 +124,7 @@ TEST(RouteTrackerTest, test_feedback)
 
 TEST(RouteTrackerTest, test_node_achievement_simple)
 {
-  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
+  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
 
   // Test with straight line to do exact analysis easier. More realistic routes in the next test
@@ -217,7 +204,7 @@ TEST(RouteTrackerTest, test_node_achievement_simple)
 
 TEST(RouteTrackerTest, test_node_achievement)
 {
-  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
+  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
 
   // Minimum threshold is 2m by default
@@ -353,4 +340,13 @@ TEST(RouteTrackerTest, test_node_achievement)
   pose.pose.position.x = -9.5;
   pose.pose.position.y = 10.5;
   EXPECT_TRUE(tracker.nodeAchieved(pose, state, route));
+}
+
+int main(int argc, char ** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+  rclcpp::init(argc, argv);
+  int result = RUN_ALL_TESTS();
+  rclcpp::shutdown();
+  return result;
 }

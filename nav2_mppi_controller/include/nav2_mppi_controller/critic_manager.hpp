@@ -17,18 +17,13 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <pluginlib/class_loader.hpp>
 
-// xtensor creates warnings that needs to be ignored as we are building with -Werror
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
-#include <xtensor/xtensor.hpp>
-#pragma GCC diagnostic pop
-
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
+#include "nav2_msgs/msg/critics_stats.hpp"
 
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
@@ -68,14 +63,23 @@ public:
     * @param dynamic_parameter_handler Parameter handler object
     */
   void on_configure(
-    rclcpp_lifecycle::LifecycleNode::WeakPtr parent, const std::string & name,
+    nav2::LifecycleNode::WeakPtr parent, const std::string & name,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS>, ParametersHandler *);
 
   /**
     * @brief Score trajectories by the set of loaded critic functions
     * @param CriticData Struct of necessary information to pass to the critic functions
     */
-  void evalTrajectoriesScores(CriticData & data) const;
+  void evalTrajectoriesScores(CriticData & data);
+
+  /**
+    * @brief Get stored per-critic costs from last evaluation
+    * @return Vector of (critic_name, cost_array) pairs
+    */
+  const std::vector<std::pair<std::string, Eigen::ArrayXf>> & getCriticCosts() const
+  {
+    return critic_costs_;
+  }
 
 protected:
   /**
@@ -94,7 +98,7 @@ protected:
   std::string getFullName(const std::string & name);
 
 protected:
-  rclcpp_lifecycle::LifecycleNode::WeakPtr parent_;
+  nav2::LifecycleNode::WeakPtr parent_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::string name_;
 
@@ -102,6 +106,11 @@ protected:
   std::vector<std::string> critic_names_;
   std::unique_ptr<pluginlib::ClassLoader<critics::CriticFunction>> loader_;
   Critics critics_;
+
+  nav2::Publisher<nav2_msgs::msg::CriticsStats>::SharedPtr critics_effect_pub_;
+  bool visualize_;
+  std::vector<std::pair<std::string, Eigen::ArrayXf>> critic_costs_;
+  rclcpp::Clock::SharedPtr clock_;
 
   rclcpp::Logger logger_{rclcpp::get_logger("MPPIController")};
 };
