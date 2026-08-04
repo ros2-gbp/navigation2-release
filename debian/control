@@ -1,0 +1,13 @@
+Source: ros-lyrical-nav2-costmap-2d
+Section: misc
+Priority: optional
+Maintainer: "Steve Macenski" <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), libeigen3-dev, ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-google-benchmark <!nocheck>, ros-lyrical-ament-cmake-gtest <!nocheck>, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-angles, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-laser-geometry, ros-lyrical-launch <!nocheck>, ros-lyrical-launch-testing <!nocheck>, ros-lyrical-map-msgs, ros-lyrical-message-filters, ros-lyrical-nav-msgs, ros-lyrical-nav2-common, ros-lyrical-nav2-lifecycle-manager <!nocheck>, ros-lyrical-nav2-map-server <!nocheck>, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-nav2-voxel-grid, ros-lyrical-pluginlib, ros-lyrical-point-cloud-transport, ros-lyrical-rclcpp, ros-lyrical-rclcpp-lifecycle, ros-lyrical-rmw, ros-lyrical-sensor-msgs, ros-lyrical-std-msgs, ros-lyrical-std-srvs, ros-lyrical-tf2, ros-lyrical-tf2-geometry-msgs, ros-lyrical-tf2-ros, ros-lyrical-tf2-sensor-msgs, ros-lyrical-visualization-msgs, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_costmap_2d/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-costmap-2d
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-laser-geometry, ros-lyrical-map-msgs, ros-lyrical-message-filters, ros-lyrical-nav-msgs, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-nav2-voxel-grid, ros-lyrical-pluginlib, ros-lyrical-point-cloud-transport, ros-lyrical-point-cloud-transport-plugins, ros-lyrical-rclcpp, ros-lyrical-rclcpp-lifecycle, ros-lyrical-rmw, ros-lyrical-sensor-msgs, ros-lyrical-std-msgs, ros-lyrical-std-srvs, ros-lyrical-tf2, ros-lyrical-tf2-geometry-msgs, ros-lyrical-tf2-ros, ros-lyrical-tf2-sensor-msgs, ros-lyrical-visualization-msgs, ros-lyrical-ros-workspace
+Description: This package provides an implementation of a 2D costmap that takes in sensor data from the world, builds a 2D or 3D occupancy grid of the data (depending on whether a voxel based implementation is used), and inflates costs in a 2D costmap based on the occupancy grid and a user specified inflation radius.
+ This package also provides support for map_server based initialization of a costmap, rolling window based costmaps, and parameter based subscription to and configuration of sensor topics.
