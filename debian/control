@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-bringup
+Section: misc
+Priority: optional
+Maintainer: "Michael Jeronimo" <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-gtest <!nocheck>, ros-lyrical-ament-cmake-pytest <!nocheck>, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-ament-mypy <!nocheck>, ros-lyrical-backward-ros, ros-lyrical-launch <!nocheck>, ros-lyrical-launch-ros, ros-lyrical-launch-testing <!nocheck>, ros-lyrical-nav2-common, ros-lyrical-navigation2, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_bringup/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-bringup
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-backward-ros, ros-lyrical-diff-drive-controller, ros-lyrical-joint-state-broadcaster, ros-lyrical-launch-ros, ros-lyrical-nav2-common, ros-lyrical-nav2-loopback-sim, ros-lyrical-nav2-minimal-tb3-sim, ros-lyrical-nav2-minimal-tb4-sim, ros-lyrical-navigation2, ros-lyrical-ros-gz-bridge, ros-lyrical-ros-gz-sim, ros-lyrical-slam-toolbox, ros-lyrical-xacro, ros-lyrical-ros-workspace
+Description: Bringup scripts and configurations for the Nav2 stack
