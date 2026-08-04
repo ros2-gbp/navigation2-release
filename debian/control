@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-util
+Section: misc
+Priority: optional
+Maintainer: "Michael Jeronimo" <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-gtest <!nocheck>, ros-lyrical-ament-cmake-pytest <!nocheck>, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-angles, ros-lyrical-backward-ros, ros-lyrical-bond, ros-lyrical-bondcpp, ros-lyrical-builtin-interfaces, ros-lyrical-geometry-msgs, ros-lyrical-lifecycle-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-common, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-pluginlib, ros-lyrical-rcl-interfaces, ros-lyrical-rclcpp, ros-lyrical-rclcpp-action, ros-lyrical-rclcpp-lifecycle, ros-lyrical-std-msgs, ros-lyrical-tf2, ros-lyrical-tf2-geometry-msgs, ros-lyrical-tf2-msgs, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_util/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-util
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-backward-ros, ros-lyrical-bond, ros-lyrical-bondcpp, ros-lyrical-builtin-interfaces, ros-lyrical-geometry-msgs, ros-lyrical-lifecycle-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-pluginlib, ros-lyrical-rcl-interfaces, ros-lyrical-rclcpp, ros-lyrical-rclcpp-action, ros-lyrical-rclcpp-lifecycle, ros-lyrical-std-msgs, ros-lyrical-tf2, ros-lyrical-tf2-geometry-msgs, ros-lyrical-tf2-msgs, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Description: Nav2 utilities
