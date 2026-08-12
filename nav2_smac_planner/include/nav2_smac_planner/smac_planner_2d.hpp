@@ -1,0 +1,158 @@
+// Copyright (c) 2020, Samsung Research America
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License. Reserved.
+
+#ifndef NAV2_SMAC_PLANNER__SMAC_PLANNER_2D_HPP_
+#define NAV2_SMAC_PLANNER__SMAC_PLANNER_2D_HPP_
+
+#include <memory>
+#include <vector>
+#include <string>
+#include <mutex>
+
+#include "nav2_smac_planner/a_star.hpp"
+#include "nav2_smac_planner/smoother.hpp"
+#include "nav2_smac_planner/utils.hpp"
+#include "nav2_smac_planner/costmap_downsampler.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
+#include "nav2_core/global_planner.hpp"
+#include "nav_msgs/msg/path.hpp"
+#include "nav2_costmap_2d/costmap_2d_ros.hpp"
+#include "nav2_costmap_2d/costmap_2d.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_ros_common/node_utils.hpp"
+#include "tf2/utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
+
+namespace nav2_smac_planner
+{
+
+/**
+ * @class nav2_smac_planner::SmacPlanner2DT
+ * @brief A templated 2D planner that allows custom node types
+ * @tparam NodeT The node type to use (default: Node2D)
+ */
+template<typename NodeT = Node2D>
+class SmacPlanner2DT : public nav2_core::GlobalPlanner
+{
+public:
+  /**
+   * @brief constructor
+   */
+  SmacPlanner2DT();
+
+  /**
+   * @brief destructor
+   */
+  ~SmacPlanner2DT();
+
+  /**
+   * @brief Configuring plugin
+   * @param parent Lifecycle node pointer
+   * @param name Name of plugin map
+   * @param tf Shared ptr of TF2 buffer
+   * @param costmap_ros Costmap2DROS object
+   */
+  void configure(
+    const nav2::LifecycleNode::WeakPtr & parent,
+    std::string name, nav2::TransformBuffer::SharedPtr tf,
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
+
+  /**
+   * @brief Cleanup lifecycle node
+   */
+  void cleanup() override;
+
+  /**
+   * @brief Activate lifecycle node
+   */
+  void activate() override;
+
+  /**
+   * @brief Deactivate lifecycle node
+   */
+  void deactivate() override;
+
+  /**
+   * @brief Creating a plan from start and goal poses
+   * @param start Start pose
+   * @param goal Goal pose
+   * @param cancel_checker Function to check if the action has been canceled
+   * @return nav2_msgs::Path of the generated path
+   */
+  nav_msgs::msg::Path createPlan(
+    const geometry_msgs::msg::PoseStamped & start,
+    const geometry_msgs::msg::PoseStamped & goal,
+    const std::vector<geometry_msgs::msg::PoseStamped> & viapoints,
+    std::function<bool()> cancel_checker) override;
+
+protected:
+  /**
+   * @brief Validate incoming parameter updates before applying them.
+   * This callback is triggered when one or more parameters are about to be updated.
+   * It checks the validity of parameter values and rejects updates that would lead
+   * to invalid or inconsistent configurations
+   * @param parameters List of parameters that are being updated.
+   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
+   */
+  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
+    const std::vector<rclcpp::Parameter> & parameters);
+
+  /**
+   * @brief Apply parameter updates after validation
+   * This callback is executed when parameters have been successfully updated.
+   * It updates the internal configuration of the node with the new parameter values.
+   * @param parameters List of parameters that have been updated.
+   */
+  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
+
+  std::unique_ptr<AStarAlgorithm<NodeT>> _a_star;
+  GridCollisionChecker _collision_checker;
+  std::unique_ptr<Smoother> _smoother;
+  nav2_costmap_2d::Costmap2D * _costmap;
+  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> _costmap_ros;
+  std::unique_ptr<CostmapDownsampler> _costmap_downsampler;
+  rclcpp::Clock::SharedPtr _clock;
+  rclcpp::Logger _logger{rclcpp::get_logger("SmacPlanner2D")};
+  std::string _global_frame, _name;
+  float _tolerance;
+  int _downsampling_factor;
+  bool _downsample_costmap;
+  nav2::Publisher<nav_msgs::msg::Path>::SharedPtr _raw_plan_publisher;
+  double _max_planning_time;
+  bool _allow_unknown;
+  int _max_iterations;
+  int _max_on_approach_iterations;
+  int _terminal_checking_interval;
+  bool _use_final_approach_orientation;
+  SearchInfo _search_info;
+  std::string _motion_model_for_search;
+  MotionModel _motion_model;
+  std::mutex _mutex;
+  nav2::LifecycleNode::WeakPtr _node;
+
+  // Dynamic parameters handler
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr _post_set_params_handler;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _on_set_params_handler;
+};
+
+// Backward-compatible type alias
+using SmacPlanner2D = SmacPlanner2DT<Node2D>;
+
+}  // namespace nav2_smac_planner
+
+#include "nav2_smac_planner/smac_planner_2d_impl.hpp"  // NOLINT
+
+#endif  // NAV2_SMAC_PLANNER__SMAC_PLANNER_2D_HPP_
