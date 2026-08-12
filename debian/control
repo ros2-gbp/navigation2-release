@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-common
+Section: misc
+Priority: optional
+Maintainer: "Carl Delsey" <carl.r.delsey@intel.com>
+Build-Depends: debhelper (>= 9.0.0), python3-pytest <!nocheck>, python3-typeshed, python3-yaml, ros-lyrical-ament-cmake-core, ros-lyrical-ament-cmake-pytest <!nocheck>, ros-lyrical-ament-cmake-python, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-cmake-test <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-ament-mypy <!nocheck>, ros-lyrical-backward-ros, ros-lyrical-launch, ros-lyrical-launch-ros, ros-lyrical-osrf-pycommon, ros-lyrical-rclpy, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_common/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-common
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3-typeshed, python3-yaml, ros-lyrical-ament-cmake-core, ros-lyrical-backward-ros, ros-lyrical-launch, ros-lyrical-launch-ros, ros-lyrical-osrf-pycommon, ros-lyrical-rclpy, ros-lyrical-ros-workspace
+Description: Common support functionality used throughout the navigation 2 stack
