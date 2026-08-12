@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(nav2_common NONE)
+
+find_package(ament_cmake_core REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(backward_ros REQUIRED)
+
+ament_python_install_package(nav2_common)
+
+ament_package(
+  CONFIG_EXTRAS "nav2_common-extras.cmake"
+)
+
+install(
+  DIRECTORY cmake
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  DIRECTORY test
+  DESTINATION share/${PROJECT_NAME}
+)
+
+include(cmake/nav2_package.cmake)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_test REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
+
+  nav2_add_pytest_test(test_rewritten_yaml test/test_rewritten_yaml.py
+  )
+  nav2_add_pytest_test(test_has_node_params test/test_has_node_params.py
+  )
+  nav2_add_pytest_test(test_launch_config_as_bool test/test_launch_config_as_bool.py
+  )
+endif()
