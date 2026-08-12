@@ -1,0 +1,219 @@
+/*
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2017, Locus Robotics
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of the copyright holder nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#ifndef DWB_CORE__DWB_LOCAL_PLANNER_HPP_
+#define DWB_CORE__DWB_LOCAL_PLANNER_HPP_
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "nav2_core/controller.hpp"
+#include "nav2_core/goal_checker.hpp"
+#include "dwb_core/publisher.hpp"
+#include "dwb_core/trajectory_critic.hpp"
+#include "dwb_core/trajectory_generator.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "nav_2d_msgs/msg/twist2_d_stamped.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "pluginlib/class_loader.hpp"
+#include "pluginlib/class_list_macros.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+
+namespace dwb_core
+{
+
+/**
+ * @class DWBLocalPlanner
+ * @brief Plugin-based flexible controller
+ */
+class DWBLocalPlanner : public nav2_core::Controller
+{
+public:
+  /**
+   * @brief Constructor that brings up pluginlib loaders
+   */
+  DWBLocalPlanner();
+
+  void configure(
+    const nav2::LifecycleNode::WeakPtr & parent,
+    std::string name, nav2::TransformBuffer::SharedPtr tf,
+    std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
+
+  virtual ~DWBLocalPlanner() {}
+
+  /**
+   * @brief Activate lifecycle node
+   */
+  void activate() override;
+
+  /**
+   * @brief Deactivate lifecycle node
+   */
+  void deactivate() override;
+
+  /**
+   * @brief Cleanup lifecycle node
+   */
+  void cleanup() override;
+
+  /**
+   * @brief nav2_core newPathReceived - Receives a new plan from the Planner Server
+   * @param raw_global_path The global plan from the Planner Server
+   */
+  void newPathReceived(const nav_msgs::msg::Path & raw_global_path) override;
+
+  /**
+   * @brief nav2_core computeVelocityCommands - calculates the best command given the current pose and velocity
+   *
+   * It is presumed that the global plan is already set.
+   *
+   * This is mostly a wrapper for the protected computeVelocityCommands
+   * function which has additional debugging info.
+   *
+   * @param pose Current robot pose
+   * @param velocity Current robot velocity
+   * @param goal_checker   Ptr to the goal checker for this task in case useful in computing commands
+   * @param transformed_global_plan The global plan after being processed by the path handler
+   * @param global_goal The last pose of the global plan
+   * @return The best command for the robot to drive
+   */
+  geometry_msgs::msg::TwistStamped computeVelocityCommands(
+    const geometry_msgs::msg::PoseStamped & pose,
+    const geometry_msgs::msg::Twist & velocity,
+    nav2_core::GoalChecker * /*goal_checker*/,
+    const nav_msgs::msg::Path & transformed_global_plan,
+    const geometry_msgs::msg::PoseStamped & global_goal) override;
+
+  /**
+   * @brief Score a given command. Can be used for testing.
+   *
+   * Given a trajectory, calculate the score where lower scores are better.
+   * If the given (positive) score exceeds the best_score, calculation may be cut short, as the
+   * score can only go up from there.
+   *
+   * @param traj Trajectory to check
+   * @param best_score If positive, the threshold for early termination
+   * @return The full scoring of the input trajectory
+   */
+  virtual dwb_msgs::msg::TrajectoryScore scoreTrajectory(
+    const dwb_msgs::msg::Trajectory2D & traj,
+    double best_score = -1);
+
+  /**
+   * @brief Compute the best command given the current pose and velocity, with possible debug information
+   *
+   * Same as above computeVelocityCommands, but with debug results.
+   * If the results pointer is not null, additional information about the twists
+   * evaluated will be in results after the call.
+   *
+   * @param pose      Current robot pose
+   * @param velocity  Current robot velocity
+   * @param results   Output param, if not NULL, will be filled in with full evaluation results
+   * @param transformed_global_plan The global plan after being processed by the path handler
+   * @param global_goal The last pose of the global plan
+   * @return          Best command
+   */
+  virtual nav_2d_msgs::msg::Twist2DStamped computeVelocityCommands(
+    const geometry_msgs::msg::PoseStamped & pose,
+    const nav_2d_msgs::msg::Twist2D & velocity,
+    std::shared_ptr<dwb_msgs::msg::LocalPlanEvaluation> & results,
+    const nav_msgs::msg::Path & transformed_global_plan,
+    const geometry_msgs::msg::PoseStamped & global_goal);
+
+  /**
+   * @brief Limits the maximum linear speed of the robot.
+   * @param speed_limit expressed in absolute value (in m/s)
+   * or in percentage from maximum robot speed.
+   * @param percentage Setting speed limit in percentage if true
+   * or in absolute values in false case.
+   */
+  void setSpeedLimit(const double & speed_limit, const bool & percentage) override
+  {
+    if (traj_generator_) {
+      traj_generator_->setSpeedLimit(speed_limit, percentage);
+    }
+  }
+
+protected:
+  /**
+   * @brief Iterate through all the twists and find the best one
+   */
+  virtual dwb_msgs::msg::TrajectoryScore coreScoringAlgorithm(
+    const geometry_msgs::msg::Pose & pose,
+    const nav_2d_msgs::msg::Twist2D velocity,
+    std::shared_ptr<dwb_msgs::msg::LocalPlanEvaluation> & results);
+
+  bool debug_trajectory_details_;
+
+  /**
+   * @brief try to resolve a possibly shortened critic name with the default namespaces and the suffix "Critic"
+   *
+   * @param base_name The name of the critic as read in from the parameter server
+   * @return Our attempted resolution of the name, with namespace prepended and/or the suffix Critic appended
+   */
+  std::string resolveCriticClassName(std::string base_name);
+
+  /**
+   * @brief Load the critic parameters from the namespace
+   * @param name The namespace of this planner.
+   */
+  virtual void loadCritics();
+
+  nav2::LifecycleNode::WeakPtr node_;
+  rclcpp::Clock::SharedPtr clock_;
+  rclcpp::Logger logger_{rclcpp::get_logger("DWBLocalPlanner")};
+
+  nav2::TransformBuffer::SharedPtr tf_;
+  std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
+
+  std::unique_ptr<DWBPublisher> pub_;
+  std::vector<std::string> default_critic_namespaces_;
+
+  // Plugin handling
+  pluginlib::ClassLoader<TrajectoryGenerator> traj_gen_loader_;
+  TrajectoryGenerator::Ptr traj_generator_;
+
+  pluginlib::ClassLoader<TrajectoryCritic> critic_loader_;
+  std::vector<TrajectoryCritic::Ptr> critics_;
+
+  std::string dwb_plugin_name_;
+
+  bool short_circuit_trajectory_evaluation_;
+};
+
+}  // namespace dwb_core
+
+#endif  // DWB_CORE__DWB_LOCAL_PLANNER_HPP_
