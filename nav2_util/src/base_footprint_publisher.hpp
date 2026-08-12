@@ -1,0 +1,122 @@
+// Copyright (c) 2023 Open Navigation LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef BASE_FOOTPRINT_PUBLISHER_HPP_
+#define BASE_FOOTPRINT_PUBLISHER_HPP_
+
+#include <string>
+#include <memory>
+
+#include "rclcpp/rclcpp.hpp"
+#include "tf2_msgs/msg/tf_message.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
+#include "tf2/utils.hpp"
+#include "nav2_ros_common/node_utils.hpp"
+
+namespace nav2_util
+{
+
+/**
+ * @brief A TF2 listener that overrides the subscription callback
+ * to inject base footprint publisher removing Z, Pitch, and Roll for
+ * 3D state estimation but desiring a 2D frame for navigation, visualization, or other reasons
+ */
+class BaseFootprintPublisherListener : public nav2::TransformListener
+{
+public:
+  //  nosemgrep
+  BaseFootprintPublisherListener(tf2::BufferCore & buffer, bool spin_thread, rclcpp::Node & node)
+  : nav2::TransformListener(buffer, spin_thread)
+  {
+    base_link_frame_ = nav2::declare_or_get_parameter(
+      &node, "base_link_frame", std::string("base_link"));
+    base_footprint_frame_ = nav2::declare_or_get_parameter(
+      &node, "base_footprint_frame", std::string("base_footprint"));
+    tf_broadcaster_ = nav2::create_transform_broadcaster(&node);
+  }
+
+  /**
+   * @brief Overrides TF2 subscription callback to inject base footprint publisher
+   */
+  void subscription_callback(tf2_msgs::msg::TFMessage::ConstSharedPtr msg, bool is_static) override
+  {
+    TransformListener::subscription_callback(msg, is_static);
+
+    if (is_static) {
+      return;
+    }
+
+    for (unsigned int i = 0; i != msg->transforms.size(); i++) {
+      auto & t = msg->transforms[i];
+      if (t.child_frame_id == base_link_frame_) {
+        geometry_msgs::msg::TransformStamped transform;
+        transform.header.stamp = t.header.stamp;
+        transform.header.frame_id = base_link_frame_;
+        transform.child_frame_id = base_footprint_frame_;
+
+        // Project to Z-zero
+        transform.transform.translation = t.transform.translation;
+        transform.transform.translation.z = 0.0;
+
+        // Remove Roll and Pitch
+        tf2::Quaternion q;
+        q.setRPY(0, 0, tf2::getYaw(t.transform.rotation));
+        q.normalize();
+        transform.transform.rotation.x = q.x();
+        transform.transform.rotation.y = q.y();
+        transform.transform.rotation.z = q.z();
+        transform.transform.rotation.w = q.w();
+
+        tf_broadcaster_->sendTransform(transform);
+        return;
+      }
+    }
+  }
+
+protected:
+  nav2::TransformBroadcaster::SharedPtr tf_broadcaster_;
+  std::string base_link_frame_, base_footprint_frame_;
+};
+
+/**
+ * @class nav2_util::BaseFootprintPublisher
+ * @brief Republishes the ``base_link`` frame as ``base_footprint``
+ * stripping away the Z, Roll, and Pitch of the full 3D state to provide
+ * a 2D projection for navigation when state estimation is full 3D
+ */
+class BaseFootprintPublisher : public rclcpp::Node  //  nosemgrep
+{
+public:
+  /**
+   * @brief A constructor
+   */
+  explicit BaseFootprintPublisher(const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
+  : Node("base_footprint_publisher", options)
+  {
+    RCLCPP_INFO(get_logger(), "Creating base footprint publisher");
+    tf_buffer_ = nav2::create_transform_buffer(this);
+    listener_publisher_ = std::make_shared<BaseFootprintPublisherListener>(
+      *tf_buffer_, true, *this);
+  }
+
+protected:
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
+  std::shared_ptr<BaseFootprintPublisherListener> listener_publisher_;
+};
+
+}  // end namespace nav2_util
+
+#endif  // BASE_FOOTPRINT_PUBLISHER_HPP_
