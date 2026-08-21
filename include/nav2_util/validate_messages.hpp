@@ -145,6 +145,7 @@ bool validateMsg(const geometry_msgs::msg::PoseWithCovarianceStamped & msg)
   return true;
 }
 
+const double MIN_MAP_RESOLUTION = 1e-6;
 
 // Function to verify map meta information
 bool validateMsg(const nav_msgs::msg::MapMetaData & msg)
@@ -152,6 +153,9 @@ bool validateMsg(const nav_msgs::msg::MapMetaData & msg)
   // check sub-type
   if (!validateMsg(msg.origin)) {return false;}
   if (!validateMsg(msg.resolution)) {return false;}
+
+  // check logic
+  if (msg.resolution <= MIN_MAP_RESOLUTION) {return false;}          // check map-resolution
 
   // logic check
   // 1> we don't need an empty map
@@ -167,10 +171,20 @@ bool validateMsg(const nav_msgs::msg::OccupancyGrid & msg)
   // msg.data :  @todo any check for it ?
   if (!validateMsg(msg.info)) {return false;}
 
-  // check logic
   if (msg.data.size() != msg.info.width * msg.info.height) {
     return false;                                                          // check map-size
   }
+
+  // avoid overflow by multiplying width and height
+  if (msg.info.width > INT16_MAX || msg.info.height > INT16_MAX) {
+    return false;
+  }
+
+  uint32_t num_cells;
+  if (__builtin_mul_overflow(msg.info.width, msg.info.height, &num_cells)) {
+    return false;
+  }
+
   return true;
 }
 
