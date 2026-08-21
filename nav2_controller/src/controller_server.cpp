@@ -533,12 +533,12 @@ void ControllerServer::computeControl()
 
       updateGlobalPath();
 
-      computeAndPublishVelocity();
-
       if (isGoalReached()) {
         RCLCPP_INFO(get_logger(), "Reached the goal!");
         break;
       }
+
+      computeAndPublishVelocity();
 
       auto cycle_duration = this->now() - start_time;
       if (!loop_rate.sleep()) {
@@ -811,9 +811,12 @@ bool ControllerServer::isGoalReached()
 
   geometry_msgs::msg::PoseStamped transformed_end_pose;
   rclcpp::Duration tolerance(rclcpp::Duration::from_seconds(costmap_ros_->getTransformTolerance()));
-  nav_2d_utils::transformPose(
+  if(!nav_2d_utils::transformPose(
     costmap_ros_->getTfBuffer(), costmap_ros_->getGlobalFrameID(),
-    end_pose_, transformed_end_pose, tolerance);
+    end_pose_, transformed_end_pose, tolerance))
+  {
+    throw nav2_core::ControllerTFError("Failed to transform end pose to global frame");
+  }
 
   return goal_checkers_[current_goal_checker_]->isGoalReached(
     pose.pose, transformed_end_pose.pose,
