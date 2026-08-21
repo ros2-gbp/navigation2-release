@@ -24,16 +24,14 @@
 #include <utility>
 
 #include "nav2_core/smoother.hpp"
-#include "nav2_util/smoother_utils.hpp"
+#include "nav2_smoother/smoother_utils.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "angles/angles.h"
-#include "tf2/utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "tf2/utils.h"
 
 namespace nav2_smoother
 {
@@ -56,8 +54,8 @@ public:
   ~SimpleSmoother() override = default;
 
   void configure(
-    const nav2::LifecycleNode::WeakPtr &,
-    std::string name, nav2::TransformBuffer::SharedPtr,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr &,
+    std::string name, std::shared_ptr<tf2_ros::Buffer>,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>,
     std::shared_ptr<nav2_costmap_2d::FootprintSubscriber>) override;
 
@@ -115,7 +113,7 @@ protected:
    * @brief Set the field value for a given dimension
    * @param msg Current pose to sample
    * @param dim Dimension ID of interest
-   * @param value to set the dimension to for the pose
+   * @param value to set the dimention to for the pose
    */
   inline void setFieldByDim(
     geometry_msgs::msg::PoseStamped & msg, const unsigned int dim,
@@ -123,7 +121,7 @@ protected:
 
   double tolerance_, data_w_, smooth_w_;
   int max_its_, refinement_ctr_, refinement_num_;
-  bool do_refinement_, enforce_path_inversion_;
+  bool do_refinement_;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_sub_;
   rclcpp::Logger logger_{rclcpp::get_logger("SimpleSmoother")};
 };

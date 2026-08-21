@@ -16,7 +16,6 @@
 #include <string>
 #include <memory>
 
-#include "nav2_ros_common/qos_profiles.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_map_server/map_io.hpp"
 #include "test_constants/test_constants.h"
@@ -42,23 +41,12 @@ public:
 
     map_pub_ = create_publisher<nav_msgs::msg::OccupancyGrid>(
       "map",
-      nav2::qos::LatchedPublisherQoS());
+      rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
     map_pub_->publish(msg);
-
-    nav_msgs::msg::OccupancyGrid malformed_msg = msg;
-    malformed_msg.info.width = 2;
-    malformed_msg.info.height = 2;
-    malformed_msg.data.clear();
-
-    malformed_map_pub_ = create_publisher<nav_msgs::msg::OccupancyGrid>(
-      "malformed_map",
-      nav2::qos::LatchedPublisherQoS());
-    malformed_map_pub_->publish(malformed_msg);
   }
 
 protected:
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_pub_;
-  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr malformed_map_pub_;
 };
 
 int main(int argc, char ** argv)

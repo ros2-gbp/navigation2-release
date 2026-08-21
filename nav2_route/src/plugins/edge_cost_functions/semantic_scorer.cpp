@@ -16,14 +16,13 @@
 #include <string>
 
 #include "nav2_route/plugins/edge_cost_functions/semantic_scorer.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_route
 {
 
 void SemanticScorer::configure(
-  const nav2::LifecycleNode::SharedPtr node,
-  const nav2::TransformBuffer::SharedPtr/* tf_buffer */,
+  const nav2_util::LifecycleNode::SharedPtr node,
+  const std::shared_ptr<tf2_ros::Buffer>/* tf_buffer */,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>/* costmap_subscriber */,
   const std::string & name)
 {
@@ -31,22 +30,27 @@ void SemanticScorer::configure(
   name_ = name;
 
   // Find the semantic data
-  std::vector<std::string> classes = node->declare_or_get_parameter(
-    getName() + ".semantic_classes", std::vector<std::string>{});
+  nav2_util::declare_parameter_if_not_declared(
+    node, getName() + ".semantic_classes", rclcpp::ParameterValue(std::vector<std::string>{}));
+  std::vector<std::string> classes =
+    node->get_parameter(getName() + ".semantic_classes").as_string_array();
   for (auto & cl : classes) {
-    const double cost = node->declare_or_get_parameter<double>(
-      getName() + "." + cl);
+    nav2_util::declare_parameter_if_not_declared(
+      node, getName() + "." + cl, rclcpp::ParameterType::PARAMETER_DOUBLE);
+    const double cost = node->get_parameter(getName() + "." + cl).as_double();
     semantic_info_[cl] = static_cast<float>(cost);
   }
 
   // Find the key to look for semantic data for within the metadata. If set to empty string,
   // will search instead for any key in the metadata.
-  key_ = node->declare_or_get_parameter(
-    getName() + ".semantic_key", std::string("class"));
+  nav2_util::declare_parameter_if_not_declared(
+    node, getName() + ".semantic_key", rclcpp::ParameterValue(std::string("class")));
+  key_ = node->get_parameter(getName() + ".semantic_key").as_string();
 
   // Find the proportional weight to apply, if multiple cost functions
-  weight_ = static_cast<float>(
-    node->declare_or_get_parameter(getName() + ".weight", 1.0));
+  nav2_util::declare_parameter_if_not_declared(
+    node, getName() + ".weight", rclcpp::ParameterValue(1.0));
+  weight_ = static_cast<float>(node->get_parameter(getName() + ".weight").as_double());
 }
 
 void SemanticScorer::metadataKeyScorer(Metadata & mdata, float & score)

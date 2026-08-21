@@ -20,13 +20,21 @@
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/costmap_subscriber.hpp"
 #include "nav2_msgs/msg/costmap.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_smoother/simple_smoother.hpp"
 #include "nav2_core/smoother_exceptions.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
+using namespace smoother_utils;  // NOLINT
 using namespace nav2_smoother;  // NOLINT
 using namespace std::chrono_literals;  // NOLINT
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 class SmootherWrapper : public nav2_smoother::SimpleSmoother
 {
@@ -34,6 +42,11 @@ public:
   SmootherWrapper()
   : nav2_smoother::SimpleSmoother()
   {
+  }
+
+  std::vector<PathSegment> findDirectionalPathSegmentsWrapper(nav_msgs::msg::Path path)
+  {
+    return findDirectionalPathSegments(path);
   }
 
   void setMaxItsToInvalid()
@@ -44,8 +57,8 @@ public:
 
 TEST(SmootherTest, test_simple_smoother)
 {
-  nav2::LifecycleNode::SharedPtr node =
-    std::make_shared<nav2::LifecycleNode>("SmacSmootherTest");
+  rclcpp_lifecycle::LifecycleNode::SharedPtr node =
+    std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacSmootherTest");
 
   std::shared_ptr<nav2_msgs::msg::Costmap> costmap_msg =
     std::make_shared<nav2_msgs::msg::Costmap>();
@@ -63,15 +76,16 @@ TEST(SmootherTest, test_simple_smoother)
     }
   }
 
+  std::weak_ptr<rclcpp_lifecycle::LifecycleNode> parent = node;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> dummy_costmap;
-  dummy_costmap = std::make_shared<nav2_costmap_2d::CostmapSubscriber>(node, "dummy_topic");
+  dummy_costmap = std::make_shared<nav2_costmap_2d::CostmapSubscriber>(parent, "dummy_topic");
   dummy_costmap->costmapCallback(costmap_msg);
 
   // Make smoother
-  nav2::TransformBuffer::SharedPtr dummy_tf;
+  std::shared_ptr<tf2_ros::Buffer> dummy_tf;
   std::shared_ptr<nav2_costmap_2d::FootprintSubscriber> dummy_footprint;
   auto smoother = std::make_unique<SmootherWrapper>();
-  smoother->configure(node, "test", dummy_tf, dummy_costmap, dummy_footprint);
+  smoother->configure(parent, "test", dummy_tf, dummy_costmap, dummy_footprint);
 
   // Test that an irregular distributed path becomes more distributed
   nav_msgs::msg::Path straight_irregular_path;
@@ -270,17 +284,4 @@ TEST(SmootherTest, test_simple_smoother)
   max_its_path.poses[10].pose.position.x = 0.5;
   max_its_path.poses[10].pose.position.y = 1.0;
   EXPECT_TRUE(smoother->smooth(max_its_path, max_time));
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

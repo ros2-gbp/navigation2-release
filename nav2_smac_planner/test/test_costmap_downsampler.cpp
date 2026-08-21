@@ -18,12 +18,20 @@
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_smac_planner/costmap_downsampler.hpp"
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 TEST(CostmapDownsampler, costmap_downsample_test)
 {
-  nav2::LifecycleNode::SharedPtr node = std::make_shared<nav2::LifecycleNode>(
+  nav2_util::LifecycleNode::SharedPtr node = std::make_shared<nav2_util::LifecycleNode>(
     "CostmapDownsamplerTest");
   nav2_smac_planner::CostmapDownsampler downsampler;
 
@@ -56,17 +64,4 @@ TEST(CostmapDownsampler, costmap_downsample_test)
   EXPECT_EQ(downsampledCostmapB->getSizeInCellsY(), 1u);
 
   downsampler.resizeCostmap();
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

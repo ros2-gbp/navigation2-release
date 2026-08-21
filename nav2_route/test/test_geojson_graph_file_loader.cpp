@@ -16,10 +16,18 @@
 #include <fstream>
 #include <string>
 #include <nlohmann/json.hpp>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "nav2_route/plugins/graph_file_loaders/geojson_graph_file_loader.hpp"
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route; // NOLINT
 using Json = nlohmann::json;
@@ -224,19 +232,19 @@ TEST(GeoJsonGraphFileLoader, test_node_metadata) {
 
   std::string name;
   name = metadata.getValue("name", name);
-  EXPECT_EQ(name, node_metadata["metadata"]["person"]["name"].get<std::string>());
+  EXPECT_EQ(name, node_metadata["metadata"]["person"]["name"]);
 
   bool can_drive = false;
   can_drive = metadata.getValue("can_drive", can_drive);
-  EXPECT_EQ(can_drive, node_metadata["metadata"]["person"]["can_drive"].get<bool>());
+  EXPECT_EQ(can_drive, node_metadata["metadata"]["person"]["can_drive"]);
 
   float top_speed = 0.0f;
   top_speed = metadata.getValue("top_speed", top_speed);
-  EXPECT_NEAR(top_speed, node_metadata["metadata"]["person"]["top_speed"].get<float>(), 1e-6);
+  EXPECT_NEAR(top_speed, node_metadata["metadata"]["person"]["top_speed"], 1e-6);
 
   unsigned int age = 0;
   age = metadata.getValue("age", age);
-  EXPECT_EQ(age, node_metadata["metadata"]["person"]["age"].get<unsigned int>());
+  EXPECT_EQ(age, node_metadata["metadata"]["person"]["age"]);
 
   std::vector<std::any> array;
   array = graph[0].metadata.getValue("array", array);
@@ -249,7 +257,7 @@ TEST(GeoJsonGraphFileLoader, test_node_metadata) {
   // Check edge metadata
   std::string color;
   color = graph[0].neighbors[0].metadata.getValue("color", color);
-  EXPECT_EQ(color, edge_metadata["metadata"]["color"].get<std::string>());
+  EXPECT_EQ(color, edge_metadata["metadata"]["color"]);
 }
 
 TEST(GeoJsonGraphFileLoader, operations)
@@ -340,7 +348,7 @@ TEST(GeoJsonGraphFileLoader, simple_graph)
 
 TEST(GeoJsonGraphFileLoader, sample_graph)
 {
-  auto file_path = nav2::get_package_share_directory("nav2_route") +
+  auto file_path = ament_index_cpp::get_package_share_directory("nav2_route") +
     "/graphs/sample_graph.geojson";
 
   Graph graph;
@@ -371,19 +379,10 @@ TEST(GeoJsonGraphFileLoader, sample_graph)
 
 TEST(GeoJsonGraphFileLoader, invalid_file)
 {
-  auto file_path = nav2::get_package_share_directory("nav2_route") +
+  auto file_path = ament_index_cpp::get_package_share_directory("nav2_route") +
     "/test/test_graphs/invalid.json";
   GeoJsonGraphFileLoader graph_file_loader;
   Graph graph;
   GraphToIDMap graph_to_id_map;
   EXPECT_FALSE(graph_file_loader.loadGraphFromFile(graph, graph_to_id_map, file_path));
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-  rclcpp::init(argc, argv);
-  int result = RUN_ALL_TESTS();
-  rclcpp::shutdown();
-  return result;
 }

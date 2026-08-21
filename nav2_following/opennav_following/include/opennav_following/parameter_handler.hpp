@@ -22,9 +22,8 @@
 #include <mutex>
 
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_util/parameter_handler.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/node_utils.hpp"
 
 namespace opennav_following
 {
@@ -66,37 +65,59 @@ struct Parameters
 
 /**
  * @class opennav_following::ParameterHandler
- * @brief Handles parameters and dynamic parameters for Planner Server
+ * @brief Handles parameters and dynamic parameters for Following Server
  */
-class ParameterHandler : public nav2_util::ParameterHandler<Parameters>
+class ParameterHandler
 {
 public:
   /**
    * @brief Constructor for opennav_following::ParameterHandler
    */
   ParameterHandler(
-    const nav2::LifecycleNode::SharedPtr & node,
+    const nav2_util::LifecycleNode::SharedPtr & node,
     const rclcpp::Logger & logger);
+
+  /**
+   * @brief Destructor for opennav_following::ParameterHandler
+   */
+  ~ParameterHandler() = default;
+
+  /**
+   * @brief Get the internal mutex used for thread-safe parameter access.
+   * @return Reference to the mutex.
+   */
+  std::mutex & getMutex() {return mutex_;}
+
+  /**
+   * @brief Get a pointer to the internal parameter structure.
+   * @return Pointer to the stored parameter structure.
+   */
+  Parameters * getParams() {return &params_;}
+
+  /**
+   * @brief Registers callbacks for dynamic parameter handling.
+   */
+  void activate();
+
+  /**
+   * @brief Resets callbacks for dynamic parameter handling.
+   */
+  void deactivate();
 
 protected:
   /**
-   * @brief Validate incoming parameter updates before applying them.
-   * This callback is triggered when one or more parameters are about to be updated.
-   * It checks the validity of parameter values and rejects updates that would lead
-   * to invalid or inconsistent configurations
+   * @brief Callback executed when a parameter change is detected.
    * @param parameters List of parameters that are being updated.
-   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
+   * @return rcl_interfaces::msg::SetParametersResult Result indicating acceptance.
    */
-  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
-    const std::vector<rclcpp::Parameter> & parameters) override;
+  rcl_interfaces::msg::SetParametersResult dynamicParametersCallback(
+    const std::vector<rclcpp::Parameter> & parameters);
 
-  /**
-   * @brief Apply parameter updates after validation
-   * This callback is executed when parameters have been successfully updated.
-   * It updates the internal configuration of the node with the new parameter values.
-   * @param parameters List of parameters that have been updated.
-   */
-  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters) override;
+  nav2_util::LifecycleNode::WeakPtr node_;
+  std::mutex mutex_;
+  Parameters params_;
+  rclcpp::Logger logger_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
 };
 
 }  // namespace opennav_following

@@ -12,19 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// C++
+#include <stdio.h>
+
 // QT
 #include <QLineEdit>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
-
-// C++
-#include <chrono>
-#include <memory>
-#include <sstream>
-#include <string>
-
-#include <rclcpp/rclcpp.hpp>
 #include <rviz_common/display_context.hpp>
 
 #include "nav2_util/geometry_utils.hpp"
@@ -152,7 +147,7 @@ DockingPanel::DockingPanel(QWidget * parent)
 
   // ROSAction Transitions: So when actions are updated remotely (failing, succeeding, etc)
   // the state of the application will also update. This means that if in the processing
-  // states and then goes inactive, move back to the idle state. Vice versa as well.
+  // states and then goes inactive, move back to the idle state. Vise versa as well.
   ROSActionQTransition * idleDockTransition = new ROSActionQTransition(QActionState::INACTIVE);
   idleDockTransition->setTargetState(docking_);
   idle_->addTransition(idleDockTransition);
@@ -169,9 +164,7 @@ DockingPanel::DockingPanel(QWidget * parent)
   undockingTransition->setTargetState(idle_);
   undocking_->addTransition(undockingTransition);
 
-  client_node_ = std::make_shared<rclcpp::Node>("nav2_rviz_docking_panel_node");  //  nosemgrep
-  executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
-  executor_->add_node(client_node_);
+  client_node_ = std::make_shared<rclcpp::Node>("nav2_rviz_docking_panel_node");
 
   state_machine_.addState(pre_initial_);
   state_machine_.addState(idle_);
@@ -232,8 +225,7 @@ DockingPanel::DockingPanel(QWidget * parent)
   setLayout(main_layout_);
   action_timer_.start(200, this);
 
-  dock_client_ = rclcpp_action::create_client<Dock>(client_node_, "dock_robot");  //  nosemgrep
-  //  nosemgrep
+  dock_client_ = rclcpp_action::create_client<Dock>(client_node_, "dock_robot");
   undock_client_ = rclcpp_action::create_client<Undock>(client_node_, "undock_robot");
   initial_thread_ = new InitialDockThread(dock_client_, undock_client_);
   connect(initial_thread_, &InitialDockThread::finished, initial_thread_, &QObject::deleteLater);
@@ -255,38 +247,25 @@ DockingPanel::DockingPanel(QWidget * parent)
       if (!plugins_loaded_) {
         RCLCPP_INFO(client_node_->get_logger(), "Loading dock plugins");
         nav2_rviz_plugins::pluginLoader(
-          client_node_, server_failed_, "docking_server", "dock_plugins", dock_type_, executor_);
+        client_node_, server_failed_, "docking_server", "dock_plugins", dock_type_);
         plugins_loaded_ = true;
       }
     });
 
-  // Connect buttons with functions
-  #if QT_VERSION >= QT_VERSION_CHECK(6, 10, 2)
-  QObject::connect(
-    use_dock_id_checkbox_, &QCheckBox::checkStateChanged, this, &DockingPanel::dockIdCheckbox);
-  #else
+  // Conect buttons with functions
   QObject::connect(
     use_dock_id_checkbox_, &QCheckBox::stateChanged, this, &DockingPanel::dockIdCheckbox);
-  #endif
 }
 
 void DockingPanel::onInitialize()
 {
-  node_ptr_ = getDisplayContext()->getRosNodeAbstraction().lock();
-  if (node_ptr_ == nullptr) {
-    // The node no longer exists, so just don't initialize
-    RCLCPP_ERROR(
-      rclcpp::get_logger("docking_panel"),
-      "Underlying ROS node no longer exists, initialization failed");
-    return;
-  }
-  rclcpp::Node::SharedPtr node = node_ptr_->get_raw_node();  //  nosemgrep
+  auto node = getDisplayContext()->getRosNodeAbstraction().lock()->get_raw_node();
 
   // Create action feedback subscriber
   docking_feedback_sub_ = node->create_subscription<Dock::Impl::FeedbackMessage>(
     "dock_robot/_action/feedback",
     rclcpp::SystemDefaultsQoS(),
-    [this](const Dock::Impl::FeedbackMessage::ConstSharedPtr & msg) {
+    [this](const Dock::Impl::FeedbackMessage::SharedPtr msg) {
       docking_feedback_indicator_->setText(getDockFeedbackLabel(msg->feedback));
     });
 
@@ -294,7 +273,7 @@ void DockingPanel::onInitialize()
   docking_goal_status_sub_ = node->create_subscription<action_msgs::msg::GoalStatusArray>(
     "dock_robot/_action/status",
     rclcpp::SystemDefaultsQoS(),
-    [this](const action_msgs::msg::GoalStatusArray::ConstSharedPtr & msg) {
+    [this](const action_msgs::msg::GoalStatusArray::SharedPtr msg) {
       docking_goal_status_indicator_->setText(
         nav2_rviz_plugins::getGoalStatusLabel("Feedback", msg->status_list.back().status));
       // Reset values when action is completed
@@ -306,7 +285,7 @@ void DockingPanel::onInitialize()
   undocking_goal_status_sub_ = node->create_subscription<action_msgs::msg::GoalStatusArray>(
     "undock_robot/_action/status",
     rclcpp::SystemDefaultsQoS(),
-    [this](const action_msgs::msg::GoalStatusArray::ConstSharedPtr & msg) {
+    [this](const action_msgs::msg::GoalStatusArray::SharedPtr msg) {
       docking_goal_status_indicator_->setText(
         nav2_rviz_plugins::getGoalStatusLabel("Feedback", msg->status_list.back().status));
     });
@@ -389,7 +368,7 @@ void DockingPanel::onDockingButtonPressed()
   }
 
   // Enable result awareness by providing an empty lambda function
-  auto send_goal_options = nav2::ActionClient<Dock>::SendGoalOptions();
+  auto send_goal_options = rclcpp_action::Client<Dock>::SendGoalOptions();
   send_goal_options.result_callback = [this](const DockGoalHandle::WrappedResult & result) {
       dock_goal_handle_.reset();
       if (result.result->success) {
@@ -401,7 +380,7 @@ void DockingPanel::onDockingButtonPressed()
     };
 
   auto future_goal_handle = dock_client_->async_send_goal(goal_msg, send_goal_options);
-  if (executor_->spin_until_future_complete(future_goal_handle, server_timeout_) !=
+  if (rclcpp::spin_until_future_complete(client_node_, future_goal_handle, server_timeout_) !=
     rclcpp::FutureReturnCode::SUCCESS)
   {
     RCLCPP_ERROR(client_node_->get_logger(), "Send goal call failed");
@@ -447,7 +426,7 @@ void DockingPanel::onUndockingButtonPressed()
     goal_msg.dock_type.c_str());
 
   // Enable result awareness by providing an empty lambda function
-  auto send_goal_options = nav2::ActionClient<Undock>::SendGoalOptions();
+  auto send_goal_options = rclcpp_action::Client<Undock>::SendGoalOptions();
   send_goal_options.result_callback = [this](const UndockGoalHandle::WrappedResult & result) {
       undock_goal_handle_.reset();
       if (result.result->success) {
@@ -459,7 +438,7 @@ void DockingPanel::onUndockingButtonPressed()
     };
 
   auto future_goal_handle = undock_client_->async_send_goal(goal_msg, send_goal_options);
-  if (executor_->spin_until_future_complete(future_goal_handle, server_timeout_) !=
+  if (rclcpp::spin_until_future_complete(client_node_, future_goal_handle, server_timeout_) !=
     rclcpp::FutureReturnCode::SUCCESS)
   {
     RCLCPP_ERROR(client_node_->get_logger(), "Send goal call failed");
@@ -498,7 +477,7 @@ void DockingPanel::onCancelDocking()
   if (dock_goal_handle_) {
     auto future_cancel = dock_client_->async_cancel_goal(dock_goal_handle_);
 
-    if (executor_->spin_until_future_complete(future_cancel, server_timeout_) !=
+    if (rclcpp::spin_until_future_complete(client_node_, future_cancel, server_timeout_) !=
       rclcpp::FutureReturnCode::SUCCESS)
     {
       RCLCPP_ERROR(client_node_->get_logger(), "Failed to cancel goal");
@@ -515,7 +494,7 @@ void DockingPanel::onCancelUndocking()
   if (undock_goal_handle_) {
     auto future_cancel = undock_client_->async_cancel_goal(undock_goal_handle_);
 
-    if (executor_->spin_until_future_complete(future_cancel, server_timeout_) !=
+    if (rclcpp::spin_until_future_complete(client_node_, future_cancel, server_timeout_) !=
       rclcpp::FutureReturnCode::SUCCESS)
     {
       RCLCPP_ERROR(client_node_->get_logger(), "Failed to cancel goal");
@@ -538,7 +517,7 @@ void DockingPanel::timerEvent(QTimerEvent * event)
         return;
       }
 
-      executor_->spin_some();
+      rclcpp::spin_some(client_node_);
       auto status = dock_goal_handle_->get_status();
 
       // Check if the goal is still executing
@@ -557,7 +536,7 @@ void DockingPanel::timerEvent(QTimerEvent * event)
         return;
       }
 
-      executor_->spin_some();
+      rclcpp::spin_some(client_node_);
       auto status = undock_goal_handle_->get_status();
 
       // Check if the goal is still executing

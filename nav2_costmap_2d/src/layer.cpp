@@ -31,7 +31,7 @@
 
 #include <string>
 #include <vector>
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -48,8 +48,8 @@ void
 Layer::initialize(
   LayeredCostmap * parent,
   std::string name,
-  nav2::TransformBuffer * tf,
-  const nav2::LifecycleNode::WeakPtr & node,
+  tf2_ros::Buffer * tf,
+  const nav2_util::LifecycleNode::WeakPtr & node,
   rclcpp::CallbackGroup::SharedPtr callback_group)
 {
   layered_costmap_ = parent;
@@ -72,28 +72,48 @@ Layer::getFootprint() const
   return layered_costmap_->getFootprint();
 }
 
-std::string
-Layer::getFullName(const std::string & param_name)
-{
-  return std::string(name_ + "." + param_name);
-}
-
-
-std::string
-Layer::joinWithParentNamespace(const std::string & topic)
+void
+Layer::declareParameter(
+  const std::string & param_name,
+  const rclcpp::ParameterValue & value)
 {
   auto node = node_.lock();
   if (!node) {
     throw std::runtime_error{"Failed to lock node"};
   }
+  local_params_.insert(param_name);
+  nav2_util::declare_parameter_if_not_declared(
+    node, getFullName(param_name), value);
+}
 
-  if (topic[0] != '/') {
-    std::string node_namespace = node->get_namespace();
-    std::string parent_namespace = node_namespace.substr(0, node_namespace.rfind("/"));
-    return parent_namespace + "/" + topic;
+void
+Layer::declareParameter(
+  const std::string & param_name,
+  const rclcpp::ParameterType & param_type)
+{
+  auto node = node_.lock();
+  if (!node) {
+    throw std::runtime_error{"Failed to lock node"};
   }
+  local_params_.insert(param_name);
+  nav2_util::declare_parameter_if_not_declared(
+    node, getFullName(param_name), param_type);
+}
 
-  return topic;
+bool
+Layer::hasParameter(const std::string & param_name)
+{
+  auto node = node_.lock();
+  if (!node) {
+    throw std::runtime_error{"Failed to lock node"};
+  }
+  return node->has_parameter(getFullName(param_name));
+}
+
+std::string
+Layer::getFullName(const std::string & param_name)
+{
+  return std::string(name_ + "." + param_name);
 }
 
 }  // end namespace nav2_costmap_2d

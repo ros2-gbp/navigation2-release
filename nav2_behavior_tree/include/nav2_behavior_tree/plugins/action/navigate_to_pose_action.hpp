@@ -17,24 +17,23 @@
 
 #include <string>
 
+#include "behaviortree_cpp/json_export.h"
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::NavigateToPose
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
  * <NavigateToPose goal="{goal}" server_name="NavigateToPose" server_timeout="10"
- *                 error_code_id="{navigate_to_pose_error_code}" error_msg="{navigate_to_pose_error_msg}"
- *                 behavior_tree="NavigateThroughPosesWReplanningAndRecovery"/>
+ *                 error_code_id="{navigate_to_pose_error_code}"
+ *                 behavior_tree="<some-path>/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"/>
  * @endcode
  */
 class NavigateToPoseAction : public BtActionNode<nav2_msgs::action::NavigateToPose>
@@ -87,6 +86,8 @@ public:
       {
         BT::InputPort<geometry_msgs::msg::PoseStamped>("goal", "Destination to plan to"),
         BT::InputPort<std::string>("behavior_tree", "Behavior tree to run"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "Navigate to pose error code"),
       });
   }
 };

@@ -27,12 +27,15 @@
 #include "nav2_costmap_2d/costmap_2d_publisher.hpp"
 #include "../testing_helper.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_ros/create_timer_ros.h"
+#include "tf2_ros/transform_broadcaster.h"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-#include "tf2/utils.hpp"
+#include "tf2/utils.h"
 #pragma GCC diagnostic pop
 #include "nav2_util/geometry_utils.hpp"
 
@@ -40,11 +43,19 @@ using namespace std::chrono_literals;
 using namespace std::placeholders;
 using nav2_util::geometry_utils::orientationAroundZAxis;
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
+
 class DummyCostmapSubscriber : public nav2_costmap_2d::CostmapSubscriber
 {
 public:
   DummyCostmapSubscriber(
-    nav2::LifecycleNode::SharedPtr node,
+    nav2_util::LifecycleNode::SharedPtr node,
     std::string & topic_name)
   : CostmapSubscriber(node, topic_name)
   {}
@@ -65,9 +76,9 @@ class DummyFootprintSubscriber : public nav2_costmap_2d::FootprintSubscriber
 {
 public:
   DummyFootprintSubscriber(
-    nav2::LifecycleNode::SharedPtr node,
+    nav2_util::LifecycleNode::SharedPtr node,
     std::string & topic_name,
-    nav2::TransformBuffer & tf)
+    tf2_ros::Buffer & tf)
   : FootprintSubscriber(node, topic_name, tf)
   {}
 
@@ -78,7 +89,7 @@ public:
   }
 };
 
-class TestCollisionChecker : public nav2::LifecycleNode
+class TestCollisionChecker : public nav2_util::LifecycleNode
 {
 public:
   explicit TestCollisionChecker(std::string name)
@@ -90,22 +101,26 @@ public:
     declare_parameter("track_unknown_space", rclcpp::ParameterValue(true));
     declare_parameter("use_maximum", rclcpp::ParameterValue(false));
     declare_parameter("lethal_cost_threshold", rclcpp::ParameterValue(100));
-    declare_parameter("inscribed_obstacle_cost_value", rclcpp::ParameterValue(99));
     declare_parameter(
       "unknown_cost_value",
       rclcpp::ParameterValue(static_cast<unsigned char>(0xff)));
     declare_parameter("trinary_costmap", rclcpp::ParameterValue(true));
   }
 
-  nav2::CallbackReturn
+  nav2_util::CallbackReturn
   on_configure(const rclcpp_lifecycle::State & /*state*/)
   {
     RCLCPP_INFO(get_logger(), "Configuring");
     callback_group_ = create_callback_group(
       rclcpp::CallbackGroupType::MutuallyExclusive, false);
-    tf_buffer_ = nav2::create_transform_buffer(shared_from_this());
-    tf_listener_ = nav2::create_transform_listener(*tf_buffer_, shared_from_this());
-    tf_broadcaster_ = nav2::create_transform_broadcaster(shared_from_this());
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(get_clock());
+    auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+      get_node_base_interface(),
+      get_node_timers_interface(),
+      callback_group_);
+    tf_buffer_->setCreateTimerInterface(timer_interface);
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+    tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(shared_from_this());
 
     std::string costmap_topic = "costmap_raw";
     std::string footprint_topic = "published_footprint";
@@ -126,10 +141,9 @@ public:
     // Add Static Layer
     std::shared_ptr<nav2_costmap_2d::StaticLayer> slayer = nullptr;
     addStaticLayer(*layers_, *tf_buffer_, shared_from_this(), slayer, callback_group_);
-    rclcpp::executors::SingleThreadedExecutor executor;
-    executor.add_node(this->get_node_base_interface());
+
     while (!slayer->isCurrent()) {
-      executor.spin_some();
+      rclcpp::spin_some(this->get_node_base_interface());
     }
     // Add Inflation Layer
     std::shared_ptr<nav2_costmap_2d::InflationLayer> ilayer = nullptr;
@@ -137,25 +151,25 @@ public:
 
     executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
     executor_->add_callback_group(callback_group_, get_node_base_interface());
-    executor_thread_ = std::make_unique<nav2::NodeThread>(executor_);
-    return nav2::CallbackReturn::SUCCESS;
+    executor_thread_ = std::make_unique<nav2_util::NodeThread>(executor_);
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn
+  nav2_util::CallbackReturn
   on_activate(const rclcpp_lifecycle::State & /*state*/)
   {
     RCLCPP_INFO(get_logger(), "Activating");
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn
+  nav2_util::CallbackReturn
   on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   {
     RCLCPP_INFO(get_logger(), "Deactivating");
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn
+  nav2_util::CallbackReturn
   on_cleanup(const rclcpp_lifecycle::State & /*state*/)
   {
     RCLCPP_INFO(get_logger(), "Cleaning Up");
@@ -168,7 +182,7 @@ public:
     footprint_sub_.reset();
     costmap_sub_.reset();
 
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
   ~TestCollisionChecker() {}
@@ -177,12 +191,10 @@ public:
   {
     rclcpp::Time stamp = now();
     publishPose(x, y, theta, stamp);
-
-    geometry_msgs::msg::Pose pose;
-    pose.position.x = x;
-    pose.position.y = y;
-    pose.position.z = 0.0;
-    pose.orientation = nav2_util::geometry_utils::orientationAroundZAxis(theta);
+    geometry_msgs::msg::Pose2D pose;
+    pose.x = x;
+    pose.y = y;
+    pose.theta = theta;
 
     setPose(x, y, theta, stamp);
     publishFootprint();
@@ -274,13 +286,13 @@ protected:
     return costmap_msg;
   }
 
-  nav2::TransformBuffer::SharedPtr tf_buffer_;
-  nav2::TransformListener::SharedPtr tf_listener_;
-  nav2::TransformBroadcaster::SharedPtr tf_broadcaster_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
-  std::unique_ptr<nav2::NodeThread> executor_thread_;
+  std::unique_ptr<nav2_util::NodeThread> executor_thread_;
 
   std::shared_ptr<DummyCostmapSubscriber> costmap_sub_;
   std::shared_ptr<DummyFootprintSubscriber> footprint_sub_;
@@ -349,17 +361,4 @@ TEST_F(TestNode, CollisionSpace)
 
   // Partially in obstacle
   ASSERT_EQ(collision_checker_->testPose(4.5, 4.5, 0), false);
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

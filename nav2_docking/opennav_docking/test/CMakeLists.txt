@@ -1,195 +1,119 @@
 # Test utils
-nav2_add_gtest(test_utils
+ament_add_gtest(test_utils
   test_utils.cpp
 )
-target_link_libraries(test_utils
-  ament_index_cpp::ament_index_cpp
-  geometry_msgs::geometry_msgs
-  ${library_name}
-  nav2_util::nav2_util_core
-  nav2_ros_common::nav2_ros_common
-  rclcpp::rclcpp
-  rclcpp_lifecycle::rclcpp_lifecycle
+ament_target_dependencies(test_utils
+  ${dependencies}
 )
-target_include_directories(test_utils
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+target_link_libraries(test_utils
+  ${library_name}
 )
 
 # Test dock database
-nav2_add_gtest(test_dock_database
+ament_add_gtest(test_dock_database
   test_dock_database.cpp
 )
-target_link_libraries(test_dock_database
-  ament_index_cpp::ament_index_cpp
-  ${library_name}
-  rclcpp::rclcpp
-  rclcpp_lifecycle::rclcpp_lifecycle
-  nav2_ros_common::nav2_ros_common
+ament_target_dependencies(test_dock_database
+  ${dependencies}
 )
-target_include_directories(test_dock_database
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+target_link_libraries(test_dock_database
+  ${library_name}
 )
 
 # Test navigator
-nav2_add_gtest(test_navigator
+ament_add_gtest(test_navigator
   test_navigator.cpp
 )
-target_link_libraries(test_navigator
-  ament_index_cpp::ament_index_cpp
-  geometry_msgs::geometry_msgs
-  ${library_name}
-  nav2_msgs::nav2_msgs
-  nav2_util::nav2_util_core
-  nav2_ros_common::nav2_ros_common
-  rclcpp::rclcpp
-  rclcpp_lifecycle::rclcpp_lifecycle
+ament_target_dependencies(test_navigator
+  ${dependencies}
 )
-target_include_directories(test_navigator
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+target_link_libraries(test_navigator
+  ${library_name}
 )
 
 # Test Controller
-nav2_add_gtest(test_controller
+ament_add_gtest(test_controller
   test_controller.cpp
 )
-target_link_libraries(test_controller
-  geometry_msgs::geometry_msgs
-  ${library_name}
-  rclcpp::rclcpp
-  rclcpp_lifecycle::rclcpp_lifecycle
-  nav2_ros_common::nav2_ros_common
+ament_target_dependencies(test_controller
+  ${dependencies}
 )
-target_include_directories(test_controller
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+target_link_libraries(test_controller
+  ${library_name}
 )
 
 # Test Simple Dock
-nav2_add_gtest(test_simple_charging_dock
+ament_add_gtest(test_simple_charging_dock
   test_simple_charging_dock.cpp
 )
+ament_target_dependencies(test_simple_charging_dock
+  ${dependencies}
+)
 target_link_libraries(test_simple_charging_dock
-  ament_index_cpp::ament_index_cpp
-  geometry_msgs::geometry_msgs
-  nav2_ros_common::nav2_ros_common
-  rclcpp::rclcpp
-  rclcpp_lifecycle::rclcpp_lifecycle
-  sensor_msgs::sensor_msgs
-  simple_charging_dock
-  tf2_geometry_msgs::tf2_geometry_msgs
+  ${library_name} simple_charging_dock
 )
-target_include_directories(test_simple_charging_dock
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
-)
-nav2_add_gtest(test_simple_non_charging_dock
+ament_add_gtest(test_simple_non_charging_dock
   test_simple_non_charging_dock.cpp
 )
 target_link_libraries(test_simple_non_charging_dock
-  geometry_msgs::geometry_msgs
+  ${geometry_msgs_TARGETS}
   ${library_name}
   rclcpp::rclcpp
   rclcpp_lifecycle::rclcpp_lifecycle
-  nav2_ros_common::nav2_ros_common
 )
 target_link_libraries(test_simple_non_charging_dock
   ${library_name} simple_non_charging_dock
 )
-target_include_directories(test_simple_non_charging_dock
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
-)
 
 # Test Pose Filter (unit)
-nav2_add_gtest(test_pose_filter
+ament_add_gtest(test_pose_filter
   test_pose_filter.cpp
 )
-target_link_libraries(test_pose_filter
-  geometry_msgs::geometry_msgs
-  nav2_ros_common::nav2_ros_common
-  pose_filter
-  rclcpp::rclcpp
-  tf2::tf2
-  tf2_geometry_msgs::tf2_geometry_msgs
+ament_target_dependencies(test_pose_filter
+  ${dependencies}
 )
-target_include_directories(test_pose_filter
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+target_link_libraries(test_pose_filter
+  ${library_name}
+  pose_filter
 )
 
 # Test dock pluing for server tests
 add_library(test_dock SHARED testing_dock.cpp)
-target_link_libraries(test_dock PUBLIC
-  geometry_msgs::geometry_msgs
-  ${bond_TARGETS}
-  opennav_docking_core::opennav_docking_core
-  nav2_ros_common::nav2_ros_common
-  pluginlib::pluginlib
-  rclcpp_lifecycle::rclcpp_lifecycle
-  tf2_ros::tf2_ros
-  bondcpp::bondcpp
-)
+ament_target_dependencies(test_dock ${dependencies})
+target_compile_definitions(test_dock PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 install(TARGETS test_dock
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
-)
-target_include_directories(test_dock
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 ament_export_libraries(test_dock)
 
 # Test docking server (unit)
-nav2_add_gtest(test_docking_server_unit
+ament_add_gtest(test_docking_server_unit
   test_docking_server_unit.cpp
 )
-target_link_libraries(test_docking_server_unit
-  geometry_msgs::geometry_msgs
-  ${library_name}
-  nav2_util::nav2_util_core
-  nav2_ros_common::nav2_ros_common
-  rclcpp::rclcpp
-  rclcpp_lifecycle::rclcpp_lifecycle
+ament_target_dependencies(test_docking_server_unit
+  ${dependencies}
 )
-target_include_directories(test_docking_server_unit
-  PUBLIC
-  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-  "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+target_link_libraries(test_docking_server_unit
+  ${library_name}
 )
 
 # Test docking server (smoke)
-nav2_add_pytest_test(test_docking_server_with_charging_dock test_docking_server.py
+ament_add_pytest_test(test_docking_server_with_charging_dock test_docking_server.py
   ENV
   NON_CHARGING_DOCK=False
   BACKWARD=False
 )
 
-nav2_add_pytest_test(test_docking_server_with_non_charging_dock test_docking_server.py
+ament_add_pytest_test(test_docking_server_with_non_charging_dock test_docking_server.py
   ENV
   NON_CHARGING_DOCK=True
   BACKWARD=False
 )
 
-nav2_add_pytest_test(test_docking_server_backward test_docking_server.py
+ament_add_pytest_test(test_docking_server_backward test_docking_server.py
   ENV
   NON_CHARGING_DOCK=False
   BACKWARD=True
-)
-
-nav2_add_pytest_test(test_docking_server_backward_blind test_docking_server.py
-  ENV
-  NON_CHARGING_DOCK=False
-  BACKWARD_BLIND=True
 )

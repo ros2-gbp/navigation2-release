@@ -17,7 +17,6 @@
 #include <vector>
 
 #include "nav2_route/goal_intent_extractor.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_route
 {
@@ -25,12 +24,13 @@ namespace nav2_route
 static float EPSILON = 1e-6;
 
 void GoalIntentExtractor::configure(
-  nav2::LifecycleNode::SharedPtr node,
+  nav2_util::LifecycleNode::SharedPtr node,
   Graph & graph,
   GraphToIDMap * id_to_graph_map,
-  nav2::TransformBuffer::SharedPtr tf,
+  std::shared_ptr<tf2_ros::Buffer> tf,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
   const std::string & route_frame,
+  const std::string & global_frame,
   const std::string & base_frame)
 {
   logger_ = node->get_logger();
@@ -40,23 +40,37 @@ void GoalIntentExtractor::configure(
   costmap_subscriber_ = costmap_subscriber;
   route_frame_ = route_frame;
   base_frame_ = base_frame;
+  global_frame_ = global_frame;
   node_spatial_tree_ = std::make_shared<NodeSpatialTree>();
   node_spatial_tree_->computeTree(graph);
 
-  prune_goal_ = node->declare_or_get_parameter("prune_goal", true);
+  nav2_util::declare_parameter_if_not_declared(
+    node, "prune_goal", rclcpp::ParameterValue(true));
+  prune_goal_ = node->get_parameter("prune_goal").as_bool();
 
+  nav2_util::declare_parameter_if_not_declared(
+    node, "max_prune_dist_from_edge", rclcpp::ParameterValue(8.0));
   max_dist_from_edge_ = static_cast<float>(
-    node->declare_or_get_parameter("max_prune_dist_from_edge", 8.0));
+    node->get_parameter("max_prune_dist_from_edge").as_double());
+  nav2_util::declare_parameter_if_not_declared(
+    node, "min_prune_dist_from_goal", rclcpp::ParameterValue(0.15));
   min_dist_from_goal_ = static_cast<float>(
-    node->declare_or_get_parameter("min_prune_dist_from_goal", 0.15));
+    node->get_parameter("min_prune_dist_from_goal").as_double());
+  nav2_util::declare_parameter_if_not_declared(
+    node, "min_prune_dist_from_start", rclcpp::ParameterValue(0.10));
   min_dist_from_start_ = static_cast<float>(
-    node->declare_or_get_parameter("min_prune_dist_from_start", 0.10));
+    node->get_parameter("min_prune_dist_from_start").as_double());
 
-  enable_search_ = node->declare_or_get_parameter("enable_nn_search", true);
-  max_nn_search_iterations_ = node->declare_or_get_parameter(
-    "max_nn_search_iterations", 10000);
+  nav2_util::declare_parameter_if_not_declared(
+    node, "enable_nn_search", rclcpp::ParameterValue(true));
+  enable_search_ = node->get_parameter("enable_nn_search").as_bool();
+  nav2_util::declare_parameter_if_not_declared(
+    node, "max_nn_search_iterations", rclcpp::ParameterValue(10000));
+  max_nn_search_iterations_ = node->get_parameter("max_nn_search_iterations").as_int();
 
-  int num_of_nearest_nodes = node->declare_or_get_parameter("num_nearest_nodes", 5);
+  nav2_util::declare_parameter_if_not_declared(
+    node, "num_nearest_nodes", rclcpp::ParameterValue(5));
+  int num_of_nearest_nodes = node->get_parameter("num_nearest_nodes").as_int();
   node_spatial_tree_->setNumOfNearestNodes(num_of_nearest_nodes);
 }
 
@@ -143,7 +157,7 @@ GoalIntentExtractor::findStartandGoal(const std::shared_ptr<const GoalT> goal)
   if (enable_search) {
     try {
       costmap = costmap_subscriber_->getCostmap();
-      costmap_frame_id = costmap_subscriber_->getFrameID();
+      costmap_frame_id = global_frame_;
     } catch (const std::exception & ex) {
       enable_search = false;
       RCLCPP_WARN(
@@ -170,7 +184,7 @@ GoalIntentExtractor::findStartandGoal(const std::shared_ptr<const GoalT> goal)
     auto transformed_start = transformPose(start_, costmap_frame_id);
     GoalIntentSearch::LoSCollisionChecker los_checker(costmap);
     if (los_checker.worldToMap(
-        candidate_nodes.front().pose.position, transformed_start.pose.position))
+      candidate_nodes.front().pose.position, transformed_start.pose.position))
     {
       if (los_checker.isInCollision()) {
         GoalIntentSearch::BreadthFirstSearch bfs(costmap);
@@ -198,7 +212,7 @@ GoalIntentExtractor::findStartandGoal(const std::shared_ptr<const GoalT> goal)
     auto transformed_end = transformPose(goal_, costmap_frame_id);
     GoalIntentSearch::LoSCollisionChecker los_checker(costmap);
     if (los_checker.worldToMap(
-        candidate_nodes.front().pose.position, transformed_end.pose.position))
+      candidate_nodes.front().pose.position, transformed_end.pose.position))
     {
       if (los_checker.isInCollision()) {
         GoalIntentSearch::BreadthFirstSearch bfs(costmap);

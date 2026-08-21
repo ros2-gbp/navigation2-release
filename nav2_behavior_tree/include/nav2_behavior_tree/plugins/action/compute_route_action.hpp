@@ -20,7 +20,7 @@
 #include "nav2_msgs/action/compute_route.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -32,7 +32,7 @@ namespace nav2_behavior_tree
  * @code
  * <ComputeRoute start="{start}" goal="{goal}" use_poses="{true}" use_start="{true}" path="{path}"
  *               server_name="ComputeRoute" server_timeout="10"
- *               error_code_id="{compute_route_error_code}" error_msg="{compute_route_error_msg}"/>
+ *               error_code_id="{compute_route_error_code}"/>
  * @endcode
  */
 class ComputeRouteAction : public BtActionNode<nav2_msgs::action::ComputeRoute>
@@ -104,10 +104,11 @@ public:
           "use_poses", false, "Whether to use poses or IDs for start and goal"),
         BT::OutputPort<ActionResult::_route_type>(
           "route", "The route computed by ComputeRoute node"),
-        BT::OutputPort<builtin_interfaces::msg::Duration>(
-          "planning_time",
+        BT::OutputPort<builtin_interfaces::msg::Duration>("planning_time",
           "Time taken to compute route"),
         BT::OutputPort<nav_msgs::msg::Path>("path", "Path created by ComputeRoute node"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The compute route error code"),
       });
   }
 };

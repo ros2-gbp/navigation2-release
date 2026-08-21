@@ -31,18 +31,10 @@ ServerHandler::ServerHandler()
 {
   node_ = rclcpp::Node::make_shared("behavior_tree_tester");
 
-  clear_local_costmap_server = std::make_unique<DummyClearEntireCostmapService>(
+  clear_local_costmap_server = std::make_unique<DummyService<nav2_msgs::srv::ClearEntireCostmap>>(
     node_, "local_costmap/clear_entirely_local_costmap");
-  clear_global_costmap_server = std::make_unique<DummyClearEntireCostmapService>(
+  clear_global_costmap_server = std::make_unique<DummyService<nav2_msgs::srv::ClearEntireCostmap>>(
     node_, "global_costmap/clear_entirely_global_costmap");
-  clear_costmap_around_robot_server = std::make_unique<DummyClearCostmapAroundRobotService>(
-    node_, "local_costmap/clear_around_local_costmap");
-  clear_costmap_except_region_server = std::make_unique<DummyClearCostmapExceptRegionService>(
-    node_, "local_costmap/clear_except_local_costmap");
-  clear_costmap_around_pose_server = std::make_unique<DummyClearCostmapAroundPoseService>(
-    node_, "local_costmap/clear_around_pose_local_costmap");
-  validate_path_server = std::make_unique<DummyService<nav2_msgs::srv::IsPathValid>>(
-    node_, "is_path_valid");
   compute_path_to_pose_server = std::make_unique<DummyComputePathToPoseActionServer>(node_);
   follow_path_server = std::make_unique<DummyFollowPathActionServer>(node_);
   spin_server = std::make_unique<DummyActionServer<nav2_msgs::action::Spin>>(
@@ -51,10 +43,6 @@ ServerHandler::ServerHandler()
     node_, "wait");
   backup_server = std::make_unique<DummyActionServer<nav2_msgs::action::BackUp>>(
     node_, "backup");
-  compute_route_server = std::make_unique<DummyActionServer<nav2_msgs::action::ComputeRoute>>(
-    node_, "compute_route");
-  smoother_server = std::make_unique<DummyActionServer<nav2_msgs::action::SmoothPath>>(
-    node_, "smooth_path");
   drive_on_heading_server = std::make_unique<DummyActionServer<nav2_msgs::action::DriveOnHeading>>(
     node_, "drive_on_heading");
   ntp_server = std::make_unique<DummyActionServer<nav2_msgs::action::ComputePathThroughPoses>>(
@@ -97,9 +85,6 @@ void ServerHandler::reset() const
 {
   clear_global_costmap_server->reset();
   clear_local_costmap_server->reset();
-  clear_costmap_around_robot_server->reset();
-  clear_costmap_except_region_server->reset();
-  clear_costmap_around_pose_server->reset();
   compute_path_to_pose_server->reset();
   follow_path_server->reset();
   spin_server->reset();

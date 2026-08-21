@@ -20,7 +20,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/spin_action.hpp"
 
 class SpinActionServer : public TestActionServer<nav2_msgs::action::Spin>
@@ -52,7 +52,7 @@ class SpinActionTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<nav2::LifecycleNode>("spin_action_test_fixture");
+    node_ = std::make_shared<rclcpp::Node>("spin_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
     config_ = new BT::NodeConfiguration();
 
@@ -106,13 +106,13 @@ public:
   static std::shared_ptr<SpinActionServer> action_server_;
 
 protected:
-  static nav2::LifecycleNode::SharedPtr node_;
+  static rclcpp::Node::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-nav2::LifecycleNode::SharedPtr SpinActionTestFixture::node_ = nullptr;
+rclcpp::Node::SharedPtr SpinActionTestFixture::node_ = nullptr;
 std::shared_ptr<SpinActionServer> SpinActionTestFixture::action_server_ = nullptr;
 BT::NodeConfiguration * SpinActionTestFixture::config_ = nullptr;
 std::shared_ptr<BT::BehaviorTreeFactory> SpinActionTestFixture::factory_ = nullptr;
@@ -130,19 +130,17 @@ TEST_F(SpinActionTestFixture, test_ports)
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("spin_dist"), 1.57);
-  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), false);
 
   xml_txt =
     R"(
       <root BTCPP_format="4">
         <BehaviorTree ID="MainTree">
-            <Spin spin_dist="3.14" disable_collision_checks="true" />
+            <Spin spin_dist="3.14" />
         </BehaviorTree>
       </root>)";
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("spin_dist"), 3.14);
-  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), true);
 }
 
 TEST_F(SpinActionTestFixture, test_tick)
@@ -165,28 +163,6 @@ TEST_F(SpinActionTestFixture, test_tick)
   EXPECT_EQ(tree_->rootNode()->status(), BT::NodeStatus::SUCCESS);
   EXPECT_EQ(config_->blackboard->get<int>("number_recoveries"), 1);
   EXPECT_EQ(action_server_->getCurrentGoal()->target_yaw, 3.14f);
-  EXPECT_EQ(action_server_->getCurrentGoal()->disable_collision_checks, false);
-}
-
-TEST_F(SpinActionTestFixture, test_tick_disable_collision_checks)
-{
-  std::string xml_txt =
-    R"(
-      <root BTCPP_format="4">
-        <BehaviorTree ID="MainTree">
-            <Spin spin_dist="3.14" disable_collision_checks="true" />
-        </BehaviorTree>
-      </root>)";
-
-  tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
-
-  while (tree_->rootNode()->status() != BT::NodeStatus::SUCCESS) {
-    tree_->rootNode()->executeTick();
-  }
-
-  EXPECT_EQ(tree_->rootNode()->status(), BT::NodeStatus::SUCCESS);
-  EXPECT_EQ(action_server_->getCurrentGoal()->target_yaw, 3.14f);
-  EXPECT_EQ(action_server_->getCurrentGoal()->disable_collision_checks, true);
 }
 
 TEST_F(SpinActionTestFixture, test_failure)

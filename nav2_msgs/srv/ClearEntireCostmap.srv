@@ -1,5 +1,5 @@
 # Clears all layers on the costmap
 
-string[] plugins
+std_msgs/Empty request
 ---
-bool success
+std_msgs/Empty response

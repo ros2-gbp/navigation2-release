@@ -15,8 +15,6 @@
 #ifndef NAV2_BEHAVIOR_TREE__BT_ACTION_SERVER_HPP_
 #define NAV2_BEHAVIOR_TREE__BT_ACTION_SERVER_HPP_
 
-#include <chrono>
-#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -24,8 +22,8 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_behavior_tree/behavior_tree_engine.hpp"
 #include "nav2_behavior_tree/ros_topic_logger.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/simple_action_server.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/simple_action_server.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -33,31 +31,30 @@ namespace nav2_behavior_tree
  * @class nav2_behavior_tree::BtActionServer
  * @brief An action server that uses behavior tree to execute an action
  */
-template<class ActionT, class NodeT>
+template<class ActionT>
 class BtActionServer
 {
 public:
-  using ActionServer = nav2::SimpleActionServer<ActionT>;
+  using ActionServer = nav2_util::SimpleActionServer<ActionT>;
 
   typedef std::function<bool (typename ActionT::Goal::ConstSharedPtr)> OnGoalReceivedCallback;
   typedef std::function<void ()> OnLoopCallback;
   typedef std::function<void (typename ActionT::Goal::ConstSharedPtr)> OnPreemptCallback;
   typedef std::function<void (typename ActionT::Result::SharedPtr,
-      nav2_behavior_tree::BtStatus &)> OnCompletionCallback;
+      nav2_behavior_tree::BtStatus)> OnCompletionCallback;
 
   /**
    * @brief A constructor for nav2_behavior_tree::BtActionServer class
    */
   explicit BtActionServer(
-    const typename NodeT::WeakPtr & parent,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     const std::string & action_name,
     const std::vector<std::string> & plugin_lib_names,
     const std::string & default_bt_xml_filename,
     OnGoalReceivedCallback on_goal_received_callback,
     OnLoopCallback on_loop_callback,
     OnPreemptCallback on_preempt_callback,
-    OnCompletionCallback on_completion_callback,
-    const std::vector<std::string> & search_directories = std::vector<std::string>{});
+    OnCompletionCallback on_completion_callback);
 
   /**
    * @brief A destructor for nav2_behavior_tree::BtActionServer class
@@ -99,12 +96,11 @@ public:
 
   /**
    * @brief Replace current BT with another one
-   * @param bt_xml_filename_or_id The file containing the new BT, uses default filename if empty or BT ID
-   * @return bool true if the resulting BT correspond to the one in bt_xml_filename_or_id. false
+   * @param bt_xml_filename The file containing the new BT, uses default filename if empty
+   * @return bool true if the resulting BT correspond to the one in bt_xml_filename. false
    * if something went wrong, and previous BT is maintained
    */
-  bool loadBehaviorTree(
-    const std::string & bt_xml_filename_or_id = "");
+  bool loadBehaviorTree(const std::string & bt_xml_filename = "");
 
   /**
    * @brief Getter function for BT Blackboard
@@ -119,18 +115,18 @@ public:
    * @brief Getter function for current BT XML filename
    * @return string Containing current BT XML filename
    */
-  std::string getCurrentBTFilenameOrID() const
+  std::string getCurrentBTFilename() const
   {
-    return current_bt_file_or_id_;
+    return current_bt_xml_filename_;
   }
 
   /**
-   * @brief Getter function for default BT XML filename or ID
-   * @return string Containing default BT XML filename or ID
+   * @brief Getter function for default BT XML filename
+   * @return string Containing default BT XML filename
    */
-  std::string getDefaultBTFilenameOrID() const
+  std::string getDefaultBTFilename() const
   {
-    return default_bt_xml_filename_or_id_;
+    return default_bt_xml_filename_;
   }
 
   /**
@@ -176,11 +172,6 @@ public:
     action_server_->publish_feedback(feedback);
   }
 
-  void preemptCurrentNavigator()
-  {
-    muxer_preemption_requested_ = true;
-  }
-
   /**
    * @brief Getter function for the current BT tree
    * @return BT::Tree Current behavior tree
@@ -199,25 +190,6 @@ public:
   {
     tree_.haltTree();
   }
-
-  /**
-   * @brief Set internal error code and message
-   * @param error_code the internal error code
-   * @param error_msg the internal error message
-   */
-  void setInternalError(uint16_t error_code, const std::string & error_msg);
-
-  /**
-   * @brief reset internal error code and message
-   */
-  void resetInternalError(void);
-
-  /**
-   * @brief populate result with internal error code and error_msg if not NONE
-   * @param result the action server result to be updated
-   * @return bool action server result was changed
-   */
-  bool populateInternalError(typename std::shared_ptr<typename ActionT::Result> result);
 
 protected:
   /**
@@ -241,7 +213,7 @@ protected:
   std::string action_name_;
 
   // Our action server implements the template action
-  typename ActionServer::SharedPtr action_server_;
+  std::shared_ptr<ActionServer> action_server_;
 
   // Behavior Tree to be executed when goal is received
   BT::Tree tree_;
@@ -249,10 +221,9 @@ protected:
   // The blackboard shared by all of the nodes in the tree
   BT::Blackboard::Ptr blackboard_;
 
-  // The XML file that contains the Behavior Tree to create
-  std::string current_bt_file_or_id_;
-  std::string default_bt_xml_filename_or_id_;
-  std::vector<std::string> search_directories_;
+  // The XML file that cointains the Behavior Tree to create
+  std::string current_bt_xml_filename_;
+  std::string default_bt_xml_filename_;
 
   // The wrapper class for the BT functionality
   std::unique_ptr<nav2_behavior_tree::BehaviorTreeEngine> bt_;
@@ -260,14 +231,14 @@ protected:
   // Libraries to pull plugins (BT Nodes) from
   std::vector<std::string> plugin_lib_names_;
 
-  // Error code name prefixes
-  std::vector<std::string> error_code_name_prefixes_;
+  // Error code id names
+  std::vector<std::string> error_code_names_;
 
   // A regular, non-spinning ROS node that we can use for calls to the action client
-  nav2::LifecycleNode::SharedPtr client_node_;
+  rclcpp::Node::SharedPtr client_node_;
 
   // Parent node
-  typename NodeT::WeakPtr node_;
+  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
 
   // Clock
   rclcpp::Clock::SharedPtr clock_;
@@ -291,10 +262,7 @@ protected:
   std::chrono::milliseconds wait_for_service_timeout_;
 
   // should the BT be reloaded even if the same xml filename is requested?
-  bool always_reload_bt_ = false;
-
-  // Whether to log BT transitions to IDLE state
-  bool log_idle_ = true;
+  bool always_reload_bt_xml_ = false;
 
   // Parameters for Groot2 monitoring
   bool enable_groot_monitoring_ = false;
@@ -305,12 +273,6 @@ protected:
   OnLoopCallback on_loop_callback_;
   OnPreemptCallback on_preempt_callback_;
   OnCompletionCallback on_completion_callback_;
-
-  // internal error tracking (IOW not behaviorTree blackboard errors)
-  uint16_t internal_error_code_;
-  std::string internal_error_msg_;
-
-  std::atomic_bool muxer_preemption_requested_{false};
 };
 
 }  // namespace nav2_behavior_tree

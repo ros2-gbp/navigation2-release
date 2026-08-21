@@ -19,7 +19,10 @@
  *
  */
 
-#include <cmath>
+#include <sys/types.h>
+#include <math.h>
+#include <stdlib.h>
+#include <assert.h>
 
 #include "nav2_amcl/sensors/laser/laser.hpp"
 

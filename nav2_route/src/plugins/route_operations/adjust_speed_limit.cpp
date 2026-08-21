@@ -22,20 +22,23 @@ namespace nav2_route
 {
 
 void AdjustSpeedLimit::configure(
-  const nav2::LifecycleNode::SharedPtr node,
+  const nav2_util::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>/* costmap_subscriber */,
   const std::string & name)
 {
   RCLCPP_INFO(node->get_logger(), "Configuring Adjust speed limit operation.");
   name_ = name;
   logger_ = node->get_logger();
-  speed_tag_ = node->declare_or_get_parameter(
-    getName() + ".speed_tag", std::string("speed_limit"));
+  nav2_util::declare_parameter_if_not_declared(
+    node, getName() + ".speed_tag", rclcpp::ParameterValue("speed_limit"));
+  speed_tag_ = node->get_parameter(getName() + ".speed_tag").as_string();
 
-  std::string topic = node->declare_or_get_parameter(
-    getName() + ".speed_limit_topic", std::string("speed_limit"));
 
-  speed_limit_pub_ = node->create_publisher<nav2_msgs::msg::SpeedLimit>(topic);
+  nav2_util::declare_parameter_if_not_declared(
+    node, getName() + ".speed_limit_topic", rclcpp::ParameterValue("speed_limit"));
+  std::string topic = node->get_parameter(getName() + ".speed_limit_topic").as_string();
+
+  speed_limit_pub_ = node->create_publisher<nav2_msgs::msg::SpeedLimit>(topic, 10);
   speed_limit_pub_->on_activate();
 }
 

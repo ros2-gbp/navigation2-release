@@ -18,7 +18,7 @@ import time
 import unittest
 
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import TransformStamped, Twist, TwistStamped
+from geometry_msgs.msg import TransformStamped, Twist
 from launch import LaunchDescription
 # from launch.actions import SetEnvironmentVariable
 from launch.launch_context import LaunchContext
@@ -26,17 +26,17 @@ from launch_ros.actions import Node
 import launch_testing
 import launch_testing.actions
 import launch_testing.asserts
-from lifecycle_msgs.srv import GetState
+import launch_testing.markers
+import launch_testing.util
 from nav2_common.launch import RewrittenYaml
 from nav2_msgs.action import DockRobot, NavigateToPose, UndockRobot
-from nav_msgs.msg import Odometry
 import pytest
 import rclpy
 from rclpy.action.client import ActionClient
 from rclpy.action.server import ActionServer
 from sensor_msgs.msg import BatteryState
-import tf2_ros
 from tf2_ros import TransformBroadcaster
+
 
 # This test can be run standalone with:
 # python3 -u -m pytest test_docking_server.py -s
@@ -45,11 +45,10 @@ from tf2_ros import TransformBroadcaster
 # try to identify flaky ness.
 # python3 -u -m pytest --force-flaky --min-passes 3 --max-runs 5 -s -v test_docking_server.py
 
-
 @pytest.mark.rostest
 # @pytest.mark.flaky
 # @pytest.mark.flaky(max_runs=5, min_passes=3)
-def generate_test_description():
+def generate_test_description() -> LaunchDescription:
 
     # Use local param file
     launch_dir = os.path.dirname(os.path.realpath(__file__))
@@ -64,12 +63,8 @@ def generate_test_description():
         param_substitutions.update({'plugin': 'opennav_docking::SimpleNonChargingDock'})
 
     if os.getenv('BACKWARD') == 'True':
-        param_substitutions.update({'dock_direction': 'backward'})
+        param_substitutions.update({'dock_backwards': 'True'})
         param_substitutions.update({'staging_yaw_offset': '3.14'})
-
-    if os.getenv('BACKWARD_BLIND') == 'True':
-        param_substitutions.update({'dock_direction': 'backward'})
-        param_substitutions.update({'rotate_to_dock': 'True'})
 
     configured_params = RewrittenYaml(
         source_file=params_file,
@@ -126,37 +121,13 @@ class TestDockingServer(unittest.TestCase):
         # Latest command velocity
         self.command = Twist()
         self.node = rclpy.create_node('test_docking_server')
-        # Publish odometry
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
-        self.odom_pub = self.node.create_publisher(Odometry, 'odom', 10)
-
-    def wait_for_node_to_be_active(self, node_name, timeout_sec=30.0):
-        """Wait for a managed node to become active."""
-        client = \
-            self.node.create_client(GetState, f'{node_name}/get_state')
-        if not client.wait_for_service(timeout_sec=2.0):
-            self.fail(f'Service get_state for {node_name} not available.')
-
-        start_time = time.time()
-        while time.time() - start_time < timeout_sec:
-            req = GetState.Request()
-            future = client.call_async(req)
-            rclpy.spin_until_future_complete(self.node, future, timeout_sec=1.0)
-            result = future.result()
-            if result is not None and result.current_state.id == 3:  # 3 = ACTIVE
-                self.node.get_logger().info(f'Node {node_name} is active.')
-                return
-            time.sleep(0.5)
-        # raises AssertionError
-        self.fail(f'Node {node_name} did not become active within {timeout_sec} seconds.')
 
     def tearDown(self):
         self.node.destroy_node()
 
     def command_velocity_callback(self, msg):
-        self.node.get_logger().info(f'Command: {msg.twist.linear.x:f} {msg.twist.angular.z:f}')
-        self.command = msg.twist
+        self.node.get_logger().info('Command: %f %f' % (msg.linear.x, msg.angular.z))
+        self.command = msg
 
     def timer_callback(self):
         # Propagate command
@@ -178,7 +149,6 @@ class TestDockingServer(unittest.TestCase):
         t.transform.rotation.z = sin(self.theta / 2.0)
         t.transform.rotation.w = cos(self.theta / 2.0)
         self.tf_broadcaster.sendTransform(t)
-        self.publish_odometry(t)
         # Publish the battery state if we are using a charging dock
         if os.getenv('NON_CHARGING_DOCK') == 'False':
             b = BatteryState()
@@ -188,58 +158,41 @@ class TestDockingServer(unittest.TestCase):
                 b.current = -1.0
             self.battery_state_pub.publish(b)
 
-    def publish_odometry(self, odom_to_base_link):
-        odom = Odometry()
-        odom.header.stamp = self.node.get_clock().now().to_msg()
-        odom.header.frame_id = 'odom'
-        odom.child_frame_id = 'base_link'
-        odom.pose.pose.position.x = odom_to_base_link.transform.translation.x
-        odom.pose.pose.position.y = odom_to_base_link.transform.translation.y
-        odom.pose.pose.orientation = odom_to_base_link.transform.rotation
-        odom.twist.twist = self.command
-        self.odom_pub.publish(odom)
-
     def action_feedback_callback(self, msg):
         # Force the docking action to run a full recovery loop and then
         # make contact with the dock (based on pose of robot) before
         # we report that the robot is charging
         if msg.feedback.num_retries > 0 and \
-                msg.feedback.state == DockRobot.Feedback.WAIT_FOR_CHARGE:
+                msg.feedback.state == msg.feedback.WAIT_FOR_CHARGE:
             self.is_charging = True
 
-    def nav_execute_callback(
-        self,
-        goal_handle
-    ):
+    def nav_execute_callback(self, goal_handle):
         goal = goal_handle.request
         self.x = goal.pose.pose.position.x - 0.05
         self.y = goal.pose.pose.position.y + 0.05
         self.theta = 2.0 * acos(goal.pose.pose.orientation.w)
-        self.node.get_logger().info(f'Navigating to {self.x:f} {self.y:f} {self.theta:f}')
+        self.node.get_logger().info('Navigating to %f %f %f' % (self.x, self.y, self.theta))
         goal_handle.succeed()
         self.publish()
 
         result = NavigateToPose.Result()
         result.error_code = 0
-        result.error_msg = ''
         return result
 
     def test_docking_server(self):
         # Publish TF for odometry
         self.tf_broadcaster = TransformBroadcaster(self.node)
-        time.sleep(0.5)
 
         # Create a timer to run "control loop" at 20hz
         self.timer = self.node.create_timer(0.05, self.timer_callback)
 
         # Create action client
         self.dock_action_client = ActionClient(self.node, DockRobot, 'dock_robot')
-
         self.undock_action_client = ActionClient(self.node, UndockRobot, 'undock_robot')
 
         # Subscribe to command velocity
         self.node.create_subscription(
-            TwistStamped,
+            Twist,
             'cmd_vel',
             self.command_velocity_callback,
             10
@@ -263,24 +216,15 @@ class TestDockingServer(unittest.TestCase):
         # Publish transform
         self.publish()
 
-        # Wait until the transform is available.
-        self.node.get_logger().info('Waiting for TF odom->base_link to be available...')
-        start_time = time.time()
-        timeout = 10.0
-        while not self.tf_buffer.can_transform('odom', 'base_link', rclpy.time.Time()):
-            if time.time() - start_time > timeout:
-                self.fail('TF transform odom->base_link not available after 10s')
+        # Run for 1 seconds to allow tf to propogate
+        for _ in range(10):
             rclpy.spin_once(self.node, timeout_sec=0.1)
             time.sleep(0.1)
-        self.node.get_logger().info('TF is ready, proceeding with test.')
-
-        # Wait until the docking server is active.
-        self.wait_for_node_to_be_active('docking_server')
 
         # Test docking action
         self.action_result = []
         assert self.dock_action_client.wait_for_server(timeout_sec=5.0), \
-            'dock_robot service not available'
+               'dock_robot service not available'
 
         goal = DockRobot.Goal()
         goal.use_dock_id = True
@@ -313,10 +257,8 @@ class TestDockingServer(unittest.TestCase):
         self.action_result.append(result_future_original.result())
 
         # First is aborted due to preemption
-        self.assertIsNotNone(self.action_result[0])
-        if self.action_result[0] is not None:
-            self.assertEqual(self.action_result[0].status, GoalStatus.STATUS_ABORTED)
-            self.assertFalse(self.action_result[0].result.success)
+        self.assertEqual(self.action_result[0].status, GoalStatus.STATUS_ABORTED)
+        self.assertFalse(self.action_result[0].result.success)
 
         self.node.get_logger().info('Goal preempted')
 
@@ -326,10 +268,8 @@ class TestDockingServer(unittest.TestCase):
             time.sleep(0.1)
 
         # Second is aborted due to preemption during main loop (takes down all actions)
-        self.assertIsNotNone(self.action_result[1])
-        if self.action_result[1] is not None:
-            self.assertEqual(self.action_result[1].status, GoalStatus.STATUS_ABORTED)
-            self.assertFalse(self.action_result[1].result.success)
+        self.assertEqual(self.action_result[1].status, GoalStatus.STATUS_ABORTED)
+        self.assertFalse(self.action_result[1].result.success)
 
         # Resend the goal
         self.node.get_logger().info('Sending goal again')
@@ -366,10 +306,8 @@ class TestDockingServer(unittest.TestCase):
         rclpy.spin_until_future_complete(self.node, result_future)
         self.action_result.append(result_future.result())
 
-        self.assertIsNotNone(self.action_result[3])
-        if self.action_result[3] is not None:
-            self.assertEqual(self.action_result[3].status, GoalStatus.STATUS_SUCCEEDED)
-            self.assertTrue(self.action_result[3].result.success)
+        self.assertEqual(self.action_result[3].status, GoalStatus.STATUS_SUCCEEDED)
+        self.assertTrue(self.action_result[3].result.success)
 
 
 @launch_testing.post_shutdown_test()

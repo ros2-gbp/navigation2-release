@@ -408,11 +408,15 @@ public:
       std::min(max_labels_count, size_t(std::numeric_limits<Label>::max()))
     );
 
-    labels_.reserve(labels_size_);
+    try {
+      labels_.reserve(labels_size_);
+    } catch (...) {
+      // ignore any exception
+      // perhaps the entire requested amount of memory will not be required
+    }
 
     // Label 0 is reserved for the background pixels, i.e. labels[0] is always 0
-    labels_.clear();
-    labels_.push_back(Label{});
+    labels_ = {0};
     next_free_ = 1;
   }
 

@@ -12,21 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <chrono>
 #include "gtest/gtest.h"
-#include "std_srvs/srv/trigger.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "opennav_docking/simple_charging_dock.hpp"
+#include "ament_index_cpp/get_package_share_directory.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "tf2/utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2/utils.h"
 
 // Testing the simple charging dock plugin
 
-using namespace std::chrono_literals;
+class RosLockGuard
+{
+public:
+  RosLockGuard() {rclcpp::init(0, nullptr);}
+  ~RosLockGuard() {rclcpp::shutdown();}
+};
+RosLockGuard g_rclcpp;
 
 namespace opennav_docking
 {
@@ -43,25 +47,14 @@ public:
   }
 };
 
-class SimpleChargingDockTestable : public opennav_docking::SimpleChargingDock
-{
-public:
-  using opennav_docking::SimpleChargingDock::SimpleChargingDock;
-
-  // Expose detector state for test verification
-  bool isDetectorActive() const {return initial_pose_received_;}
-};
-
 TEST(SimpleChargingDockTests, ObjectLifecycle)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
   node->declare_parameter("my_dock.use_external_detection_pose", rclcpp::ParameterValue(true));
 
   auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
   dock->configure(node, "my_dock", nullptr);
   dock->activate();
-  EXPECT_TRUE(dock->startDetectionProcess());
-  EXPECT_TRUE(dock->stopDetectionProcess());
 
   // Check initial states
   EXPECT_FALSE(dock->isCharging());
@@ -76,7 +69,7 @@ TEST(SimpleChargingDockTests, ObjectLifecycle)
 
 TEST(SimpleChargingDockTests, BatteryState)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
   auto pub = node->create_publisher<sensor_msgs::msg::BatteryState>(
     "battery_state", rclcpp::QoS(1));
   pub->on_activate();
@@ -86,8 +79,6 @@ TEST(SimpleChargingDockTests, BatteryState)
 
   dock->configure(node, "my_dock", nullptr);
   dock->activate();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
   geometry_msgs::msg::PoseStamped pose;
   EXPECT_TRUE(dock->getRefinedPose(pose, ""));
 
@@ -97,7 +88,7 @@ TEST(SimpleChargingDockTests, BatteryState)
   pub->publish(msg);
   rclcpp::Rate r(2);
   r.sleep();
-  executor.spin_some();
+  rclcpp::spin_some(node->get_node_base_interface());
 
   EXPECT_FALSE(dock->isCharging());
   EXPECT_TRUE(dock->hasStoppedCharging());
@@ -108,7 +99,7 @@ TEST(SimpleChargingDockTests, BatteryState)
   pub->publish(msg2);
   rclcpp::Rate r1(2);
   r1.sleep();
-  executor.spin_some();
+  rclcpp::spin_some(node->get_node_base_interface());
 
   EXPECT_TRUE(dock->isCharging());
   EXPECT_FALSE(dock->hasStoppedCharging());
@@ -120,7 +111,7 @@ TEST(SimpleChargingDockTests, BatteryState)
 
 TEST(SimpleChargingDockTests, StallDetection)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
   auto pub = node->create_publisher<sensor_msgs::msg::JointState>(
     "joint_states", rclcpp::QoS(1));
   pub->on_activate();
@@ -141,8 +132,6 @@ TEST(SimpleChargingDockTests, StallDetection)
     rclcpp::Parameter("my_dock.stall_joint_names", rclcpp::ParameterValue(names)));
   dock->configure(node, "my_dock", nullptr);
   dock->activate();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
   EXPECT_EQ(dock->getStallJointNames(), names);
 
   // Stopped, but below effort threshold
@@ -153,7 +142,7 @@ TEST(SimpleChargingDockTests, StallDetection)
   pub->publish(msg);
   rclcpp::Rate r(2);
   r.sleep();
-  executor.spin_some();
+  rclcpp::spin_some(node->get_node_base_interface());
 
   EXPECT_FALSE(dock->isDocked());
 
@@ -165,7 +154,7 @@ TEST(SimpleChargingDockTests, StallDetection)
   pub->publish(msg2);
   rclcpp::Rate r1(2);
   r1.sleep();
-  executor.spin_some();
+  rclcpp::spin_some(node->get_node_base_interface());
 
   EXPECT_FALSE(dock->isDocked());
 
@@ -177,7 +166,7 @@ TEST(SimpleChargingDockTests, StallDetection)
   pub->publish(msg3);
   rclcpp::Rate r2(2);
   r2.sleep();
-  executor.spin_some();
+  rclcpp::spin_some(node->get_node_base_interface());
 
   EXPECT_TRUE(dock->isDocked());
 
@@ -188,7 +177,7 @@ TEST(SimpleChargingDockTests, StallDetection)
 
 TEST(SimpleChargingDockTests, StagingPose)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
   auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
 
   dock->configure(node, "my_dock", nullptr);
@@ -217,7 +206,7 @@ TEST(SimpleChargingDockTests, StagingPoseWithYawOffset)
     }
   );
 
-  auto node = std::make_shared<nav2::LifecycleNode>("test", "", options);
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test", options);
   auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
 
   dock->configure(node, "my_dock", nullptr);
@@ -239,7 +228,7 @@ TEST(SimpleChargingDockTests, StagingPoseWithYawOffset)
 
 TEST(SimpleChargingDockTests, RefinedPoseTest)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
   node->declare_parameter("my_dock.use_external_detection_pose", rclcpp::ParameterValue(true));
   auto pub = node->create_publisher<geometry_msgs::msg::PoseStamped>(
     "detected_dock_pose", rclcpp::QoS(1));
@@ -248,9 +237,6 @@ TEST(SimpleChargingDockTests, RefinedPoseTest)
 
   dock->configure(node, "my_dock", nullptr);
   dock->activate();
-  dock->startDetectionProcess();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
 
   geometry_msgs::msg::PoseStamped pose;
 
@@ -264,8 +250,7 @@ TEST(SimpleChargingDockTests, RefinedPoseTest)
   detected_pose.pose.position.x = 0.1;
   detected_pose.pose.position.y = -0.5;
   pub->publish(detected_pose);
-  executor.spin_some();
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  rclcpp::spin_some(node->get_node_base_interface());
 
   pose.header.frame_id = "my_frame";
   EXPECT_TRUE(dock->getRefinedPose(pose, ""));
@@ -273,14 +258,13 @@ TEST(SimpleChargingDockTests, RefinedPoseTest)
   EXPECT_NEAR(pose.pose.position.y, -0.3, 0.01);  // Applies external_detection_translation_x, +0.2
 
   dock->deactivate();
-  dock->stopDetectionProcess();
   dock->cleanup();
   dock.reset();
 }
 
 TEST(SimpleChargingDockTests, RefinedPoseNotTransform)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
   node->declare_parameter("my_dock.use_external_detection_pose", rclcpp::ParameterValue(true));
   auto pub = node->create_publisher<geometry_msgs::msg::PoseStamped>(
     "detected_dock_pose", rclcpp::QoS(1));
@@ -288,13 +272,11 @@ TEST(SimpleChargingDockTests, RefinedPoseNotTransform)
   auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
 
   // Create the TF
-  auto tf_buffer = nav2::create_transform_buffer(node);
+  auto tf_buffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
   tf_buffer->setUsingDedicatedThread(true);
 
   dock->configure(node, "my_dock", tf_buffer);
   dock->activate();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
 
   geometry_msgs::msg::PoseStamped detected_pose;
   detected_pose.header.stamp = node->now();
@@ -302,7 +284,7 @@ TEST(SimpleChargingDockTests, RefinedPoseNotTransform)
   detected_pose.pose.position.x = 1.0;
   detected_pose.pose.position.y = 1.0;
   pub->publish(detected_pose);
-  executor.spin_some();
+  rclcpp::spin_some(node->get_node_base_interface());
 
   // Create a pose with a different frame_id
   geometry_msgs::msg::PoseStamped pose;
@@ -319,7 +301,7 @@ TEST(SimpleChargingDockTests, RefinedPoseNotTransform)
 
 TEST(SimpleChargingDockTests, IsDockedTransformException)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
   node->declare_parameter("my_dock.use_external_detection_pose", rclcpp::ParameterValue(true));
   auto pub = node->create_publisher<geometry_msgs::msg::PoseStamped>(
     "detected_dock_pose", rclcpp::QoS(1));
@@ -327,14 +309,19 @@ TEST(SimpleChargingDockTests, IsDockedTransformException)
   auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
 
   // Create the TF
-  auto tf_buffer = nav2::create_transform_buffer(node);
+  auto tf_buffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
   tf_buffer->setUsingDedicatedThread(true);
 
   dock->configure(node, "my_dock", tf_buffer);
   dock->activate();
-  dock->startDetectionProcess();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
+
+  geometry_msgs::msg::PoseStamped detected_pose;
+  detected_pose.header.stamp = node->now();
+  detected_pose.header.frame_id = "my_frame";
+  detected_pose.pose.position.x = 1.0;
+  detected_pose.pose.position.y = 1.0;
+  pub->publish(detected_pose);
+  rclcpp::spin_some(node->get_node_base_interface());
 
   // Create a pose with a different frame_id
   geometry_msgs::msg::PoseStamped pose;
@@ -347,313 +334,13 @@ TEST(SimpleChargingDockTests, IsDockedTransformException)
   transform.child_frame_id = "other_frame";
   tf_buffer->setTransform(transform, "test", true);
 
-  // First call to getRefinedPose starts detection
-  EXPECT_FALSE(dock->getRefinedPose(pose, ""));
-
-  // Now publish the detection after subscription is created
-  geometry_msgs::msg::PoseStamped detected_pose;
-  detected_pose.header.stamp = node->now();
-  detected_pose.header.frame_id = "my_frame";
-  detected_pose.pose.position.x = 1.0;
-  detected_pose.pose.position.y = 1.0;
-  pub->publish(detected_pose);
-  executor.spin_some();
-
-  // Second call should succeed
+  // It can find a transform between the two frames but it throws an exception in isDocked
   EXPECT_TRUE(dock->getRefinedPose(pose, ""));
   EXPECT_FALSE(dock->isDocked());
 
   dock->deactivate();
-  dock->stopDetectionProcess();
   dock->cleanup();
   dock.reset();
-}
-
-TEST(SimpleChargingDockTests, GetDockDirection)
-{
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
-  node->declare_parameter("my_dock.dock_direction", rclcpp::ParameterValue("forward"));
-
-  auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
-  EXPECT_EQ(dock->getDockDirection(), opennav_docking_core::DockDirection::UNKNOWN);
-  EXPECT_NO_THROW(dock->configure(node, "my_dock", nullptr));
-  EXPECT_EQ(dock->getDockDirection(), opennav_docking_core::DockDirection::FORWARD);
-  dock->cleanup();
-
-  // Now set to BACKWARD
-  node->set_parameter(
-    rclcpp::Parameter("my_dock.dock_direction", rclcpp::ParameterValue("backward")));
-  EXPECT_NO_THROW(dock->configure(node, "my_dock", nullptr));
-  EXPECT_EQ(dock->getDockDirection(), opennav_docking_core::DockDirection::BACKWARD);
-  dock->cleanup();
-
-  // Now set to UNKNOWN
-  node->set_parameter(
-    rclcpp::Parameter("my_dock.dock_direction", rclcpp::ParameterValue("other")));
-  EXPECT_THROW(dock->configure(node, "my_dock", nullptr), std::runtime_error);
-  EXPECT_EQ(dock->getDockDirection(), opennav_docking_core::DockDirection::UNKNOWN);
-
-  dock->cleanup();
-  dock.reset();
-}
-
-TEST(SimpleChargingDockTests, ShouldRotateToDock)
-{
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
-
-  // Case 1: Direction to BACKWARD and rotate_to_dock to true
-  node->declare_parameter("my_dock.dock_direction", rclcpp::ParameterValue("backward"));
-  node->declare_parameter("my_dock.rotate_to_dock", rclcpp::ParameterValue(true));
-
-  auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
-  EXPECT_NO_THROW(dock->configure(node, "my_dock", nullptr));
-  EXPECT_EQ(dock->shouldRotateToDock(), true);
-  dock->cleanup();
-
-  // Case 2: Direction to BACKWARD and rotate_to_dock to false
-  node->set_parameter(
-    rclcpp::Parameter("my_dock.rotate_to_dock", rclcpp::ParameterValue(false)));
-  EXPECT_NO_THROW(dock->configure(node, "my_dock", nullptr));
-  EXPECT_EQ(dock->shouldRotateToDock(), false);
-
-  // Case 3: Direction to FORWARD and rotate_to_dock to true
-  node->set_parameter(
-    rclcpp::Parameter("my_dock.dock_direction", rclcpp::ParameterValue("forward")));
-  node->set_parameter(
-    rclcpp::Parameter("my_dock.rotate_to_dock", rclcpp::ParameterValue(true)));
-  EXPECT_THROW(dock->configure(node, "my_dock", nullptr), std::runtime_error);
-  EXPECT_EQ(dock->shouldRotateToDock(), true);
-  dock->cleanup();
-
-  // Case 4: Direction to FORWARD and rotate_to_dock to false
-  node->set_parameter(
-    rclcpp::Parameter("my_dock.rotate_to_dock", rclcpp::ParameterValue(false)));
-  EXPECT_NO_THROW(dock->configure(node, "my_dock", nullptr));
-  EXPECT_EQ(dock->shouldRotateToDock(), false);
-
-  dock->cleanup();
-  dock.reset();
-}
-
-TEST(SimpleChargingDockTests, DetectorLifecycle)
-{
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
-
-  // Test with detector service configured
-  node->declare_parameter("my_dock.use_external_detection_pose", rclcpp::ParameterValue(true));
-  node->declare_parameter(
-    "my_dock.detector_service_name",
-    rclcpp::ParameterValue("test_detector_service"));
-  node->declare_parameter("my_dock.subscribe_toggle", rclcpp::ParameterValue(true));
-
-  // Create a mock service to prevent timeout
-  bool service_called = false;
-  auto service = node->create_service<std_srvs::srv::Trigger>(
-    "test_detector_service",
-    [&service_called](std::shared_ptr<rmw_request_id_t>,
-    std::shared_ptr<std_srvs::srv::Trigger::Request>,
-    std::shared_ptr<std_srvs::srv::Trigger::Response> response)
-    {
-      service_called = true;
-      response->success = true;
-    });
-
-  auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
-  dock->configure(node, "my_dock", nullptr);
-
-  dock->activate();
-  dock->startDetectionProcess();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
-  // Spin to process async service call
-  auto start_time = std::chrono::steady_clock::now();
-  while (!service_called &&
-    std::chrono::steady_clock::now() - start_time < std::chrono::seconds(2))
-  {
-    executor.spin_some();
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-  EXPECT_TRUE(service_called);
-  dock->stopDetectionProcess();
-  dock->deactivate();
-
-  dock->cleanup();
-  dock.reset();
-}
-
-TEST(SimpleChargingDockTests, DetectorServiceConfiguration)
-{
-  auto node = std::make_shared<nav2::LifecycleNode>("test_detector_config");
-
-  // Configure with detector service
-  node->declare_parameter("my_dock.use_external_detection_pose", true);
-  node->declare_parameter("my_dock.detector_service_name", "detector_service");
-  node->declare_parameter("my_dock.detector_service_timeout", 1.0);
-
-  auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
-  EXPECT_NO_THROW(dock->configure(node, "my_dock", nullptr));
-  EXPECT_NO_THROW(dock->activate());
-
-  EXPECT_NO_THROW(dock->deactivate());
-  EXPECT_NO_THROW(dock->cleanup());
-}
-
-TEST(SimpleChargingDockTests, SubscriptionCallback)
-{
-  auto node = std::make_shared<nav2::LifecycleNode>("test_subscription_reliable");
-
-  node->declare_parameter("my_dock.use_external_detection_pose", true);
-  node->declare_parameter("my_dock.subscribe_toggle", true);
-
-  auto dock = std::make_unique<SimpleChargingDockTestable>();
-  dock->configure(node, "my_dock", nullptr);
-  dock->activate();
-
-  auto publisher = node->create_publisher<geometry_msgs::msg::PoseStamped>(
-    "detected_dock_pose", rclcpp::QoS(1));
-  // A LifecyclePublisher must be activated to publish.
-  publisher->on_activate();
-
-  dock->startDetectionProcess();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
-
-  // Wait for the publisher and subscriber to connect.
-  int tries = 0;
-  while (publisher->get_subscription_count() == 0 && tries++ < 10) {
-    executor.spin_some();
-    std::this_thread::sleep_for(100ms);
-  }
-  ASSERT_GT(publisher->get_subscription_count(), 0);
-
-  // Publish a message to trigger the subscription callback.
-  publisher->publish(geometry_msgs::msg::PoseStamped{});
-  std::this_thread::sleep_for(50ms);
-  executor.spin_some();
-
-  // Verify the detector state was updated, proving the callback was executed.
-  EXPECT_TRUE(dock->isDetectorActive());
-
-  dock->deactivate();
-  dock->cleanup();
-}
-
-TEST(SimpleChargingDockTests, DetectorServiceTimeout)
-{
-  auto node = std::make_shared<nav2::LifecycleNode>("test_detector_timeout");
-
-  node->declare_parameter("my_dock.use_external_detection_pose", true);
-  node->declare_parameter("my_dock.detector_service_name", "slow_service");
-  node->declare_parameter("my_dock.detector_service_timeout", 0.1);
-
-  // Create a mock service that never responds in time
-  auto mock_service = node->create_service<std_srvs::srv::Trigger>(
-    "slow_service",
-    [](std::shared_ptr<rmw_request_id_t>,
-    std::shared_ptr<std_srvs::srv::Trigger::Request>,
-    std::shared_ptr<std_srvs::srv::Trigger::Response>)
-    {
-      std::this_thread::sleep_for(200ms);
-    });
-
-  auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
-  dock->configure(node, "my_dock", nullptr);
-  dock->activate();
-
-  // The call to invoke() should timeout and be caught
-  EXPECT_NO_THROW(dock->startDetectionProcess());
-
-  dock->deactivate();
-  dock->cleanup();
-  node->shutdown();
-}
-
-TEST(SimpleChargingDockTests, DetectorServiceFailure)
-{
-  const char * service_name = "charging_dock_slow_service";
-
-  rclcpp::NodeOptions options;
-  options.parameter_overrides(
-    {
-      {"my_dock.use_external_detection_pose", true},
-      {"my_dock.detector_service_name", std::string(service_name)},
-      // The client will time out after 100ms
-      {"my_dock.detector_service_timeout", 0.1}
-    });
-  auto node = std::make_shared<nav2::LifecycleNode>("test_detector_failure", options);
-
-  // Create a service that responds slower than the client's timeout.
-  auto slow_service = node->create_service<std_srvs::srv::Trigger>(
-    service_name,
-    [](std::shared_ptr<rmw_request_id_t>,
-    std::shared_ptr<std_srvs::srv::Trigger::Request>,
-    std::shared_ptr<std_srvs::srv::Trigger::Response>)
-    {
-      std::this_thread::sleep_for(200ms);
-    });
-
-  auto dock = std::make_unique<opennav_docking::SimpleChargingDock>();
-  dock->configure(node, "my_dock", nullptr);
-  dock->activate();
-
-  // The invoke() call should time out, but the exception must be caught
-  // within the startDetectionProcess method. The test passes if no
-  // uncaught exception is thrown.
-  EXPECT_NO_THROW(dock->startDetectionProcess());
-
-  dock->deactivate();
-  dock->cleanup();
-}
-
-TEST(SimpleChargingDockTests, SubscriptionPersistent)
-{
-  rclcpp::NodeOptions options;
-  options.parameter_overrides(
-    {
-      {"my_dock.use_external_detection_pose", true},
-      {"my_dock.subscribe_toggle", false}  // The key parameter to test.
-    });
-  auto node = std::make_shared<nav2::LifecycleNode>("test_sub_persistent", options);
-
-  auto dock = std::make_unique<SimpleChargingDockTestable>();
-  dock->configure(node, "my_dock", nullptr);
-  dock->activate();
-
-  // The subscription should be active immediately after configuration.
-  auto publisher = node->create_publisher<geometry_msgs::msg::PoseStamped>(
-    "detected_dock_pose", rclcpp::QoS(1));
-  publisher->on_activate();
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node->get_node_base_interface());
-  int tries = 0;
-  while (publisher->get_subscription_count() == 0 && tries++ < 10) {
-    executor.spin_some();
-    std::this_thread::sleep_for(100ms);
-  }
-  ASSERT_GT(publisher->get_subscription_count(), 0);
-
-  publisher->publish(geometry_msgs::msg::PoseStamped{});
-  std::this_thread::sleep_for(50ms);
-  executor.spin_some();
-
-  // Verify the detector state changed, proving the callback was executed.
-  EXPECT_TRUE(dock->isDetectorActive());
-
-  dock->deactivate();
-  dock->cleanup();
 }
 
 }  // namespace opennav_docking
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
-}

@@ -38,48 +38,49 @@
 #include "gtest/gtest.h"
 #include "nav2_controller/plugins/simple_progress_checker.hpp"
 #include "nav2_controller/plugins/pose_progress_checker.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav_2d_utils/conversions.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_util/geometry_utils.hpp"
 
 using nav2_controller::SimpleProgressChecker;
 using nav2_controller::PoseProgressChecker;
 
-class TestLifecycleNode : public nav2::LifecycleNode
+class TestLifecycleNode : public nav2_util::LifecycleNode
 {
 public:
   explicit TestLifecycleNode(const std::string & name)
-  : nav2::LifecycleNode(name)
+  : nav2_util::LifecycleNode(name)
   {
   }
 
-  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn on_cleanup(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn onShutdown(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn onShutdown(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn onError(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn onError(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 };
 
@@ -185,35 +186,39 @@ TEST(SimpleProgressChecker, required_movement_radius) {
     lifecycle_node->get_parameter("nav2_controller.required_movement_radius").as_double(),
     radius);
 
-  // Test setting invalid values
-  results = parameters_client->set_parameters_atomically(
-    {rclcpp::Parameter("nav2_controller.required_movement_radius", -1.0)}
-  );
-  rclcpp::spin_until_future_complete(
-    lifecycle_node->get_node_base_interface(),
-    results);
-  // Value should remain unchanged
-  EXPECT_EQ(lifecycle_node->get_parameter("nav2_controller.required_movement_radius").as_double(),
-    radius);
-
   // ABOVE time allowance (set to time_allowance)
   // no movement
   EXPECT_FALSE(checkMacro(progress_checker, 0, 0, 0, 0, 0, 0, twice_time_allowance_ms));
   // translation at required_movement_radius one axis
   EXPECT_FALSE(checkMacro(progress_checker, 0, 0, 0, radius, 0, 0, twice_time_allowance_ms));
   EXPECT_FALSE(checkMacro(progress_checker, 0, 0, 0, 0, radius, 0, twice_time_allowance_ms));
-  auto axis = radius / std::sqrt(2);
+  constexpr auto axis = radius / std::sqrt(2);
   EXPECT_FALSE(checkMacro(progress_checker, 0, 0, 0, axis, axis, 0, twice_time_allowance_ms));
   // translation at required_movement_radius both axes
 
   // translation above required_movement_radius one axis
-  auto above = radius + std::numeric_limits<double>::epsilon();
+  constexpr auto above = radius + std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(checkMacro(progress_checker, 0, 0, 0, above, 0, 0, twice_time_allowance_ms));
   EXPECT_TRUE(checkMacro(progress_checker, 0, 0, 0, 0, above, 0, twice_time_allowance_ms));
   // translation at required_movement_radius both axes
-  auto above_axis = axis + std::numeric_limits<double>::epsilon();
+  constexpr auto above_axis = axis + std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(
     checkMacro(progress_checker, 0, 0, 0, above_axis, above_axis, 0, twice_time_allowance_ms));
+
+  // Edge case, negative radius always true
+  results = parameters_client->set_parameters_atomically(
+    {rclcpp::Parameter("nav2_controller.required_movement_radius", -radius)});
+  rclcpp::spin_until_future_complete(
+    lifecycle_node->get_node_base_interface(),
+    results);
+  EXPECT_EQ(
+    lifecycle_node->get_parameter("nav2_controller.required_movement_radius").as_double(),
+    -radius);
+  EXPECT_TRUE(checkMacro(progress_checker, 0, 0, 0, 0, 0, 0, twice_time_allowance_ms));
+  // translation at required_movement_radius one axis
+  EXPECT_TRUE(checkMacro(progress_checker, 0, 0, 0, radius, 0, 0, twice_time_allowance_ms));
+  EXPECT_TRUE(checkMacro(progress_checker, 0, 0, 0, 0, radius, 0, twice_time_allowance_ms));
+  EXPECT_TRUE(checkMacro(progress_checker, 0, 0, 0, axis, axis, 0, twice_time_allowance_ms));
 }
 
 TEST(PoseProgressChecker, pose_progress_checker_reset)
@@ -253,17 +258,6 @@ TEST(PoseProgressChecker, unit_tests)
     x->get_parameter("nav2_controller.movement_time_allowance").as_double(),
     time_allowance);
 
-  // Test setting invalid values
-  results = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("nav2_controller.required_movement_angle", -1.0)}
-  );
-  rclcpp::spin_until_future_complete(
-    x->get_node_base_interface(),
-    results);
-  // Value should remain unchanged
-  EXPECT_EQ(x->get_parameter("nav2_controller.required_movement_angle").as_double(),
-    0.5);
-
   // BELOW time allowance (set to time_allowance)
   // no movement
   EXPECT_TRUE(checkMacro(rpc, 0, 0, 0, 0, 0, 0, half_time_allowance_ms));
@@ -299,13 +293,7 @@ TEST(PoseProgressChecker, unit_tests)
 
 int main(int argc, char ** argv)
 {
-  ::testing::InitGoogleTest(&argc, argv);
-
   rclcpp::init(argc, argv);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

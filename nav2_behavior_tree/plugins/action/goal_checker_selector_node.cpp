@@ -32,43 +32,20 @@ GoalCheckerSelector::GoalCheckerSelector(
   const BT::NodeConfiguration & conf)
 : BT::SyncActionNode(name, conf)
 {
-  initialize();
-  bt_loop_duration_ =
-    config().blackboard->template get<std::chrono::milliseconds>("bt_loop_duration");
-}
+  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 
-void GoalCheckerSelector::initialize()
-{
-  createROSInterfaces();
-}
+  getInput("topic_name", topic_name_);
 
-void GoalCheckerSelector::createROSInterfaces()
-{
-  std::string topic_new;
-  getInput("topic_name", topic_new);
-  if (topic_new != topic_name_ || !goal_checker_selector_sub_) {
-    topic_name_ = topic_new;
-    node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
-    callback_group_ = node_->create_callback_group(
-      rclcpp::CallbackGroupType::MutuallyExclusive,
-      false);
-    callback_group_executor_.add_callback_group(callback_group_, node_->get_node_base_interface());
+  rclcpp::QoS qos(rclcpp::KeepLast(1));
+  qos.transient_local().reliable();
 
-    goal_checker_selector_sub_ = node_->create_subscription<std_msgs::msg::String>(
-      topic_name_,
-      std::bind(&GoalCheckerSelector::callbackGoalCheckerSelect, this, _1),
-      nav2::qos::LatchedSubscriptionQoS(),
-      callback_group_);
-  }
+  goal_checker_selector_sub_ = node_->create_subscription<std_msgs::msg::String>(
+    topic_name_, qos, std::bind(&GoalCheckerSelector::callbackGoalCheckerSelect, this, _1));
 }
 
 BT::NodeStatus GoalCheckerSelector::tick()
 {
-  if (!BT::isStatusActive(status())) {
-    initialize();
-  }
-
-  callback_group_executor_.spin_all(bt_loop_duration_);
+  rclcpp::spin_some(node_);
 
   // This behavior always use the last selected goal checker received from the topic input.
   // When no input is specified it uses the default goal checker.
@@ -91,7 +68,7 @@ BT::NodeStatus GoalCheckerSelector::tick()
 }
 
 void
-GoalCheckerSelector::callbackGoalCheckerSelect(const std_msgs::msg::String::ConstSharedPtr & msg)
+GoalCheckerSelector::callbackGoalCheckerSelect(const std_msgs::msg::String::SharedPtr msg)
 {
   last_selected_goal_checker_ = msg->data;
 }

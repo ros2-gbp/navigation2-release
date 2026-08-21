@@ -1,5 +1,4 @@
 // Copyright (c) 2022 Samsung Research America, @artofnothingness Alexey Budyakov
-// Copyright (c) 2025 Open Navigation LLC
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,20 +20,22 @@
 #include <string>
 #include <vector>
 #include <cmath>
-#include <chrono>
+#include <xtensor/xmath.hpp>
+#include <xtensor/xrandom.hpp>
+#include <xtensor/xnoalias.hpp>
 
 #include "nav2_core/controller_exceptions.hpp"
 #include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
-#include "nav2_ros_common/node_utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace mppi
 {
 
+using namespace xt::placeholders;  // NOLINT
+using xt::evaluation_strategy::immediate;
+
 void Optimizer::initialize(
-  nav2::LifecycleNode::WeakPtr parent, const std::string & name,
+  rclcpp_lifecycle::LifecycleNode::WeakPtr parent, const std::string & name,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
-  nav2::TransformBuffer::SharedPtr tf_buffer,
   ParametersHandler * param_handler)
 {
   parent_ = parent;
@@ -42,7 +43,6 @@ void Optimizer::initialize(
   costmap_ros_ = costmap_ros;
   costmap_ = costmap_ros_->getCostmap();
   parameters_handler_ = param_handler;
-  tf_buffer_ = tf_buffer;
 
   auto node = parent_.lock();
   logger_ = node->get_logger();
@@ -51,20 +51,6 @@ void Optimizer::initialize(
 
   critic_manager_.on_configure(parent_, name_, costmap_ros_, parameters_handler_);
   noise_generator_.initialize(settings_, isHolonomic(), name_, parameters_handler_);
-
-  // This may throw an exception if not valid and fail initialization
-  nav2::declare_parameter_if_not_declared(
-    node, name_ + ".TrajectoryValidator.plugin",
-    rclcpp::ParameterValue("mppi::DefaultOptimalTrajectoryValidator"));
-  std::string validator_plugin_type = nav2::get_plugin_type_param(
-    node, name_ + ".TrajectoryValidator");
-  validator_loader_ = std::make_unique<pluginlib::ClassLoader<OptimalTrajectoryValidator>>(
-    "nav2_mppi_controller", "mppi::OptimalTrajectoryValidator");
-  trajectory_validator_ = validator_loader_->createUniqueInstance(validator_plugin_type);
-  trajectory_validator_->initialize(
-    parent_, name_ + ".TrajectoryValidator",
-    costmap_ros_, parameters_handler_, tf_buffer, settings_);
-  RCLCPP_INFO(logger_, "Loaded trajectory validator plugin: %s", validator_plugin_type.c_str());
 
   reset();
 }
@@ -81,32 +67,7 @@ void Optimizer::getParams()
   auto & s = settings_;
   auto getParam = parameters_handler_->getParamGetter(name_);
   auto getParentParam = parameters_handler_->getParamGetter("");
-
-  // Reject dynamic updates to kinematic params when speed limit is active
-  auto kinematic_guard = [this](
-    const rclcpp::Parameter & param,
-    rcl_interfaces::msg::SetParametersResult & result) {
-      if (isSpeedLimitActive()) {
-        result.successful = false;
-        if (!result.reason.empty()) {
-          result.reason += "\n";
-        }
-        result.reason += "Rejected dynamic update to '" + param.get_name() +
-          "': speed limit is active. Clear the speed limit first.";
-      }
-    };
-
-  const std::vector<std::string> kinematic_params = {
-    "vx_max", "vx_min", "vy_max", "wz_max"};
-  for (const auto & p : kinematic_params) {
-    parameters_handler_->addPreCallback(name_ + "." + p, kinematic_guard);
-  }
-
   getParam(s.model_dt, "model_dt", 0.05f);
-  getParam(s.model_delay_vx, "model_delay_vx", 0.0f);
-  getParam(s.model_delay_vy, "model_delay_vy", 0.0f);
-  getParam(s.model_delay_wz, "model_delay_wz", 0.0f);
-  getParam(s.clamp_raw_controls, "clamp_raw_controls", false);
   getParam(s.time_steps, "time_steps", 56);
   getParam(s.batch_size, "batch_size", 1000);
   getParam(s.iteration_count, "iteration_count", 1);
@@ -126,13 +87,8 @@ void Optimizer::getParams()
   getParam(s.sampling_std.wz, "wz_std", 0.4f);
   getParam(s.retry_attempt_limit, "retry_attempt_limit", 1);
   getParam(s.open_loop, "open_loop", false);
-  getParam(s.sgf_order, "sgf_order", 2);
-  if (s.sgf_order < 1 || s.sgf_order > 2) {
-    RCLCPP_WARN(logger_, "sgf_order must be 1 or 2, defaulting to 2");
-    s.sgf_order = 2;
-  }
 
-  s.base_constraints.ax_max = fabs(s.base_constraints.ax_max);
+  s.base_constraints.ax_max = std::abs(s.base_constraints.ax_max);
   if (s.base_constraints.ax_min > 0.0) {
     s.base_constraints.ax_min = -1.0 * s.base_constraints.ax_min;
     RCLCPP_WARN(
@@ -147,21 +103,20 @@ void Optimizer::getParams()
       "Sign of the parameter ay_min is incorrect, consider setting it negative.");
   }
 
-  getParam(motion_model_name, "motion_model", std::string("diff_drive"));
+  getParam(motion_model_name, "motion_model", std::string("DiffDrive"));
 
   s.constraints = s.base_constraints;
-
   setMotionModel(motion_model_name);
   parameters_handler_->addPostCallback([this]() {reset();});
 
   double controller_frequency;
   getParentParam(controller_frequency, "controller_frequency", 0.0, ParameterType::Static);
-  s.controller_period = static_cast<float>(1.0 / controller_frequency);
-  setOffset(s.controller_period);
+  setOffset(controller_frequency);
 }
 
-void Optimizer::setOffset(double controller_period)
+void Optimizer::setOffset(double controller_frequency)
 {
+  const double controller_period = 1.0 / controller_frequency;
   constexpr double eps = 1e-6;
 
   if ((controller_period + eps) < settings_.model_dt) {
@@ -189,23 +144,19 @@ void Optimizer::reset(bool reset_dynamic_speed_limits)
   control_history_[2] = {0.0f, 0.0f, 0.0f};
   control_history_[3] = {0.0f, 0.0f, 0.0f};
 
-  last_command_vel_ = geometry_msgs::msg::Twist();
+  if (settings_.open_loop) {
+    last_command_vel_ = geometry_msgs::msg::Twist();
+  }
 
   if (reset_dynamic_speed_limits) {
     settings_.constraints = settings_.base_constraints;
   }
 
-  costs_.setZero(settings_.batch_size);
+  costs_ = xt::zeros<float>({settings_.batch_size});
   generated_trajectories_.reset(settings_.batch_size, settings_.time_steps);
 
   noise_generator_.reset(settings_, isHolonomic());
-  motion_model_->setConstraints(settings_.constraints, settings_.model_dt,
-    settings_.model_delay_vx, settings_.model_delay_vy, settings_.model_delay_wz,
-    settings_.clamp_raw_controls);
-  motion_model_->clearCommandHistory();
-  trajectory_validator_->initialize(
-    parent_, name_ + ".TrajectoryValidator",
-    costmap_ros_, parameters_handler_, tf_buffer_, settings_);
+  motion_model_->initialize(settings_.constraints, settings_.model_dt);
 
   RCLCPP_INFO(logger_, "Optimizer reset");
 }
@@ -215,19 +166,7 @@ bool Optimizer::isHolonomic() const
   return motion_model_->isHolonomic();
 }
 
-bool Optimizer::isSpeedLimitActive() const
-{
-  // Speed limit is active when current constraints differ from base constraints.
-  // This occurs when setSpeedLimit() has modified the velocity/acceleration limits.
-  const auto & base = settings_.base_constraints;
-  const auto & curr = settings_.constraints;
-  return base.vx_max != curr.vx_max ||
-         base.vx_min != curr.vx_min ||
-         base.vy != curr.vy ||
-         base.wz != curr.wz;
-}
-
-std::tuple<geometry_msgs::msg::TwistStamped, Eigen::ArrayXXf> Optimizer::evalControl(
+geometry_msgs::msg::TwistStamped Optimizer::evalControl(
   const geometry_msgs::msg::PoseStamped & robot_pose,
   const geometry_msgs::msg::Twist & robot_speed,
   const nav_msgs::msg::Path & plan,
@@ -235,29 +174,12 @@ std::tuple<geometry_msgs::msg::TwistStamped, Eigen::ArrayXXf> Optimizer::evalCon
   nav2_core::GoalChecker * goal_checker)
 {
   prepare(robot_pose, robot_speed, plan, goal, goal_checker);
-  Eigen::ArrayXXf optimal_trajectory;
-  bool trajectory_valid = true;
 
   do {
     optimize();
-    optimal_trajectory = getOptimizedTrajectory();
-    switch (trajectory_validator_->validateTrajectory(
-        optimal_trajectory, control_sequence_, robot_pose, robot_speed, plan, goal))
-    {
-      case mppi::ValidationResult::SOFT_RESET:
-        trajectory_valid = false;
-        RCLCPP_WARN(logger_, "Soft reset triggered by trajectory validator");
-        break;
-      case mppi::ValidationResult::FAILURE:
-        throw nav2_core::NoValidControl(
-                "Trajectory validator failed to validate trajectory, hard reset triggered.");
-      case mppi::ValidationResult::SUCCESS:
-      default:
-        trajectory_valid = true;
-        break;
-    }
-  } while (fallback(critics_data_.fail_flag || !trajectory_valid));
+  } while (fallback(critics_data_.fail_flag));
 
+  utils::savitskyGolayFilter(control_sequence_, control_history_, settings_);
   auto control = getControlFromSequenceAsTwist(plan.header.stamp);
 
   last_command_vel_ = control.twist;
@@ -266,7 +188,7 @@ std::tuple<geometry_msgs::msg::TwistStamped, Eigen::ArrayXXf> Optimizer::evalCon
     shiftControlSequence();
   }
 
-  return std::make_tuple(control, optimal_trajectory);
+  return control;
 }
 
 void Optimizer::optimize()
@@ -304,35 +226,10 @@ void Optimizer::prepare(
   const geometry_msgs::msg::Pose & goal,
   nav2_core::GoalChecker * goal_checker)
 {
-  if (settings_.open_loop) {
-    state_.speed = last_command_vel_;
-  } else {
-    // Predict state one controller_period forward toward the last command to compensate
-    // for the latency between measurement and when this command will take effect.
-    // Clamp to physically achievable range so prediction never exceeds dynamics.
-    const auto & c = settings_.constraints;
-    const double dt = settings_.controller_period;
-    state_.speed = robot_speed;
-    state_.speed.linear.x = std::clamp(
-      last_command_vel_.linear.x,
-      robot_speed.linear.x + dt * c.ax_min,
-      robot_speed.linear.x + dt * c.ax_max);
-    state_.speed.angular.z = std::clamp(
-      last_command_vel_.angular.z,
-      robot_speed.angular.z - dt * c.az_max,
-      robot_speed.angular.z + dt * c.az_max);
-    if (isHolonomic()) {
-      state_.speed.linear.y = std::clamp(
-        last_command_vel_.linear.y,
-        robot_speed.linear.y + dt * c.ay_min,
-        robot_speed.linear.y + dt * c.ay_max);
-    }
-  }
-
   state_.pose = robot_pose;
-  state_.local_path_length = nav2_util::geometry_utils::calculate_path_length(plan);
+  state_.speed = settings_.open_loop ? last_command_vel_ : robot_speed;
   path_ = utils::toTensor(plan);
-  costs_.setZero(settings_.batch_size);
+  costs_.fill(0.0f);
   goal_ = goal;
 
   critics_data_.fail_flag = false;
@@ -344,122 +241,76 @@ void Optimizer::prepare(
 
 void Optimizer::shiftControlSequence()
 {
-  auto size = control_sequence_.vx.size();
-  utils::shiftColumnsByOnePlace(control_sequence_.vx, -1);
-  utils::shiftColumnsByOnePlace(control_sequence_.wz, -1);
-  control_sequence_.vx(size - 1) = control_sequence_.vx(size - 2);
-  control_sequence_.wz(size - 1) = control_sequence_.wz(size - 2);
+  using namespace xt::placeholders;  // NOLINT
+  control_sequence_.vx = xt::roll(control_sequence_.vx, -1);
+  control_sequence_.wz = xt::roll(control_sequence_.wz, -1);
+
+
+  xt::view(control_sequence_.vx, -1) =
+    xt::view(control_sequence_.vx, -2);
+
+  xt::view(control_sequence_.wz, -1) =
+    xt::view(control_sequence_.wz, -2);
+
 
   if (isHolonomic()) {
-    utils::shiftColumnsByOnePlace(control_sequence_.vy, -1);
-    control_sequence_.vy(size - 1) = control_sequence_.vy(size - 2);
+    control_sequence_.vy = xt::roll(control_sequence_.vy, -1);
+    xt::view(control_sequence_.vy, -1) =
+      xt::view(control_sequence_.vy, -2);
   }
 }
 
 void Optimizer::generateNoisedTrajectories()
 {
-  applyControlSequenceInterIterationConstraints();
   noise_generator_.setNoisedControls(state_, control_sequence_);
   noise_generator_.generateNextNoises();
   updateStateVelocities(state_);
   integrateStateVelocities(generated_trajectories_, state_);
 }
 
-void Optimizer::applyControlSequenceInterIterationConstraints()
-{
-  // Enforce t=0 to be dynamically feasible from the current speed for inter-iteration feasibility
-  // Re-centers the distribution at t=0, but still applied in a information theoretic sound way
-  auto & s = settings_;
-  float first_dt = s.controller_period;
-  float max_delta_vx = first_dt * s.constraints.ax_max;
-  float min_delta_vx = first_dt * s.constraints.ax_min;
-  float max_delta_vy = first_dt * s.constraints.ay_max;
-  float min_delta_vy = first_dt * s.constraints.ay_min;
-  float max_delta_wz = first_dt * s.constraints.az_max;
-
-  float speed_vx = static_cast<float>(state_.speed.linear.x);
-  float speed_wz = static_cast<float>(state_.speed.angular.z);
-  if (s.shift_control_sequence) {
-    // When shifting, vx(0) is not sent and represents 'now'
-    // so that vx(1), the sent command, needs to be only one step away.
-    control_sequence_.vx(0) = speed_vx;
-    control_sequence_.wz(0) = speed_wz;
-    if (isHolonomic()) {
-      control_sequence_.vy(0) = static_cast<float>(state_.speed.linear.y);
-    }
-  } else {
-    // When not shifting, vx(0) is the sent command, clamp to the feasible envelope
-    control_sequence_.vx(0) = utils::clampVelocityByAccel(
-      speed_vx, control_sequence_.vx(0), min_delta_vx, max_delta_vx);
-    control_sequence_.wz(0) = utils::clampVelocityByAccel(
-      speed_wz, control_sequence_.wz(0), -max_delta_wz, max_delta_wz);
-    if (isHolonomic()) {
-      float speed_vy = static_cast<float>(state_.speed.linear.y);
-      control_sequence_.vy(0) = utils::clampVelocityByAccel(
-        speed_vy, control_sequence_.vy(0), min_delta_vy, max_delta_vy);
-    }
-  }
-}
-
 void Optimizer::applyControlSequenceConstraints()
 {
   auto & s = settings_;
 
-  // Apply constraints to set the optimal control sequence within bounds
-  motion_model_->applyConstraints(control_sequence_);
-
-  // Use controller_period for t=0 to realistically model physical limits
-  float first_dt = s.controller_period;
-  float max_delta_vx = first_dt * s.constraints.ax_max;
-  float min_delta_vx = first_dt * s.constraints.ax_min;
-  float max_delta_vy = first_dt * s.constraints.ay_max;
-  float min_delta_vy = first_dt * s.constraints.ay_min;
-  float max_delta_wz = first_dt * s.constraints.az_max;
-
-  // Initialize as the current speed to create inter-iteration dynamic feasibility
-  float vx_last = static_cast<float>(state_.speed.linear.x);
-  float wz_last = static_cast<float>(state_.speed.angular.z);
-  float vy_last = isHolonomic() ? static_cast<float>(state_.speed.linear.y) : 0.0f;
-
-  // When shifting, vx(0) is "now" and not sent. Pin it so vx(1), the sent command,
-  // is exactly one constraint step from current speed when shift_control_sequence
-  if (s.shift_control_sequence) {
-    control_sequence_.vx(0) = vx_last;
-    control_sequence_.wz(0) = wz_last;
-    if (isHolonomic()) {
-      control_sequence_.vy(0) = vy_last;
-    }
+  if (isHolonomic()) {
+    control_sequence_.vy = xt::clip(control_sequence_.vy, -s.constraints.vy, s.constraints.vy);
   }
 
-  for (unsigned int i = 0; i != control_sequence_.vx.size(); i++) {
-    // After first timestep, switch to MPC model_dt for intra-iteration feasibility
-    if (i == 1) {
-      max_delta_vx = s.model_dt * s.constraints.ax_max;
-      min_delta_vx = s.model_dt * s.constraints.ax_min;
-      max_delta_vy = s.model_dt * s.constraints.ay_max;
-      min_delta_vy = s.model_dt * s.constraints.ay_min;
-      max_delta_wz = s.model_dt * s.constraints.az_max;
-    }
+  control_sequence_.vx = xt::clip(control_sequence_.vx, s.constraints.vx_min, s.constraints.vx_max);
+  control_sequence_.wz = xt::clip(control_sequence_.wz, -s.constraints.wz, s.constraints.wz);
 
+  float max_delta_vx = s.model_dt * s.constraints.ax_max;
+  float min_delta_vx = s.model_dt * s.constraints.ax_min;
+  float max_delta_vy = s.model_dt * s.constraints.ay_max;
+  float min_delta_vy = s.model_dt * s.constraints.ay_min;
+  float max_delta_wz = s.model_dt * s.constraints.az_max;
+  float vx_last = control_sequence_.vx(0);
+  float vy_last = control_sequence_.vy(0);
+  float wz_last = control_sequence_.wz(0);
+  for (unsigned int i = 1; i != control_sequence_.vx.shape(0); i++) {
     float & vx_curr = control_sequence_.vx(i);
-    vx_curr = utils::clamp(s.constraints.vx_min, s.constraints.vx_max, vx_curr);
-    vx_curr = utils::clampVelocityByAccel(vx_last, vx_curr, min_delta_vx, max_delta_vx);
+    if (vx_last > 0) {
+      vx_curr = std::clamp(vx_curr, vx_last + min_delta_vx, vx_last + max_delta_vx);
+    } else {
+      vx_curr = std::clamp(vx_curr, vx_last - max_delta_vx, vx_last - min_delta_vx);
+    }
     vx_last = vx_curr;
 
     float & wz_curr = control_sequence_.wz(i);
-    wz_curr = utils::clamp(-s.constraints.wz, s.constraints.wz, wz_curr);
-    wz_curr = utils::clampVelocityByAccel(wz_last, wz_curr, -max_delta_wz, max_delta_wz);
+    wz_curr = std::clamp(wz_curr, wz_last - max_delta_wz, wz_last + max_delta_wz);
     wz_last = wz_curr;
 
     if (isHolonomic()) {
       float & vy_curr = control_sequence_.vy(i);
-      vy_curr = utils::clamp(-s.constraints.vy, s.constraints.vy, vy_curr);
-      vy_curr = utils::clampVelocityByAccel(vy_last, vy_curr, min_delta_vy, max_delta_vy);
+      if (vy_last > 0) {
+        vy_curr = std::clamp(vy_curr, vy_last + min_delta_vy, vy_last + max_delta_vy);
+      } else {
+        vy_curr = std::clamp(vy_curr, vy_last - max_delta_vy, vy_last - min_delta_vy);
+      }
       vy_last = vy_curr;
     }
   }
 
-  // Apply again to ensure accel constraints don't violate specialty limits
   motion_model_->applyConstraints(control_sequence_);
 }
 
@@ -470,13 +321,14 @@ void Optimizer::updateStateVelocities(
   propagateStateVelocitiesFromInitials(state);
 }
 
-void Optimizer::updateInitialStateVelocities(models::State & state) const
+void Optimizer::updateInitialStateVelocities(
+  models::State & state) const
 {
-  state.vx.col(0) = static_cast<float>(state.speed.linear.x);
-  state.wz.col(0) = static_cast<float>(state.speed.angular.z);
+  xt::noalias(xt::view(state.vx, xt::all(), 0)) = static_cast<float>(state.speed.linear.x);
+  xt::noalias(xt::view(state.wz, xt::all(), 0)) = static_cast<float>(state.speed.angular.z);
 
   if (isHolonomic()) {
-    state.vy.col(0) = static_cast<float>(state.speed.linear.y);
+    xt::noalias(xt::view(state.vy, xt::all(), 0)) = static_cast<float>(state.speed.linear.y);
   }
 }
 
@@ -487,159 +339,115 @@ void Optimizer::propagateStateVelocitiesFromInitials(
 }
 
 void Optimizer::integrateStateVelocities(
-  Eigen::Array<float, Eigen::Dynamic, 3> & trajectory,
-  const Eigen::ArrayXXf & sequence) const
+  xt::xtensor<float, 2> & trajectory,
+  const xt::xtensor<float, 2> & sequence) const
 {
   float initial_yaw = static_cast<float>(tf2::getYaw(state_.pose.pose.orientation));
 
-  const auto vx = sequence.col(0);
-  const auto wz = sequence.col(1);
+  const auto vx = xt::view(sequence, xt::all(), 0);
+  const auto wz = xt::view(sequence, xt::all(), 1);
 
-  auto traj_x = trajectory.col(0);
-  auto traj_y = trajectory.col(1);
-  auto traj_yaws = trajectory.col(2);
+  auto traj_x = xt::view(trajectory, xt::all(), 0);
+  auto traj_y = xt::view(trajectory, xt::all(), 1);
+  auto traj_yaws = xt::view(trajectory, xt::all(), 2);
 
-  const size_t n_size = traj_yaws.size();
-  if (n_size == 0) {
-    return;
-  }
+  xt::noalias(traj_yaws) = xt::cumsum(wz * settings_.model_dt, 0) + initial_yaw;
 
-  float last_yaw = initial_yaw;
-  for (size_t i = 0; i != n_size; i++) {
-    last_yaw += wz(i) * settings_.model_dt;
-    traj_yaws(i) = last_yaw;
-  }
+  auto yaw_cos = xt::roll(xt::eval(xt::cos(traj_yaws)), 1);
+  auto yaw_sin = xt::roll(xt::eval(xt::sin(traj_yaws)), 1);
+  xt::view(yaw_cos, 0) = cosf(initial_yaw);
+  xt::view(yaw_sin, 0) = sinf(initial_yaw);
 
-  Eigen::ArrayXf yaw_cos = traj_yaws.cos();
-  Eigen::ArrayXf yaw_sin = traj_yaws.sin();
-  utils::shiftColumnsByOnePlace(yaw_cos, 1);
-  utils::shiftColumnsByOnePlace(yaw_sin, 1);
-  yaw_cos(0) = cosf(initial_yaw);
-  yaw_sin(0) = sinf(initial_yaw);
-
-  auto dx = (vx * yaw_cos).eval();
-  auto dy = (vx * yaw_sin).eval();
+  auto && dx = xt::eval(vx * yaw_cos);
+  auto && dy = xt::eval(vx * yaw_sin);
 
   if (isHolonomic()) {
-    auto vy = sequence.col(2);
-    dx = (dx - vy * yaw_sin).eval();
-    dy = (dy + vy * yaw_cos).eval();
+    const auto vy = xt::view(sequence, xt::all(), 2);
+    dx = dx - vy * yaw_sin;
+    dy = dy + vy * yaw_cos;
   }
 
-  float last_x = state_.pose.pose.position.x;
-  float last_y = state_.pose.pose.position.y;
-  for (size_t i = 0; i != n_size; i++) {
-    last_x += dx(i) * settings_.model_dt;
-    last_y += dy(i) * settings_.model_dt;
-    traj_x(i) = last_x;
-    traj_y(i) = last_y;
-  }
+  xt::noalias(traj_x) = state_.pose.pose.position.x + xt::cumsum(dx * settings_.model_dt, 0);
+  xt::noalias(traj_y) = state_.pose.pose.position.y + xt::cumsum(dy * settings_.model_dt, 0);
 }
 
 void Optimizer::integrateStateVelocities(
   models::Trajectories & trajectories,
   const models::State & state) const
 {
-  auto initial_yaw = static_cast<float>(tf2::getYaw(state.pose.pose.orientation));
-  const size_t n_cols = trajectories.yaws.cols();
+  const float initial_yaw = static_cast<float>(tf2::getYaw(state.pose.pose.orientation));
 
-  Eigen::ArrayXf last_yaws = Eigen::ArrayXf::Constant(trajectories.yaws.rows(), initial_yaw);
-  for (size_t i = 0; i != n_cols; i++) {
-    last_yaws += state.wz.col(i) * settings_.model_dt;
-    trajectories.yaws.col(i) = last_yaws;
-  }
+  xt::noalias(trajectories.yaws) =
+    xt::cumsum(state.wz * settings_.model_dt, {1}) + initial_yaw;
 
-  Eigen::ArrayXXf yaw_cos = trajectories.yaws.cos();
-  Eigen::ArrayXXf yaw_sin = trajectories.yaws.sin();
-  utils::shiftColumnsByOnePlace(yaw_cos, 1);
-  utils::shiftColumnsByOnePlace(yaw_sin, 1);
-  yaw_cos.col(0) = cosf(initial_yaw);
-  yaw_sin.col(0) = sinf(initial_yaw);
+  auto yaw_cos = xt::roll(xt::eval(xt::cos(trajectories.yaws)), 1, 1);
+  auto yaw_sin = xt::roll(xt::eval(xt::sin(trajectories.yaws)), 1, 1);
+  xt::view(yaw_cos, xt::all(), 0) = cosf(initial_yaw);
+  xt::view(yaw_sin, xt::all(), 0) = sinf(initial_yaw);
 
-  auto dx = (state.vx * yaw_cos).eval();
-  auto dy = (state.vx * yaw_sin).eval();
+  auto && dx = xt::eval(state.vx * yaw_cos);
+  auto && dy = xt::eval(state.vx * yaw_sin);
 
   if (isHolonomic()) {
-    dx -= state.vy * yaw_sin;
-    dy += state.vy * yaw_cos;
+    dx = dx - state.vy * yaw_sin;
+    dy = dy + state.vy * yaw_cos;
   }
 
-  Eigen::ArrayXf last_x = Eigen::ArrayXf::Constant(
-    trajectories.x.rows(),
-    state.pose.pose.position.x);
-  Eigen::ArrayXf last_y = Eigen::ArrayXf::Constant(
-    trajectories.y.rows(),
-    state.pose.pose.position.y);
-
-  for (size_t i = 0; i != n_cols; i++) {
-    last_x += dx.col(i) * settings_.model_dt;
-    last_y += dy.col(i) * settings_.model_dt;
-    trajectories.x.col(i) = last_x;
-    trajectories.y.col(i) = last_y;
-  }
+  xt::noalias(trajectories.x) = state.pose.pose.position.x +
+    xt::cumsum(dx * settings_.model_dt, {1});
+  xt::noalias(trajectories.y) = state.pose.pose.position.y +
+    xt::cumsum(dy * settings_.model_dt, {1});
 }
 
-Eigen::ArrayXXf Optimizer::getOptimizedTrajectory()
+xt::xtensor<float, 2> Optimizer::getOptimizedTrajectory()
 {
   const bool is_holo = isHolonomic();
-  Eigen::ArrayXXf sequence = Eigen::ArrayXXf(settings_.time_steps, is_holo ? 3 : 2);
-  Eigen::Array<float, Eigen::Dynamic, 3> trajectories =
-    Eigen::Array<float, Eigen::Dynamic, 3>(settings_.time_steps, 3);
+  auto && sequence =
+    xt::xtensor<float, 2>::from_shape({settings_.time_steps, is_holo ? 3u : 2u});
+  auto && trajectories = xt::xtensor<float, 2>::from_shape({settings_.time_steps, 3});
 
-  sequence.col(0) = control_sequence_.vx;
-  sequence.col(1) = control_sequence_.wz;
+  xt::noalias(xt::view(sequence, xt::all(), 0)) = control_sequence_.vx;
+  xt::noalias(xt::view(sequence, xt::all(), 1)) = control_sequence_.wz;
 
   if (is_holo) {
-    sequence.col(2) = control_sequence_.vy;
+    xt::noalias(xt::view(sequence, xt::all(), 2)) = control_sequence_.vy;
   }
 
   integrateStateVelocities(trajectories, sequence);
-  return trajectories;
-}
-
-const models::ControlSequence & Optimizer::getOptimalControlSequence()
-{
-  return control_sequence_;
+  return std::move(trajectories);
 }
 
 void Optimizer::updateControlSequence()
 {
   const bool is_holo = isHolonomic();
   auto & s = settings_;
-
-  auto vx_T = control_sequence_.vx.transpose();
-  auto bounded_noises_vx = state_.cvx.rowwise() - vx_T;
-  const float gamma_vx = s.gamma / (s.sampling_std.vx * s.sampling_std.vx);
-  costs_ += (gamma_vx * (bounded_noises_vx.rowwise() * vx_T).rowwise().sum()).eval();
-
-  if (s.sampling_std.wz > 0.0f) {
-    auto wz_T = control_sequence_.wz.transpose();
-    auto bounded_noises_wz = state_.cwz.rowwise() - wz_T;
-    const float gamma_wz = s.gamma / (s.sampling_std.wz * s.sampling_std.wz);
-    costs_ += (gamma_wz * (bounded_noises_wz.rowwise() * wz_T).rowwise().sum()).eval();
-  }
+  auto bounded_noises_vx = state_.cvx - control_sequence_.vx;
+  auto bounded_noises_wz = state_.cwz - control_sequence_.wz;
+  xt::noalias(costs_) +=
+    s.gamma / powf(s.sampling_std.vx, 2) * xt::sum(
+    xt::view(control_sequence_.vx, xt::newaxis(), xt::all()) * bounded_noises_vx, 1, immediate);
+  xt::noalias(costs_) +=
+    s.gamma / powf(s.sampling_std.wz, 2) * xt::sum(
+    xt::view(control_sequence_.wz, xt::newaxis(), xt::all()) * bounded_noises_wz, 1, immediate);
 
   if (is_holo) {
-    auto vy_T = control_sequence_.vy.transpose();
-    auto bounded_noises_vy = state_.cvy.rowwise() - vy_T;
-    const float gamma_vy = s.gamma / (s.sampling_std.vy * s.sampling_std.vy);
-    costs_ += (gamma_vy * (bounded_noises_vy.rowwise() * vy_T).rowwise().sum()).eval();
+    auto bounded_noises_vy = state_.cvy - control_sequence_.vy;
+    xt::noalias(costs_) +=
+      s.gamma / powf(s.sampling_std.vy, 2) * xt::sum(
+      xt::view(control_sequence_.vy, xt::newaxis(), xt::all()) * bounded_noises_vy,
+      1, immediate);
   }
 
-  auto costs_normalized = costs_ - costs_.minCoeff();
-  const float inv_temp = 1.0f / s.temperature;
-  auto softmaxes = (-inv_temp * costs_normalized).exp().eval();
-  softmaxes /= softmaxes.sum();
+  auto && costs_normalized = costs_ - xt::amin(costs_, immediate);
+  auto && exponents = xt::eval(xt::exp(-1 / settings_.temperature * costs_normalized));
+  auto && softmaxes = xt::eval(exponents / xt::sum(exponents, immediate));
+  auto && softmaxes_extened = xt::eval(xt::view(softmaxes, xt::all(), xt::newaxis()));
 
-  auto softmax_mat = softmaxes.matrix();
-  control_sequence_.vx = state_.cvx.transpose().matrix() * softmax_mat;
-  control_sequence_.wz = state_.cwz.transpose().matrix() * softmax_mat;
-
+  xt::noalias(control_sequence_.vx) = xt::sum(state_.cvx * softmaxes_extened, 0, immediate);
+  xt::noalias(control_sequence_.wz) = xt::sum(state_.cwz * softmaxes_extened, 0, immediate);
   if (is_holo) {
-    control_sequence_.vy = state_.cvy.transpose().matrix() * softmax_mat;
+    xt::noalias(control_sequence_.vy) = xt::sum(state_.cvy * softmaxes_extened, 0, immediate);
   }
-
-  utils::savitskyGolayFilter(control_sequence_, control_history_, settings_);
 
   applyControlSequenceConstraints();
 }
@@ -651,41 +459,30 @@ geometry_msgs::msg::TwistStamped Optimizer::getControlFromSequenceAsTwist(
 
   auto vx = control_sequence_.vx(offset);
   auto wz = control_sequence_.wz(offset);
-  auto vy = isHolonomic() ? control_sequence_.vy(offset) : 0.0f;
-
-  // Update the command history for the motion model's latency compensation mechanism
-  motion_model_->pushCommandHistory(vx, vy, wz);
 
   if (isHolonomic()) {
+    auto vy = control_sequence_.vy(offset);
     return utils::toTwistStamped(vx, vy, wz, stamp, costmap_ros_->getBaseFrameID());
   }
 
   return utils::toTwistStamped(vx, wz, stamp, costmap_ros_->getBaseFrameID());
 }
 
-void Optimizer::setMotionModel(const std::string & motion_model_name)
+void Optimizer::setMotionModel(const std::string & model)
 {
-  auto node = parent_.lock();
-  const std::string plugin_ns = name_ + "." + motion_model_name;
-  std::string plugin_type;
-  motion_model_loader_ =
-    std::make_unique<pluginlib::ClassLoader<MotionModel>>(
-    "nav2_mppi_controller", "mppi::MotionModel");
-
-  try {
-    plugin_type = nav2::get_plugin_type_param(node, plugin_ns);
-    motion_model_ = motion_model_loader_->createSharedInstance(plugin_type);
-    motion_model_->initialize(parameters_handler_, plugin_ns);
-    motion_model_->setConstraints(settings_.constraints, settings_.model_dt,
-      settings_.model_delay_vx, settings_.model_delay_vy, settings_.model_delay_wz,
-      settings_.clamp_raw_controls);
-  } catch (const pluginlib::PluginlibException & ex) {
+  if (model == "DiffDrive") {
+    motion_model_ = std::make_shared<DiffDriveMotionModel>();
+  } else if (model == "Omni") {
+    motion_model_ = std::make_shared<OmniMotionModel>();
+  } else if (model == "Ackermann") {
+    motion_model_ = std::make_shared<AckermannMotionModel>(parameters_handler_, name_);
+  } else {
     throw nav2_core::ControllerException(
-            std::string("Failed to load motion model plugin '") + motion_model_name +
-            "': " + ex.what());
+            std::string(
+              "Model " + model + " is not valid! Valid options are DiffDrive, Omni, "
+              "or Ackermann"));
   }
-
-  RCLCPP_INFO(logger_, "Loaded motion model plugin: %s", plugin_type.c_str());
+  motion_model_->initialize(settings_.constraints, settings_.model_dt);
 }
 
 void Optimizer::setSpeedLimit(double speed_limit, bool percentage)
@@ -713,9 +510,7 @@ void Optimizer::setSpeedLimit(double speed_limit, bool percentage)
       s.constraints.wz = s.base_constraints.wz * ratio;
     }
   }
-  motion_model_->setConstraints(settings_.constraints, settings_.model_dt,
-    settings_.model_delay_vx, settings_.model_delay_vy, settings_.model_delay_wz,
-    settings_.clamp_raw_controls);
+  motion_model_->initialize(settings_.constraints, settings_.model_dt);
 }
 
 models::Trajectories & Optimizer::getGeneratedTrajectories()

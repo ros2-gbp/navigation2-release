@@ -21,18 +21,17 @@
 
 #include "behaviortree_cpp/decorator_node.h"
 #include "behaviortree_cpp/json_export.h"
+
+#include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_behavior_tree/bt_utils.hpp"
 #include "nav2_behavior_tree/json_utils.hpp"
-#include "rclcpp/rclcpp.hpp"
-
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A BT::DecoratorNode that ticks its child if the goal was updated
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
@@ -61,10 +60,10 @@ public:
   {
     // Register JSON definitions for the types used in the ports
     BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-    BT::RegisterJsonDefinition<nav_msgs::msg::Goals>();
+    BT::RegisterJsonDefinition<std::vector<geometry_msgs::msg::PoseStamped>>();
 
     return {
-      BT::InputPort<nav_msgs::msg::Goals>(
+      BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
         "goals", "Vector of navigation goals"),
       BT::InputPort<geometry_msgs::msg::PoseStamped>(
         "goal", "Navigation goal"),
@@ -80,7 +79,7 @@ private:
 
   bool goal_was_updated_;
   geometry_msgs::msg::PoseStamped goal_;
-  nav_msgs::msg::Goals goals_;
+  std::vector<geometry_msgs::msg::PoseStamped> goals_;
 };
 
 }  // namespace nav2_behavior_tree

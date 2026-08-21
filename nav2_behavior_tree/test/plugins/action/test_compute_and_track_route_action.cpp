@@ -22,7 +22,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/compute_and_track_route_action.hpp"
 
 class ComputeAndTrackRouteActionServer
@@ -51,7 +51,7 @@ class ComputeAndTrackRouteActionTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<nav2::LifecycleNode>("follow_path_action_test_fixture");
+    node_ = std::make_shared<rclcpp::Node>("follow_path_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -101,13 +101,13 @@ public:
   static std::shared_ptr<ComputeAndTrackRouteActionServer> action_server_;
 
 protected:
-  static nav2::LifecycleNode::SharedPtr node_;
+  static rclcpp::Node::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-nav2::LifecycleNode::SharedPtr ComputeAndTrackRouteActionTestFixture::node_ = nullptr;
+rclcpp::Node::SharedPtr ComputeAndTrackRouteActionTestFixture::node_ = nullptr;
 std::shared_ptr<ComputeAndTrackRouteActionServer>
 ComputeAndTrackRouteActionTestFixture::action_server_ = nullptr;
 BT::NodeConfiguration * ComputeAndTrackRouteActionTestFixture::config_ = nullptr;
@@ -154,7 +154,7 @@ TEST_F(ComputeAndTrackRouteActionTestFixture, test_tick_poses)
   builtin_interfaces::msg::Duration time1;
   EXPECT_TRUE(
     config_->blackboard->get<builtin_interfaces::msg::Duration>("execution_duration", time1));
-  EXPECT_EQ(rclcpp::Duration(time1), rclcpp::Duration::from_seconds(0.1));
+  EXPECT_EQ(time1, rclcpp::Duration::from_seconds(0.1));
 
   // halt node so another goal can be sent
   tree_->haltTree();
@@ -202,7 +202,7 @@ TEST_F(ComputeAndTrackRouteActionTestFixture, test_tick_ids)
   builtin_interfaces::msg::Duration time1;
   EXPECT_TRUE(
     config_->blackboard->get<builtin_interfaces::msg::Duration>("execution_duration", time1));
-  EXPECT_EQ(rclcpp::Duration(time1), rclcpp::Duration::from_seconds(0.1));
+  EXPECT_EQ(time1, rclcpp::Duration::from_seconds(0.1));
 
   // halt node so another goal can be sent
   tree_->haltTree();

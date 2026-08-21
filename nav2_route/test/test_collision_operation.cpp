@@ -19,9 +19,9 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/service_client.hpp"
-#include "nav2_ros_common/node_thread.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/service_client.hpp"
+#include "nav2_util/node_thread.hpp"
 #include "nav2_msgs/msg/speed_limit.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "nav2_route/operations_manager.hpp"
@@ -30,6 +30,13 @@
 #include "nav2_route/plugins/route_operations/collision_monitor.hpp"
 #include "nav2_costmap_2d/costmap_2d_publisher.hpp"
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route;  // NOLINT
 
@@ -69,7 +76,7 @@ public:
 
 TEST(TestCollisionMonitor, test_lifecycle)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("test");
   node->declare_parameter("costmap_topic", rclcpp::ParameterValue("dummy_topic"));
   CollisionMonitor monitor;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
@@ -80,7 +87,7 @@ TEST(TestCollisionMonitor, test_lifecycle)
 
 TEST(TestCollisionMonitor, test_geometric_backout_vector)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("test");
   node->declare_parameter("costmap_topic", rclcpp::ParameterValue("local_costmap/costmap_raw"));
   node->declare_parameter("name.max_collision_dist", rclcpp::ParameterValue(-1.0));
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
@@ -154,9 +161,9 @@ TEST(TestCollisionMonitor, test_geometric_backout_vector)
 
 TEST(TestCollisionMonitor, test_costmap_apis)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("test");
   node->declare_parameter("costmap_topic", rclcpp::ParameterValue("dummy_topic"));
-  auto node_thread = std::make_unique<nav2::NodeThread>(node);
+  auto node_thread = std::make_unique<nav2_util::NodeThread>(node);
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber;
   CollisionMonitorWrapper monitor;
   monitor.configure(node, costmap_subscriber, "name");
@@ -323,13 +330,4 @@ TEST(TestCollisionMonitor, test_costmap_apis)
     &node1 /*unused*/, curr_edge, curr_edge /*unused*/, route, pose, nullptr);
   EXPECT_FALSE(result.reroute);
   EXPECT_EQ(result.blocked_ids.size(), 0u);
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-  rclcpp::init(argc, argv);
-  int result = RUN_ALL_TESTS();
-  rclcpp::shutdown();
-  return result;
 }

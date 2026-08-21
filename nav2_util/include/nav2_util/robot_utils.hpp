@@ -24,9 +24,9 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "geometry_msgs/msg/twist_stamped.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "tf2/time.hpp"
-#include "tf2/transform_datatypes.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2/time.h"
+#include "tf2/transform_datatypes.h"
+#include "tf2_ros/buffer.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -38,12 +38,12 @@ namespace nav2_util
 * @param tf_buffer TF buffer to use for the transformation
 * @param global_frame Frame to transform into
 * @param robot_frame Frame to transform from
-* @param transform_timeout How long to wait for the target frame. When value is zero the functions does not block.
+* @param transform_timeout TF Timeout to use for transformation
 * @return bool Whether it could be transformed successfully
 */
 bool getCurrentPose(
   geometry_msgs::msg::PoseStamped & global_pose,
-  nav2::TransformBuffer & tf_buffer, const std::string global_frame = "map",
+  tf2_ros::Buffer & tf_buffer, const std::string global_frame = "map",
   const std::string robot_frame = "base_link", const double transform_timeout = 0.1,
   const rclcpp::Time stamp = rclcpp::Time());
 
@@ -53,13 +53,13 @@ bool getCurrentPose(
 * @param transformed_pose Output transformation
 * @param tf_buffer TF buffer to use for the transformation
 * @param target_frame Frame to transform into
-* @param transform_timeout How long to wait for the target frame. When value is zero the functions does not block.
+* @param transform_timeout TF Timeout to use for transformation
 * @return bool Whether it could be transformed successfully
 */
 bool transformPoseInTargetFrame(
   const geometry_msgs::msg::PoseStamped & input_pose,
   geometry_msgs::msg::PoseStamped & transformed_pose,
-  nav2::TransformBuffer & tf_buffer, const std::string target_frame,
+  tf2_ros::Buffer & tf_buffer, const std::string target_frame,
   const double transform_timeout = 0.1);
 
 /**
@@ -75,7 +75,7 @@ bool getTransform(
   const std::string & source_frame_id,
   const std::string & target_frame_id,
   const tf2::Duration & transform_tolerance,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   tf2::Transform & tf2_transform);
 
 /**
@@ -98,7 +98,7 @@ bool getTransform(
   const rclcpp::Time & target_time,
   const std::string & fixed_frame_id,
   const tf2::Duration & transform_tolerance,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   tf2::Transform & tf2_transform);
 
 /**
@@ -114,7 +114,7 @@ bool getTransform(
   const std::string & source_frame_id,
   const std::string & target_frame_id,
   const tf2::Duration & transform_tolerance,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   geometry_msgs::msg::TransformStamped & transform_msg);
 
 /**
@@ -137,7 +137,7 @@ bool getTransform(
   const rclcpp::Time & target_time,
   const std::string & fixed_frame_id,
   const tf2::Duration & transform_tolerance,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   geometry_msgs::msg::TransformStamped & transform_msg);
 
 /**
@@ -146,6 +146,7 @@ bool getTransform(
  * @return True if valid, false if contains unactionable values
  */
 [[nodiscard]] bool validateTwist(const geometry_msgs::msg::Twist & msg);
+[[nodiscard]] bool validateTwist(const geometry_msgs::msg::TwistStamped & msg);
 
 }  // end namespace nav2_util
 

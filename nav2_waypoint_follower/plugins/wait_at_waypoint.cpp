@@ -19,7 +19,7 @@
 
 #include "pluginlib/class_list_macros.hpp"
 
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 
 namespace nav2_waypoint_follower
 {
@@ -34,7 +34,7 @@ WaitAtWaypoint::~WaitAtWaypoint()
 }
 
 void WaitAtWaypoint::initialize(
-  const nav2::LifecycleNode::WeakPtr & parent,
+  const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
   const std::string & plugin_name)
 {
   auto node = parent.lock();
@@ -43,12 +43,20 @@ void WaitAtWaypoint::initialize(
   }
   logger_ = node->get_logger();
   clock_ = node->get_clock();
-
-  waypoint_pause_duration_ = node->declare_or_get_parameter(
-    plugin_name + ".waypoint_pause_duration", 0);
-  is_enabled_ = node->declare_or_get_parameter(
-    plugin_name + ".enabled", true);
-
+  nav2_util::declare_parameter_if_not_declared(
+    node,
+    plugin_name + ".waypoint_pause_duration",
+    rclcpp::ParameterValue(0));
+  nav2_util::declare_parameter_if_not_declared(
+    node,
+    plugin_name + ".enabled",
+    rclcpp::ParameterValue(true));
+  node->get_parameter(
+    plugin_name + ".waypoint_pause_duration",
+    waypoint_pause_duration_);
+  node->get_parameter(
+    plugin_name + ".enabled",
+    is_enabled_);
   if (waypoint_pause_duration_ == 0) {
     is_enabled_ = false;
     RCLCPP_INFO(

@@ -15,7 +15,7 @@
 #include <vector>
 #include <algorithm>
 #include "nav2_util/costmap.hpp"
-#include "tf2/LinearMath/Quaternion.hpp"
+#include "tf2/LinearMath/Quaternion.h"
 #include "nav2_util/geometry_utils.hpp"
 
 using std::vector;
@@ -32,7 +32,7 @@ const Costmap::CostValue Costmap::free_space = 0;
 
 // TODO(orduno): Port ROS1 Costmap package
 Costmap::Costmap(
-  nav2::LifecycleNode * node, bool trinary_costmap, bool track_unknown_space,
+  rclcpp::Node * node, bool trinary_costmap, bool track_unknown_space,
   int lethal_threshold, int unknown_cost_value)
 : node_(node), trinary_costmap_(trinary_costmap), track_unknown_space_(track_unknown_space),
   lethal_threshold_(lethal_threshold), unknown_cost_value_(unknown_cost_value)

@@ -19,12 +19,7 @@
  *
  */
 
-#include <algorithm>
-#include <cmath>
-
-#include "nav2_amcl/angleutils.hpp"
 #include "nav2_amcl/motion_model/differential_motion_model.hpp"
-#include "nav2_amcl/pf/pf_pdf.hpp"
 
 namespace nav2_amcl
 {

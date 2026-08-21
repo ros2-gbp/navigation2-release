@@ -18,28 +18,30 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "tinyxml2.h" //NOLINT
 
 #include "rclcpp/rclcpp.hpp"
 #include "behaviortree_cpp/json_export.h"
 #include "behaviortree_cpp/utils/shared_library.h"
 #include "nav2_behavior_tree/json_utils.hpp"
-#include "nav2_behavior_tree/utils/loop_rate.hpp"
-#include "nav2_ros_common/rate.hpp"
 
 namespace nav2_behavior_tree
 {
 
 BehaviorTreeEngine::BehaviorTreeEngine(
-  const std::vector<std::string> & plugin_libraries,
-  const nav2::LifecycleNode::SharedPtr node)
+  const std::vector<std::string> & plugin_libraries, rclcpp::Node::SharedPtr node)
 {
   BT::SharedLibrary loader;
   for (const auto & p : plugin_libraries) {
     factory_.registerFromPlugin(loader.getOSName(p));
   }
 
-  node_ = node;
+  // clock for throttled debug log
+  clock_ = node->get_clock();
+
+  // FIXME: the next two line are needed for back-compatibility with BT.CPP 3.8.x
+  // Note that the can be removed, once we migrate from BT.CPP 4.5.x to 4.6+
+  BT::ReactiveSequence::EnableException(false);
+  BT::ReactiveFallback::EnableException(false);
 }
 
 BtStatus
@@ -49,16 +51,7 @@ BehaviorTreeEngine::run(
   std::function<bool()> cancelRequested,
   std::chrono::milliseconds loopTimeout)
 {
-  auto node = node_.lock();
-  if (!node) {
-    RCLCPP_ERROR(
-      rclcpp::get_logger("BehaviorTreeEngine"),
-      "BehaviorTreeEngine node expired. Exiting with failure.");
-    return BtStatus::FAILED;
-  }
-
-  auto rate_clock = nav2::selectSteadyOrSimClock(node);
-  nav2_behavior_tree::LoopRate loopRate(loopTimeout, tree, rate_clock);
+  rclcpp::WallRate loopRate(loopTimeout);
   BT::NodeStatus result = BT::NodeStatus::RUNNING;
 
   // Loop until something happens with ROS or the node completes
@@ -78,19 +71,11 @@ BehaviorTreeEngine::run(
       if (!loopRate.sleep()) {
         RCLCPP_DEBUG_THROTTLE(
           rclcpp::get_logger("BehaviorTreeEngine"),
-          *rate_clock, 1000,
+          *clock_, 1000,
           "Behavior Tree tick rate %0.2f was exceeded!",
           1.0 / (loopRate.period().count() * 1.0e-9));
       }
     }
-  } catch (const BT::NodeExecutionError & ex) {
-    RCLCPP_ERROR(
-      rclcpp::get_logger("BehaviorTreeEngine"),
-      "BT Exception at Node: [%s] (Path: %s). Original error: %s. Exiting with failure.",
-      ex.failedNode().registration_name.c_str(),
-      ex.failedNode().node_path.c_str(),
-      ex.originalMessage().c_str());
-    return BtStatus::FAILED;
   } catch (const std::exception & ex) {
     RCLCPP_ERROR(
       rclcpp::get_logger("BehaviorTreeEngine"),
@@ -115,75 +100,6 @@ BehaviorTreeEngine::createTreeFromFile(
   BT::Blackboard::Ptr blackboard)
 {
   return factory_.createTreeFromFile(file_path, blackboard);
-}
-
-BTInfo BehaviorTreeEngine::parseTreeInfo(const std::string & filename)
-{
-  BTInfo info;
-  if (filename.empty()) {
-    RCLCPP_ERROR(rclcpp::get_logger("BehaviorTreeEngine"), "Empty BT file path.");
-    return info;
-  }
-
-  tinyxml2::XMLDocument doc;
-  if (doc.LoadFile(filename.c_str()) != tinyxml2::XML_SUCCESS) {
-    RCLCPP_ERROR(rclcpp::get_logger("BehaviorTreeEngine"), "Could not parse: %s", filename.c_str());
-    return info;
-  }
-
-  tinyxml2::XMLElement * root = doc.RootElement();
-  if (!root) {
-    RCLCPP_ERROR(rclcpp::get_logger("BehaviorTreeEngine"), "No root element in: %s",
-      filename.c_str());
-    return info;
-  }
-
-  // Loop through all BehaviorTree elements to get all IDs
-  for (auto * bt = root->FirstChildElement("BehaviorTree"); bt;
-    bt = bt->NextSiblingElement("BehaviorTree"))
-  {
-    const char * id = bt->Attribute("ID");
-    if (id) {
-      info.behavior_tree_ids.emplace_back(id);
-    }
-  }
-
-  // First try to get main_tree_to_execute attribute
-  const char * main_attr = root->Attribute("main_tree_to_execute");
-  if (main_attr) {
-    info.main_id = main_attr;
-  }
-
-  // If main_tree_to_execute attribute is not set, we first check the number of BehaviorTree tags
-  if (info.main_id.empty()) {
-    // If only one BehaviorTree tag is found, we can use that as the main ID
-    // If multiple are found, we throw an error since we don't know
-    // which one to use as the main tree
-    if (info.behavior_tree_ids.size() == 1) {
-      info.main_id = info.behavior_tree_ids[0];
-    } else if (info.behavior_tree_ids.size() > 1) {
-      throw std::runtime_error(
-              "Multiple BehaviorTree elements found in " + filename +
-              " but no main_tree_to_execute attribute specified. Unable to determine main tree.");
-    }
-  }
-
-  return info;
-}
-
-BT::Tree
-BehaviorTreeEngine::createTree(
-  const std::string & tree_id,
-  BT::Blackboard::Ptr blackboard)
-{
-  return factory_.createTree(tree_id, blackboard);
-}
-
-/// @brief Register a tree from an XML file and return the tree
-void BehaviorTreeEngine::registerTreeFromFile(
-  const std::string & file_path)
-{
-  factory_.registerBehaviorTreeFromFile(file_path);
 }
 
 void

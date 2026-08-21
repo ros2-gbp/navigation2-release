@@ -18,11 +18,10 @@
 #include <cstdlib>
 #include <chrono>
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_util/lifecycle_service_client.hpp"
+#include "nav2_util/lifecycle_utils.hpp"
 
 using std::cerr;
-using namespace std::chrono_literals;  // NOLINT
-using namespace nav2_util;  // NOLINT
+using namespace std::chrono_literals;
 
 void usage()
 {
@@ -35,61 +34,13 @@ void usage()
   std::exit(1);
 }
 
-#define RETRY(fn, retries) \
-  { \
-    int count = 0; \
-    while (true) { \
-      try { \
-        fn; \
-        break; \
-      } catch (const std::runtime_error & e) { \
-        ++count; \
-        if (count > (retries)) { \
-          throw e;} \
-      } \
-    } \
-  }
-
-inline void startupLifecycleNode(
-  rclcpp::Node::SharedPtr node,  //  nosemgrep
-  const std::string & node_name,
-  const std::chrono::seconds service_call_timeout,
-  const int retries)
-{
-  LifecycleServiceClient sc(node_name, node);
-
-  // Despite waiting for the service to be available and using reliable transport
-  // service calls still frequently hang. To get reliable startup it's necessary
-  // to timeout the service call and retry it when that happens.
-  RETRY(
-    sc.change_state(lifecycle_msgs::msg::Transition::TRANSITION_CONFIGURE, service_call_timeout),
-    retries);
-  RETRY(
-    sc.change_state(lifecycle_msgs::msg::Transition::TRANSITION_ACTIVATE, service_call_timeout),
-    retries);
-}
-
-inline void startup_lifecycle_nodes(
-  rclcpp::Node::SharedPtr node,  //  nosemgrep
-  const std::vector<std::string> & node_names,
-  const std::chrono::seconds service_call_timeout,
-  const int retries = 3)
-{
-  for (const auto & node_name : node_names) {
-    startupLifecycleNode(node, node_name, service_call_timeout, retries);
-  }
-}
-
-
 int main(int argc, char * argv[])
 {
   if (argc == 1) {
     usage();
   }
   rclcpp::init(0, nullptr);
-  auto node = std::make_shared<rclcpp::Node>("lifecycle_bringup_client");  //  nosemgrep
-  startup_lifecycle_nodes(
-    node,
+  nav2_util::startup_lifecycle_nodes(
     std::vector<std::string>(argv + 1, argv + argc),
     10s);
   rclcpp::shutdown();

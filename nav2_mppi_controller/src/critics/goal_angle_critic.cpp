@@ -19,10 +19,11 @@ namespace mppi::critics
 
 void GoalAngleCritic::initialize()
 {
-  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
   auto getParam = parameters_handler_->getParamGetter(name_);
+
   getParam(power_, "cost_power", 1);
   getParam(weight_, "cost_weight", 3.0f);
+
   getParam(threshold_to_consider_, "threshold_to_consider", 0.5f);
   getParam(symmetric_yaw_tolerance_, "symmetric_yaw_tolerance", false);
 
@@ -35,28 +36,32 @@ void GoalAngleCritic::initialize()
 
 void GoalAngleCritic::score(CriticData & data)
 {
-  if (!enabled_ || data.state.local_path_length > threshold_to_consider_) {
+  if (!enabled_ || !utils::withinPositionGoalTolerance(
+      threshold_to_consider_, data.state.pose.pose, data.goal))
+  {
     return;
   }
 
-  geometry_msgs::msg::Pose goal = utils::getLastPathPose(data.path);
+  const auto goal_idx = data.path.x.shape(0) - 1;
+  const float goal_yaw = data.path.yaws(goal_idx);
 
-  double goal_yaw = tf2::getYaw(goal.orientation);
-
-  auto angular_distances = utils::shortest_angular_distance(data.trajectories.yaws,
-    goal_yaw).abs().eval();
+  auto angular_distances =
+    xt::eval(xt::fabs(utils::shortest_angular_distance(data.trajectories.yaws, goal_yaw)));
 
   if (symmetric_yaw_tolerance_) {
-    double symmetric_goal_yaw = angles::normalize_angle(goal_yaw + M_PI);
-    auto symmetric_distances = utils::shortest_angular_distance(data.trajectories.yaws,
-      symmetric_goal_yaw).abs().eval();
-    angular_distances = angular_distances.min(symmetric_distances);
+    // For symmetric robots: use minimum distance to either goal orientation or goal + 180°
+    const float symmetric_goal_yaw = angles::normalize_angle(goal_yaw + M_PI);
+    auto symmetric_distances =
+      xt::eval(xt::fabs(utils::shortest_angular_distance(data.trajectories.yaws,
+        symmetric_goal_yaw)));
+    angular_distances = xt::eval(xt::minimum(angular_distances, symmetric_distances));
   }
 
   if (power_ > 1u) {
-    data.costs += ((angular_distances.rowwise().mean()) * weight_).pow(power_).eval();
+    data.costs += xt::pow(
+      xt::mean(angular_distances, {1}) * weight_, power_);
   } else {
-    data.costs += ((angular_distances.rowwise().mean()) * weight_).eval();
+    data.costs += xt::mean(angular_distances, {1}) * weight_;
   }
 }
 

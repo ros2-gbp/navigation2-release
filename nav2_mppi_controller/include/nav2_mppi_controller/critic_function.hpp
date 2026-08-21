@@ -63,7 +63,7 @@ public:
     * @param dynamic_parameter_handler Parameter handler object
     */
   void on_configure(
-    nav2::LifecycleNode::WeakPtr parent,
+    rclcpp_lifecycle::LifecycleNode::WeakPtr parent,
     const std::string & parent_name,
     const std::string & name,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros,
@@ -105,7 +105,7 @@ public:
 protected:
   bool enabled_;
   std::string name_, parent_name_;
-  nav2::LifecycleNode::WeakPtr parent_;
+  rclcpp_lifecycle::LifecycleNode::WeakPtr parent_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   nav2_costmap_2d::Costmap2D * costmap_{nullptr};
 

@@ -20,15 +20,13 @@
 #include <string>
 #include <memory>
 
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "nav2_util/node_utils.hpp"
 
 namespace nav2_smac_planner
 {
 
 typedef std::pair<float, uint64_t> NodeHeuristicPair;
-typedef std::vector<float> LookupTable;
-typedef std::pair<double, double> TrigValues;
 
 /**
  * @struct nav2_smac_planner::SearchInfo
@@ -74,17 +72,29 @@ struct SmootherParams
    * @param node Ptr to node
    * @param name Name of plugin
    */
-  void get(nav2::LifecycleNode::SharedPtr node, const std::string & name)
+  void get(std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node, const std::string & name)
   {
     std::string local_name = name + std::string(".smoother.");
 
     // Smoother params
-    tolerance_ = node->declare_or_get_parameter(local_name + "tolerance", 1e-10);
-    max_its_ = node->declare_or_get_parameter(local_name + "max_iterations", 1000);
-    w_data_ = node->declare_or_get_parameter(local_name + "w_data", 0.2);
-    w_smooth_ = node->declare_or_get_parameter(local_name + "w_smooth", 0.3);
-    do_refinement_ = node->declare_or_get_parameter(local_name + "do_refinement", true);
-    refinement_num_ = node->declare_or_get_parameter(local_name + "refinement_num", 2);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "tolerance", rclcpp::ParameterValue(1e-10));
+    node->get_parameter(local_name + "tolerance", tolerance_);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "max_iterations", rclcpp::ParameterValue(1000));
+    node->get_parameter(local_name + "max_iterations", max_its_);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "w_data", rclcpp::ParameterValue(0.2));
+    node->get_parameter(local_name + "w_data", w_data_);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "w_smooth", rclcpp::ParameterValue(0.3));
+    node->get_parameter(local_name + "w_smooth", w_smooth_);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "do_refinement", rclcpp::ParameterValue(true));
+    node->get_parameter(local_name + "do_refinement", do_refinement_);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "refinement_num", rclcpp::ParameterValue(2));
+    node->get_parameter(local_name + "refinement_num", refinement_num_);
   }
 
   double tolerance_;
@@ -100,7 +110,7 @@ struct SmootherParams
  * @struct nav2_smac_planner::TurnDirection
  * @brief A struct with the motion primitive's direction embedded
  */
-enum class TurnDirection
+enum struct TurnDirection
 {
   UNKNOWN = 0,
   FORWARD = 1,
@@ -178,77 +188,9 @@ struct MotionPrimitive
   MotionPoses poses;
 };
 
-/**
- * @struct nav2_smac_planner::GoalState
- * @brief A struct to store the goal state
- */
-template<typename NodeT>
-struct GoalState
-{
-  NodeT * goal = nullptr;
-  bool is_valid = true;
-};
-
 typedef std::vector<MotionPrimitive> MotionPrimitives;
 typedef std::vector<MotionPrimitive *> MotionPrimitivePtrs;
 
-/**
- * @class nav2_smac_planner::Coordinates
- * @brief Implementation of coordinate2d structure
- */
-struct Coordinates2D
-{
-  Coordinates2D() {}
-  Coordinates2D(const float & x_in, const float & y_in)
-  : x(x_in), y(y_in)
-  {}
-
-  inline bool operator==(const Coordinates2D & rhs) const
-  {
-    return this->x == rhs.x && this->y == rhs.y;
-  }
-
-  inline bool operator!=(const Coordinates2D & rhs) const
-  {
-    return !(*this == rhs);
-  }
-
-  float x, y;
-};
-
-/**
- * @class nav2_smac_planner::Coordinates
- * @brief Implementation of coordinate structure
- */
-struct Coordinates
-{
-  /**
-   * @brief A constructor for nav2_smac_planner::NodeHybrid::Coordinates
-   */
-  Coordinates() {}
-
-  /**
-   * @brief A constructor for nav2_smac_planner::NodeHybrid::Coordinates
-   * @param x_in X coordinate
-   * @param y_in Y coordinate
-   * @param theta_in Theta coordinate
-   */
-  Coordinates(const float & x_in, const float & y_in, const float & theta_in)
-  : x(x_in), y(y_in), theta(theta_in)
-  {}
-
-  inline bool operator==(const Coordinates & rhs) const
-  {
-    return this->x == rhs.x && this->y == rhs.y && this->theta == rhs.theta;
-  }
-
-  inline bool operator!=(const Coordinates & rhs) const
-  {
-    return !(*this == rhs);
-  }
-
-  float x, y, theta;
-};
 }  // namespace nav2_smac_planner
 
 #endif  // NAV2_SMAC_PLANNER__TYPES_HPP_

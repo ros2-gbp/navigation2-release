@@ -21,11 +21,11 @@
 #include <vector>
 
 #include "nav_msgs/msg/path.hpp"
-#include "nav_msgs/msg/goals.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/get_pose_from_path_action.hpp"
 #include "utils/test_behavior_tree_fixture.hpp"
 
@@ -34,7 +34,7 @@ class GetPoseFromPathTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<nav2::LifecycleNode>("get_pose_from_path_action_test_fixture");
+    node_ = std::make_shared<rclcpp::Node>("get_pose_from_path_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -42,7 +42,7 @@ public:
     // Create the blackboard that will be shared by all of the nodes in the tree
     config_->blackboard = BT::Blackboard::create();
     // Put items on the blackboard
-    config_->blackboard->set<nav2::LifecycleNode::SharedPtr>(
+    config_->blackboard->set<rclcpp::Node::SharedPtr>(
       "node",
       node_);
 
@@ -71,13 +71,13 @@ public:
   }
 
 protected:
-  static nav2::LifecycleNode::SharedPtr node_;
+  static rclcpp::Node::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-nav2::LifecycleNode::SharedPtr GetPoseFromPathTestFixture::node_ = nullptr;
+rclcpp::Node::SharedPtr GetPoseFromPathTestFixture::node_ = nullptr;
 BT::NodeConfiguration * GetPoseFromPathTestFixture::config_ = nullptr;
 std::shared_ptr<BT::BehaviorTreeFactory> GetPoseFromPathTestFixture::factory_ = nullptr;
 std::shared_ptr<BT::Tree> GetPoseFromPathTestFixture::tree_ = nullptr;
@@ -97,11 +97,11 @@ TEST_F(GetPoseFromPathTestFixture, test_tick)
 
   // create new path and set it on blackboard
   nav_msgs::msg::Path path;
-  nav_msgs::msg::Goals goals;
-  goals.goals.resize(2);
-  goals.goals[0].pose.position.x = 1.0;
-  goals.goals[1].pose.position.x = 2.0;
-  path.poses = goals.goals;
+  std::vector<geometry_msgs::msg::PoseStamped> goals;
+  goals.resize(2);
+  goals[0].pose.position.x = 1.0;
+  goals[1].pose.position.x = 2.0;
+  path.poses = goals;
   path.header.frame_id = "test_frame_1";
   config_->blackboard->set("path", path);
 

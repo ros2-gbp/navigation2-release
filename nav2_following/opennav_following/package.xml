@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>opennav_following</name>
-  <version>1.5.1</version>
+  <version>1.3.13</version>
   <description>A Task Server for dynamic following object</description>
   <maintainer email="ajtudela@gmail.com">Alberto Tudela</maintainer>
   <license>Apache-2.0</license>
@@ -14,7 +14,6 @@
 
   <depend>geometry_msgs</depend>
   <depend>nav2_msgs</depend>
-  <depend>nav2_ros_common</depend>
   <depend>nav2_util</depend>
   <depend>opennav_docking</depend>
   <depend>opennav_docking_core</depend>

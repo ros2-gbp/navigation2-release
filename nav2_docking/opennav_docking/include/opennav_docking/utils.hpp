@@ -19,13 +19,12 @@
 #include <vector>
 
 #include "yaml-cpp/yaml.h"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "angles/angles.h"
 #include "opennav_docking/types.hpp"
-#include "opennav_docking_core/charging_dock.hpp"
-#include "tf2/utils.hpp"
+#include "tf2/utils.h"
 
 namespace utils
 {
@@ -34,7 +33,6 @@ using rclcpp::ParameterType::PARAMETER_STRING;
 using rclcpp::ParameterType::PARAMETER_STRING_ARRAY;
 using rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY;
 using nav2_util::geometry_utils::orientationAroundZAxis;
-using opennav_docking_core::DockDirection;
 
 /**
 * @brief Parse a yaml file to obtain docks
@@ -44,7 +42,7 @@ using opennav_docking_core::DockDirection;
 */
 inline bool parseDockFile(
   const std::string & yaml_filepath,
-  const nav2::LifecycleNode::SharedPtr & node,
+  const rclcpp_lifecycle::LifecycleNode::SharedPtr & node,
   DockMap & dock_db)
 {
   YAML::Node yaml_file;
@@ -116,37 +114,41 @@ inline bool parseDockFile(
 */
 inline bool parseDockParams(
   const std::vector<std::string> & docks_param,
-  const nav2::LifecycleNode::SharedPtr & node,
+  const rclcpp_lifecycle::LifecycleNode::SharedPtr & node,
   DockMap & dock_db)
 {
   Dock curr_dock;
   std::vector<double> pose_arr;
   for (const auto & dock_name : docks_param) {
-    curr_dock.frame = node->declare_or_get_parameter(dock_name + ".frame", std::string("map"));
+    if (!node->has_parameter(dock_name + ".frame")) {
+      node->declare_parameter(dock_name + ".frame", "map");
+    }
+    node->get_parameter(dock_name + ".frame", curr_dock.frame);
 
-    try {
-      curr_dock.type = node->declare_or_get_parameter<std::string>(dock_name + ".type");
-    } catch (...) {
+    if (!node->has_parameter(dock_name + ".type")) {
+      node->declare_parameter(dock_name + ".type", PARAMETER_STRING);
+    }
+    if (!node->get_parameter(dock_name + ".type", curr_dock.type)) {
       RCLCPP_ERROR(node->get_logger(), "Dock %s has no dock 'type'.", dock_name.c_str());
       return false;
     }
 
     pose_arr.clear();
-    try {
-      pose_arr = node->declare_or_get_parameter<std::vector<double>>(dock_name + ".pose");
-      if (pose_arr.size() != 3u) {
-        throw std::runtime_error("Dock pose is incorrect size!");
-      }
-    } catch (...) {
+    if (!node->has_parameter(dock_name + ".pose")) {
+      node->declare_parameter(dock_name + ".pose", PARAMETER_DOUBLE_ARRAY);
+    }
+    if (!node->get_parameter(dock_name + ".pose", pose_arr) || pose_arr.size() != 3u) {
       RCLCPP_ERROR(node->get_logger(), "Dock %s has no valid 'pose'.", dock_name.c_str());
       return false;
     }
-
     curr_dock.pose.position.x = pose_arr[0];
     curr_dock.pose.position.y = pose_arr[1];
     curr_dock.pose.orientation = orientationAroundZAxis(pose_arr[2]);
 
-    curr_dock.id = node->declare_or_get_parameter(dock_name + ".id", std::string(""));
+    if (!node->has_parameter(dock_name + ".id")) {
+      node->declare_parameter(dock_name + ".id", "");
+    }
+    node->get_parameter(dock_name + ".id", curr_dock.id);
 
     // Insert into dock instance database
     dock_db.emplace(dock_name, curr_dock);
@@ -179,21 +181,6 @@ inline double l2Norm(const geometry_msgs::msg::Pose & a, const geometry_msgs::ms
     (a.position.x - b.position.x) * (a.position.x - b.position.x) +
     (a.position.y - b.position.y) * (a.position.y - b.position.y) +
     delta_angle * delta_angle);
-}
-
-inline DockDirection getDockDirectionFromString(const std::string & direction)
-{
-  auto upper_direction = direction;
-  std::transform(
-    upper_direction.begin(), upper_direction.end(), upper_direction.begin(), ::toupper);
-
-  if (upper_direction == "FORWARD") {
-    return DockDirection::FORWARD;
-  } else if (upper_direction == "BACKWARD") {
-    return DockDirection::BACKWARD;
-  } else {
-    return DockDirection::UNKNOWN;
-  }
 }
 
 }  // namespace utils

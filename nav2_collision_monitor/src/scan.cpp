@@ -17,8 +17,7 @@
 #include <cmath>
 #include <functional>
 
-#include "tf2/transform_datatypes.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2/transform_datatypes.h"
 
 #include "nav2_util/robot_utils.hpp"
 
@@ -26,9 +25,9 @@ namespace nav2_collision_monitor
 {
 
 Scan::Scan(
-  const nav2::LifecycleNode::WeakPtr & node,
+  const nav2_util::LifecycleNode::WeakPtr & node,
   const std::string & source_name,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   const std::string & base_frame_id,
   const std::string & global_frame_id,
   const tf2::Duration & transform_tolerance,
@@ -48,11 +47,9 @@ Scan::~Scan()
   data_sub_.reset();
 }
 
-bool Scan::configure()
+void Scan::configure()
 {
-  if (!Source::configure()) {
-    return false;
-  }
+  Source::configure();
   auto node = node_.lock();
   if (!node) {
     throw std::runtime_error{"Failed to lock node"};
@@ -63,15 +60,13 @@ bool Scan::configure()
   // Laser scanner has no own parameters
   getCommonParameters(source_topic);
 
+  rclcpp::QoS scan_qos = rclcpp::SensorDataQoS();  // set to default
   data_sub_ = node->create_subscription<sensor_msgs::msg::LaserScan>(
-    source_topic,
-    std::bind(&Scan::dataCallback, this, std::placeholders::_1),
-    nav2::qos::SensorDataQoS());
-
-  return true;
+    source_topic, scan_qos,
+    std::bind(&Scan::dataCallback, this, std::placeholders::_1));
 }
 
-bool Scan::getSourceData(
+bool Scan::getData(
   const rclcpp::Time & curr_time,
   std::vector<Point> & data)
 {
@@ -101,7 +96,7 @@ bool Scan::getSourceData(
       tf2::Vector3 p_v3_b = tf_transform * p_v3_s;
 
       // Refill data array
-      data.push_back({p_v3_b.x(), p_v3_b.y(), p_v3_b.z(), source_name_});
+      data.push_back({p_v3_b.x(), p_v3_b.y()});
     }
     angle += data_->angle_increment;
   }

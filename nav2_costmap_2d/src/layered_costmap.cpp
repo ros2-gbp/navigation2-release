@@ -58,6 +58,7 @@ LayeredCostmap::LayeredCostmap(std::string global_frame, bool rolling_window, bo
 : primary_costmap_(), combined_costmap_(),
   global_frame_(global_frame),
   rolling_window_(rolling_window),
+  current_(false),
   minx_(0.0),
   miny_(0.0),
   maxx_(0.0),
@@ -73,11 +74,11 @@ LayeredCostmap::LayeredCostmap(std::string global_frame, bool rolling_window, bo
   footprint_(std::make_shared<std::vector<geometry_msgs::msg::Point>>())
 {
   if (track_unknown) {
-    primary_costmap_.setDefaultValue(NO_INFORMATION);
-    combined_costmap_.setDefaultValue(NO_INFORMATION);
+    primary_costmap_.setDefaultValue(255);
+    combined_costmap_.setDefaultValue(255);
   } else {
-    primary_costmap_.setDefaultValue(FREE_SPACE);
-    combined_costmap_.setDefaultValue(FREE_SPACE);
+    primary_costmap_.setDefaultValue(0);
+    combined_costmap_.setDefaultValue(0);
   }
 }
 
@@ -213,86 +214,69 @@ void LayeredCostmap::updateMap(double robot_x, double robot_y, double robot_yaw)
     rclcpp::get_logger(
       "nav2_costmap_2d"), "Updating area x: [%d, %d] y: [%d, %d]", x0, xn, y0, yn);
 
-  if (xn >= x0 && yn >= y0) {
-    if (filters_.size() == 0) {
-      // If there are no filters enabled just update costmap sequentially by each plugin
-      combined_costmap_.resetMap(x0, y0, xn, yn);
-      for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
-        plugin != plugins_.end(); ++plugin)
-      {
-        (*plugin)->updateCosts(combined_costmap_, x0, y0, xn, yn);
-      }
-    } else {
-      // Costmap Filters enabled
-      // 1. Update costmap by plugins
-      primary_costmap_.resetMap(x0, y0, xn, yn);
-      for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
-        plugin != plugins_.end(); ++plugin)
-      {
-        (*plugin)->updateCosts(primary_costmap_, x0, y0, xn, yn);
-      }
-
-      // 2. Copy processed costmap window to a final costmap.
-      // primary_costmap_ remain to be untouched for further usage by plugins.
-      if (!combined_costmap_.copyWindow(primary_costmap_, x0, y0, xn, yn, x0, y0)) {
-        RCLCPP_ERROR(
-          rclcpp::get_logger("nav2_costmap_2d"),
-          "Can not copy costmap (%i,%i)..(%i,%i) window",
-          x0, y0, xn, yn);
-        throw std::runtime_error{"Can not copy costmap"};
-      }
-
-      // 3. Apply filters over the plugins in order to make filters' work
-      // not being considered by plugins on next updateMap() calls
-      for (vector<std::shared_ptr<Layer>>::iterator filter = filters_.begin();
-        filter != filters_.end(); ++filter)
-      {
-        (*filter)->updateCosts(combined_costmap_, x0, y0, xn, yn);
-      }
-    }
-
-    bx0_ = x0;
-    bxn_ = xn;
-    by0_ = y0;
-    byn_ = yn;
-
-    initialized_ = true;
+  if (xn < x0 || yn < y0) {
+    return;
   }
 
-  // Set current_ = true for all disabled plugins
-  for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
-    plugin != plugins_.end(); ++plugin)
-  {
-    if (*plugin && !(*plugin)->isEnabled()) {
-      (*plugin)->setCurrent(true);
+  if (filters_.size() == 0) {
+    // If there are no filters enabled just update costmap sequentially by each plugin
+    combined_costmap_.resetMap(x0, y0, xn, yn);
+    for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
+      plugin != plugins_.end(); ++plugin)
+    {
+      (*plugin)->updateCosts(combined_costmap_, x0, y0, xn, yn);
+    }
+  } else {
+    // Costmap Filters enabled
+    // 1. Update costmap by plugins
+    primary_costmap_.resetMap(x0, y0, xn, yn);
+    for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
+      plugin != plugins_.end(); ++plugin)
+    {
+      (*plugin)->updateCosts(primary_costmap_, x0, y0, xn, yn);
+    }
+
+    // 2. Copy processed costmap window to a final costmap.
+    // primary_costmap_ remain to be untouched for further usage by plugins.
+    if (!combined_costmap_.copyWindow(primary_costmap_, x0, y0, xn, yn, x0, y0)) {
+      RCLCPP_ERROR(
+        rclcpp::get_logger("nav2_costmap_2d"),
+        "Can not copy costmap (%i,%i)..(%i,%i) window",
+        x0, y0, xn, yn);
+      throw std::runtime_error{"Can not copy costmap"};
+    }
+
+    // 3. Apply filters over the plugins in order to make filters' work
+    // not being considered by plugins on next updateMap() calls
+    for (vector<std::shared_ptr<Layer>>::iterator filter = filters_.begin();
+      filter != filters_.end(); ++filter)
+    {
+      (*filter)->updateCosts(combined_costmap_, x0, y0, xn, yn);
     }
   }
-  for (vector<std::shared_ptr<Layer>>::iterator filter = filters_.begin();
-    filter != filters_.end(); ++filter)
-  {
-    if (!(*filter)->isEnabled()) {
-      (*filter)->setCurrent(true);
-    }
-  }
+
+  bx0_ = x0;
+  bxn_ = xn;
+  by0_ = y0;
+  byn_ = yn;
+
+  initialized_ = true;
 }
 
 bool LayeredCostmap::isCurrent()
 {
+  current_ = true;
   for (vector<std::shared_ptr<Layer>>::iterator plugin = plugins_.begin();
     plugin != plugins_.end(); ++plugin)
   {
-    if (!(*plugin)->isCurrent()) {
-      return false;
-    }
+    current_ = current_ && ((*plugin)->isCurrent() || !(*plugin)->isEnabled());
   }
   for (vector<std::shared_ptr<Layer>>::iterator filter = filters_.begin();
     filter != filters_.end(); ++filter)
   {
-    if (!(*filter)->isCurrent()) {
-      return false;
-    }
+    current_ = current_ && ((*filter)->isCurrent() || !(*filter)->isEnabled());
   }
-  return true;
+  return current_;
 }
 
 void LayeredCostmap::setFootprint(const std::vector<geometry_msgs::msg::Point> & footprint_spec)
@@ -301,7 +285,8 @@ void LayeredCostmap::setFootprint(const std::vector<geometry_msgs::msg::Point> &
     footprint_spec);
   // use atomic store here since footprint is used by various planners/controllers
   // and not otherwise locked
-  footprint_.store(
+  std::atomic_store(
+    &footprint_,
     std::make_shared<std::vector<geometry_msgs::msg::Point>>(footprint_spec));
   inscribed_radius_.store(std::get<0>(inside_outside));
   circumscribed_radius_.store(std::get<1>(inside_outside));

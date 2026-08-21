@@ -26,15 +26,16 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_publisher.hpp"
 #include "nav2_msgs/action/follow_object.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/node_utils.hpp"
-#include "nav2_ros_common/simple_action_server.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/node_utils.hpp"
+#include "nav2_util/simple_action_server.hpp"
 #include "nav2_util/twist_publisher.hpp"
 #include "nav2_util/odometry_utils.hpp"
 #include "opennav_docking/controller.hpp"
 #include "opennav_docking/pose_filter.hpp"
 #include "opennav_following/parameter_handler.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
 
 namespace opennav_following
 {
@@ -42,11 +43,11 @@ namespace opennav_following
  * @class opennav_following::FollowingServer
  * @brief An action server which implements a dynamic following behavior
  */
-class FollowingServer : public nav2::LifecycleNode
+class FollowingServer : public nav2_util::LifecycleNode
 {
 public:
   using FollowObject = nav2_msgs::action::FollowObject;
-  using FollowingActionServer = nav2::SimpleActionServer<FollowObject>;
+  using FollowingActionServer = nav2_util::SimpleActionServer<FollowObject>;
 
   /**
    * @brief A constructor for opennav_following::FollowingServer
@@ -95,7 +96,7 @@ public:
   template<typename ActionT>
   void getPreemptedGoalIfRequested(
     typename std::shared_ptr<const typename ActionT::Goal> goal,
-    const typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server);
+    const std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server);
 
   /**
    * @brief Checks and logs warning if action canceled
@@ -105,7 +106,7 @@ public:
    */
   template<typename ActionT>
   bool checkAndWarnIfCancelled(
-    typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server,
+    std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server,
     const std::string & name);
 
   /**
@@ -116,7 +117,7 @@ public:
    */
   template<typename ActionT>
   bool checkAndWarnIfPreempted(
-    typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server,
+    std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server,
     const std::string & name);
 
   /**
@@ -124,35 +125,35 @@ public:
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Activate member variables
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Deactivate member variables
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Reset member variables
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Called when in shutdown state
    * @param state Reference to LifeCycle node state
    * @return SUCCESS or FAILURE
    */
-  nav2::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Publish zero velocity at terminal condition
@@ -226,10 +227,10 @@ protected:
   rclcpp::Time action_start_time_;
 
   // Subscribe to the dynamic pose
-  nav2::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr dynamic_pose_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr dynamic_pose_sub_;
 
   // Publish the filtered dynamic pose
-  nav2::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr
+  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PoseStamped>::SharedPtr
     filtered_dynamic_pose_pub_;
 
   // Latest message
@@ -240,12 +241,12 @@ protected:
 
   std::unique_ptr<nav2_util::TwistPublisher> vel_publisher_;
   std::unique_ptr<nav2_util::OdomSmoother> odom_sub_;
-  typename FollowingActionServer::SharedPtr following_action_server_;
+  std::unique_ptr<FollowingActionServer> following_action_server_;
 
   std::unique_ptr<opennav_docking::Controller> controller_;
 
-  nav2::TransformBuffer::SharedPtr tf2_buffer_;
-  nav2::TransformListener::SharedPtr tf2_listener_;
+  std::shared_ptr<tf2_ros::Buffer> tf2_buffer_;
+  std::unique_ptr<tf2_ros::TransformListener> tf2_listener_;
 };
 
 }  // namespace opennav_following

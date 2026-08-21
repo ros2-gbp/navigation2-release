@@ -31,9 +31,7 @@ class LineIterator:
     LineIterator Python3 API for iterating along the points of a given line
     """
 
-    def __init__(self, x0: float, y0: float,
-                 x1: float, y1: float,
-                 step_size: float = 1.0):
+    def __init__(self, x0, y0, x1, y1, step_size=1.0):
         """
         Initialize the LineIterator.
 
@@ -83,13 +81,15 @@ class LineIterator:
             self.b_ = y1 - (self.m_ * x1)
         elif x1 == x0 and y1 != y0:
             self.valid_ = True
-        elif y1 == y0 and x1 != x0:
+        elif y1 == y1 and x1 != x0:
             self.valid_ = True
             self.m_ = (y1 - y0) / (x1 - x0)
             self.b_ = y1 - (self.m_ * x1)
         else:
             self.valid_ = False
-            raise ValueError('Line has zero length (All 4 points have same coordinates)')
+            raise ValueError(
+                'Line has zero length (All 4 points have same coordinates)'
+            )
 
     def isValid(self):
         """Check if line is valid."""
@@ -144,7 +144,7 @@ class LineIterator:
         return self.x0_
 
     def getY0(self):
-        """Get the ordinate of the initial point."""
+        """Get the ordinate of the intial point."""
         return self.y0_
 
     def getX1(self):
@@ -159,7 +159,7 @@ class LineIterator:
         """Get the length of the line."""
         return sqrt(pow(self.x1_ - self.x0_, 2) + pow(self.y1_ - self.y0_, 2))
 
-    def clamp(self, n: float, min_n: float, max_n: float):
+    def clamp(self, n, min_n, max_n):
         """
         Clamp n to be between min_n and max_n.
 

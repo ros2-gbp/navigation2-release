@@ -19,7 +19,15 @@
 #include "rclcpp/rclcpp.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_ros/transform_broadcaster.h"
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 class DynParamTestNode
 {
@@ -30,17 +38,13 @@ public:
 
 TEST(DynParamTestNode, testDynParamsSet)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("dyn_param_tester");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("dyn_param_tester");
   auto costmap = std::make_shared<nav2_costmap_2d::Costmap2DROS>("test_costmap");
-  rclcpp::executors::SingleThreadedExecutor node_executor;
-  node_executor.add_node(node->get_node_base_interface());
-  rclcpp::executors::SingleThreadedExecutor costmap_executor;
-  costmap_executor.add_node(costmap->get_node_base_interface());
   costmap->on_configure(rclcpp_lifecycle::State());
 
   // Set tf between default global_frame and robot_base_frame in order not to block in on_activate
-  nav2::TransformBroadcaster::SharedPtr tf_broadcaster_ =
-    nav2::create_transform_broadcaster(node);
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_ =
+    std::make_unique<tf2_ros::TransformBroadcaster>(node);
   geometry_msgs::msg::TransformStamped t;
   t.header.stamp = node->get_clock()->now();
   t.header.frame_id = "map";
@@ -80,8 +84,8 @@ TEST(DynParamTestNode, testDynParamsSet)
     rclcpp::Parameter("robot_base_frame", "wrong_test_frame"),
   });
 
-  node_executor.spin_all(std::chrono::milliseconds(50));
-  costmap_executor.spin_all(std::chrono::milliseconds(50));
+  rclcpp::spin_all(node->get_node_base_interface(), std::chrono::milliseconds(50));
+  rclcpp::spin_all(costmap->get_node_base_interface(), std::chrono::milliseconds(50));
 
   EXPECT_EQ(costmap->get_parameter("robot_radius").as_double(), 1.234);
   EXPECT_EQ(costmap->get_parameter("footprint_padding").as_double(), 2.345);
@@ -97,55 +101,7 @@ TEST(DynParamTestNode, testDynParamsSet)
     "[[-0.325, -0.325], [-0.325, 0.325], [0.325, 0.325], [0.46, 0.0], [0.325, -0.325]]");
   EXPECT_EQ(costmap->get_parameter("robot_base_frame").as_string(), "test_frame");
 
-  // Try setting publish frequency to 0, should be rejected
-  auto results3 = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("publish_frequency", 0.0),
-  });
-
-  node_executor.spin_all(std::chrono::milliseconds(50));
-  costmap_executor.spin_all(std::chrono::milliseconds(50));
-
-  EXPECT_EQ(costmap->get_parameter("publish_frequency").as_double(), 4.567);
-
-  // Try setting robot_radius to a negative value, should be rejected
-  auto results4 = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("robot_radius", -1.0),
-  });
-
-  node_executor.spin_all(std::chrono::milliseconds(50));
-  costmap_executor.spin_all(std::chrono::milliseconds(50));
-
-  EXPECT_EQ(costmap->get_parameter("robot_radius").as_double(), 1.234);
-
-  // Try setting width and height to 0, should be rejected
-  auto results5 = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("width", 0),
-    rclcpp::Parameter("height", 0),
-  });
-
-  node_executor.spin_all(std::chrono::milliseconds(50));
-  costmap_executor.spin_all(std::chrono::milliseconds(50));
-
-  EXPECT_EQ(costmap->get_parameter("width").as_int(), 2);
-  EXPECT_EQ(costmap->get_parameter("height").as_int(), 3);
-
   costmap->on_deactivate(rclcpp_lifecycle::State());
   costmap->on_cleanup(rclcpp_lifecycle::State());
   costmap->on_shutdown(rclcpp_lifecycle::State());
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

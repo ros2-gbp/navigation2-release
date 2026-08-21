@@ -19,14 +19,11 @@
 #include <memory>
 #include <vector>
 
-#include "std_srvs/srv/trigger.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "sensor_msgs/msg/joint_state.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "tf2/utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "tf2/utils.h"
 
 #include "opennav_docking_core/non_charging_dock.hpp"
 #include "opennav_docking/pose_filter.hpp"
@@ -50,23 +47,23 @@ public:
    * @param  tf A pointer to a TF buffer
    */
   virtual void configure(
-    const nav2::LifecycleNode::WeakPtr & parent,
-    const std::string & name, nav2::TransformBuffer::SharedPtr tf);
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+    const std::string & name, std::shared_ptr<tf2_ros::Buffer> tf);
 
   /**
    * @brief Method to cleanup resources used on shutdown.
    */
-  void cleanup() override;
+  virtual void cleanup() {}
 
   /**
    * @brief Method to active Behavior and any threads involved in execution.
    */
-  void activate() override;
+  virtual void activate() {}
 
   /**
-   * @brief Method to deactivate Behavior and any threads involved in execution.
+   * @brief Method to deactive Behavior and any threads involved in execution.
    */
-  void deactivate() override;
+  virtual void deactivate() {}
 
   /**
    * @brief Method to obtain the dock's staging pose. This method should likely
@@ -91,24 +88,14 @@ public:
    */
   virtual bool isDocked();
 
-  /**
-   * @brief Start external detection process (service call + subscribe).
-   */
-  bool startDetectionProcess() override;
-
-  /**
-   * @brief Stop external detection process.
-   */
-  bool stopDetectionProcess() override;
-
 protected:
-  void jointStateCallback(const sensor_msgs::msg::JointState::ConstSharedPtr & state);
+  void jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr state);
 
   // Optionally subscribe to a detected dock pose topic
-  nav2::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr dock_pose_sub_;
-  nav2::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr dock_pose_pub_;
-  nav2::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr filtered_dock_pose_pub_;
-  nav2::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr staging_pose_pub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr dock_pose_sub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr dock_pose_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr filtered_dock_pose_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr staging_pose_pub_;
   // If subscribed to a detected pose topic, will contain latest message
   geometry_msgs::msg::PoseStamped detected_dock_pose_;
   // This is the actual dock pose once it has the specified translation/rotation applied
@@ -116,7 +103,7 @@ protected:
   geometry_msgs::msg::PoseStamped dock_pose_;
 
   // Optionally subscribe to joint state message, used to determine if stalled
-  nav2::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_state_sub_;
   std::vector<std::string> stall_joint_names_;
   double stall_velocity_threshold_, stall_effort_threshold_;
   bool is_stalled_;
@@ -138,20 +125,8 @@ protected:
   double staging_x_offset_;
   double staging_yaw_offset_;
 
-  nav2::LifecycleNode::SharedPtr node_;
-  nav2::TransformBuffer::SharedPtr tf2_buffer_;
-
-  // Detector control parameters
-  std::string detector_service_name_;
-  double detector_service_timeout_{5.0};
-  bool subscribe_toggle_{false};
-
-  // Client used to call the Trigger service
-  nav2::ServiceClient<std_srvs::srv::Trigger>::SharedPtr detector_client_;
-
-  // Detection state flags
-  bool detection_active_{false};
-  bool initial_pose_received_{false};
+  rclcpp_lifecycle::LifecycleNode::SharedPtr node_;
+  std::shared_ptr<tf2_ros::Buffer> tf2_buffer_;
 };
 
 }  // namespace opennav_docking

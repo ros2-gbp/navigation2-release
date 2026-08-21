@@ -47,7 +47,6 @@ BT::NodeStatus DockRobotAction::on_success()
   setOutput("success", result_.result->success);
   setOutput("num_retries", result_.result->num_retries);
   setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
@@ -56,14 +55,12 @@ BT::NodeStatus DockRobotAction::on_aborted()
   setOutput("success", result_.result->success);
   setOutput("num_retries", result_.result->num_retries);
   setOutput("error_code_id", result_.result->error_code);
-  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
 BT::NodeStatus DockRobotAction::on_cancelled()
 {
   setOutput("error_code_id", ActionResult::NONE);
-  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 

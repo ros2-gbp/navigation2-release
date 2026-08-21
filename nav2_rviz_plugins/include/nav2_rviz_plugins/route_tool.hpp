@@ -26,8 +26,8 @@
 #include "nav2_route/graph_saver.hpp"
 #include "nav2_route/types.hpp"
 #include "nav2_route/utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "rviz_common/panel.hpp"
 #include "std_msgs/msg/int16.hpp"
 #include "std_msgs/msg/string.hpp"
@@ -67,8 +67,8 @@ public:
            *  Now we declare overrides of rviz_common::Panel functions for saving and
            *  loading data from the config file.  Here the data is the topic name.
            */
-  void save(rviz_common::Config config) const override;
-  void load(const rviz_common::Config & config) override;
+  virtual void save(rviz_common::Config config) const;
+  virtual void load(const rviz_common::Config & config);
 
 
   /**
@@ -100,18 +100,18 @@ protected:
 
 private:
   void update_route_graph(void);
-  nav2::LifecycleNode::SharedPtr node_;
+  nav2_util::LifecycleNode::SharedPtr node_;
   std::shared_ptr<nav2_route::GraphLoader> graph_loader_;
   std::shared_ptr<nav2_route::GraphSaver> graph_saver_;
-  nav2::TransformBuffer::SharedPtr tf_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
   nav2_route::Graph graph_;
   nav2_route::GraphToIDMap graph_to_id_map_;
   nav2_route::GraphToIDMap edge_to_node_map_;
   nav2_route::GraphToIncomingEdgesMap graph_to_incoming_edges_map_;
 
-  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr  //  nosemgrep
+  rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
     graph_vis_publisher_;
-  nav2::Subscription<geometry_msgs::msg::PointStamped>::SharedPtr
+  rclcpp::Subscription<geometry_msgs::msg::PointStamped>::SharedPtr
     clicked_point_subscription_;
 
   unsigned int next_node_id_ = 0;

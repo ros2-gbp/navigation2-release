@@ -18,23 +18,22 @@
 #include <string>
 #include <memory>
 
+#include "behaviortree_cpp/json_export.h"
 #include "nav2_msgs/action/follow_path.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::FollowPath
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
- * <FollowPath path="{path}" controller_id="FollowPath" goal_checker_id="precise_goal_checker"
- *             path_handler_id="PathHandler" server_name="FollowPath" server_timeout="10"
- *             error_code_id="{follow_path_error_code}" error_msg="{follow_path_error_msg}"
- *             tracking_feedback="{tracking_feedback}"/>
+ * <FollowPath path="{path}" controller_id="FollowPath"
+ *             goal_checker_id="precise_goal_checker"
+ *             server_name="FollowPath" server_timeout="10"
+ *             error_code_id="{follow_path_error_code}"/>
  * @endcode
  */
 class FollowPathAction : public BtActionNode<nav2_msgs::action::FollowPath>
@@ -75,23 +74,12 @@ public:
   BT::NodeStatus on_cancelled() override;
 
   /**
-   * @brief Function to perform work in a BT Node when the action server times out
-   * Such as setting the error code ID status to timed out for action clients.
-   */
-  void on_timeout() override;
-
-  /**
    * @brief Function to perform some user-defined operation after a timeout
    * waiting for a result that hasn't been received yet
    * @param feedback shared_ptr to latest feedback message
    */
   void on_wait_for_result(
     std::shared_ptr<const Action::Feedback> feedback) override;
-
-  /**
-   * @brief Function to set all feedbacks and output ports to be null values
-   */
-  void resetFeedbackAndOutputPorts();
 
   /**
    * @brief Creates list of BT ports
@@ -108,9 +96,8 @@ public:
         BT::InputPort<std::string>("controller_id", ""),
         BT::InputPort<std::string>("goal_checker_id", ""),
         BT::InputPort<std::string>("progress_checker_id", ""),
-        BT::InputPort<std::string>("path_handler_id", ""),
-        BT::OutputPort<nav2_msgs::msg::TrackingFeedback>("tracking_feedback",
-          "Tracking feedback from controller server"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The follow path error code"),
       });
   }
 };

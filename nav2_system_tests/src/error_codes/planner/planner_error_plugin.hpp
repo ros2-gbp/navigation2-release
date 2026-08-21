@@ -17,7 +17,6 @@
 
 #include <string>
 #include <memory>
-#include <vector>
 
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/point.hpp"
@@ -26,10 +25,9 @@
 #include "nav2_core/global_planner.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_core/planner_exceptions.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_system_tests
 {
@@ -41,8 +39,8 @@ public:
   ~UnknownErrorPlanner() = default;
 
   void configure(
-    const nav2::LifecycleNode::WeakPtr &,
-    std::string, nav2::TransformBuffer::SharedPtr,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr &,
+    std::string, std::shared_ptr<tf2_ros::Buffer>,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS>) override {}
 
   void cleanup() override {}
@@ -54,7 +52,6 @@ public:
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::PlannerException("Unknown Error");
@@ -66,7 +63,6 @@ class StartOccupiedErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::StartOccupied("Start Occupied");
@@ -78,7 +74,6 @@ class GoalOccupiedErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::GoalOccupied("Goal occupied");
@@ -90,7 +85,6 @@ class StartOutsideMapErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::StartOutsideMapBounds("Start OutsideMapBounds");
@@ -102,7 +96,6 @@ class GoalOutsideMapErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::GoalOutsideMapBounds("Goal outside map bounds");
@@ -114,7 +107,6 @@ class NoValidPathErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     return nav_msgs::msg::Path();
@@ -127,7 +119,6 @@ class TimedOutErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::PlannerTimedOut("Planner Timed Out");
@@ -139,7 +130,6 @@ class TFErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::PlannerTFError("TF Error");
@@ -151,7 +141,6 @@ class NoViapointsGivenErrorPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()>) override
   {
     throw nav2_core::NoViapointsGiven("No Via points given");
@@ -163,7 +152,6 @@ class CancelledPlanner : public UnknownErrorPlanner
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped &,
     const geometry_msgs::msg::PoseStamped &,
-    const std::vector<geometry_msgs::msg::PoseStamped> &,
     std::function<bool()> cancel_checker) override
   {
     auto start_time = std::chrono::steady_clock::now();

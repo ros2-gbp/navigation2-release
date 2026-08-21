@@ -45,11 +45,19 @@
 #include "nav2_costmap_2d/inflation_layer.hpp"
 #include "nav2_costmap_2d/observation_buffer.hpp"
 #include "../testing_helper.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 using geometry_msgs::msg::Point;
+using nav2_costmap_2d::CellData;
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 class TestNode : public ::testing::Test
 {
@@ -74,7 +82,7 @@ public:
   void waitForMap(std::shared_ptr<nav2_costmap_2d::StaticLayer> & slayer);
 
 protected:
-  nav2::LifecycleNode::SharedPtr node_;
+  nav2_util::LifecycleNode::SharedPtr node_;
 };
 
 std::vector<Point> TestNode::setRadii(
@@ -102,10 +110,8 @@ std::vector<Point> TestNode::setRadii(
 
 void TestNode::waitForMap(std::shared_ptr<nav2_costmap_2d::StaticLayer> & slayer)
 {
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node_->get_node_base_interface());
   while (!slayer->isCurrent()) {
-    executor.spin_some();
+    rclcpp::spin_some(node_->get_node_base_interface());
   }
 }
 
@@ -116,54 +122,56 @@ void TestNode::validatePointInflation(
   std::shared_ptr<nav2_costmap_2d::InflationLayer> & ilayer,
   double inflation_radius)
 {
-  // Validate that inflation costs are correctly applied based on Euclidean distance
-  // from the obstacle at (mx, my)
+  bool * seen = new bool[costmap->getSizeInCellsX() * costmap->getSizeInCellsY()];
+  memset(seen, false, costmap->getSizeInCellsX() * costmap->getSizeInCellsY() * sizeof(bool));
+  std::map<double, std::vector<CellData>> m;
+  CellData initial(mx, my, mx, my);
+  m[0].push_back(initial);
+  for (std::map<double, std::vector<CellData>>::iterator bin = m.begin();
+    bin != m.end(); ++bin)
+  {
+    for (unsigned int i = 0; i < bin->second.size(); ++i) {
+      const CellData cell = bin->second[i];
+      const auto index = costmap->getIndex(cell.x_, cell.y_);
+      if (!seen[index]) {
+        seen[index] = true;
+        unsigned int dx = (cell.x_ > cell.src_x_) ? cell.x_ - cell.src_x_ : cell.src_x_ - cell.x_;
+        unsigned int dy = (cell.y_ > cell.src_y_) ? cell.y_ - cell.src_y_ : cell.src_y_ - cell.y_;
+        double dist = std::hypot(dx, dy);
 
-  const unsigned int size_x = costmap->getSizeInCellsX();
-  const unsigned int size_y = costmap->getSizeInCellsY();
-  const int inflation_cells = static_cast<int>(std::ceil(inflation_radius /
-    costmap->getResolution()));
+        unsigned char expected_cost = ilayer->computeCost(dist);
+        ASSERT_TRUE(costmap->getCost(cell.x_, cell.y_) >= expected_cost);
 
-  // Check all cells within the inflation radius
-  for (int dy = -inflation_cells; dy <= inflation_cells; ++dy) {
-    for (int dx = -inflation_cells; dx <= inflation_cells; ++dx) {
-      const int x = static_cast<int>(mx) + dx;
-      const int y = static_cast<int>(my) + dy;
-
-      // Skip cells outside the map
-      if (x < 0 || y < 0 || x >= static_cast<int>(size_x) || y >= static_cast<int>(size_y)) {
-        continue;
-      }
-
-      // Calculate Euclidean distance in cells
-      const double dist = std::hypot(dx, dy);
-
-      // Get actual cost from costmap
-      const unsigned char actual_cost = costmap->getCost(x, y);
-
-      if (dist <= inflation_radius / costmap->getResolution()) {
-        // Within inflation radius - should have inflation cost
-        const unsigned char expected_cost = ilayer->computeCost(dist);
-
-        // The actual cost should be at least the expected cost
-        // (it could be higher if there are multiple nearby obstacles)
-        ASSERT_GE(actual_cost, expected_cost)
-          << "At (" << x << ", " << y << ") distance " << dist
-          << " from obstacle at (" << mx << ", " << my << "): "
-          << "actual cost " << static_cast<int>(actual_cost)
-          << " < expected cost " << static_cast<int>(expected_cost);
-
-        // Verify the cost is not free space (unless it's exactly at inflation radius edge)
-        if (dist < inflation_radius / costmap->getResolution() - 0.5) {
-          ASSERT_GT(actual_cost, nav2_costmap_2d::FREE_SPACE)
-            << "Cell at (" << x << ", " << y << ") should be inflated but has FREE_SPACE cost";
+        if (dist > inflation_radius) {
+          continue;
         }
-      } else {
-        // Outside inflation radius - cost should be free space or affected by other obstacles
-        // We don't check this strictly as other obstacles may affect the cost
+
+        if (dist == bin->first) {
+          // Adding to our current bin could cause a reallocation
+          // Which appears to cause the iterator to get messed up
+          dist += 0.001;
+        }
+
+        if (cell.x_ > 0) {
+          CellData data(cell.x_ - 1, cell.y_, cell.src_x_, cell.src_y_);
+          m[dist].push_back(data);
+        }
+        if (cell.y_ > 0) {
+          CellData data(cell.x_, cell.y_ - 1, cell.src_x_, cell.src_y_);
+          m[dist].push_back(data);
+        }
+        if (cell.x_ < costmap->getSizeInCellsX() - 1) {
+          CellData data(cell.x_ + 1, cell.y_, cell.src_x_, cell.src_y_);
+          m[dist].push_back(data);
+        }
+        if (cell.y_ < costmap->getSizeInCellsY() - 1) {
+          CellData data(cell.x_, cell.y_ + 1, cell.src_x_, cell.src_y_);
+          m[dist].push_back(data);
+        }
       }
     }
   }
+  delete[] seen;
 }
 
 void TestNode::initNode(std::vector<rclcpp::Parameter> parameters)
@@ -171,7 +179,7 @@ void TestNode::initNode(std::vector<rclcpp::Parameter> parameters)
   auto options = rclcpp::NodeOptions();
   options.parameter_overrides(parameters);
 
-  node_ = std::make_shared<nav2::LifecycleNode>(
+  node_ = std::make_shared<nav2_util::LifecycleNode>(
     "inflation_test_node", "", options);
 
   // Declare non-plugin specific costmap parameters
@@ -179,7 +187,6 @@ void TestNode::initNode(std::vector<rclcpp::Parameter> parameters)
   node_->declare_parameter("track_unknown_space", rclcpp::ParameterValue(false));
   node_->declare_parameter("use_maximum", rclcpp::ParameterValue(false));
   node_->declare_parameter("lethal_cost_threshold", rclcpp::ParameterValue(100));
-  node_->declare_parameter("inscribed_obstacle_cost_value", rclcpp::ParameterValue(99));
   node_->declare_parameter(
     "unknown_cost_value",
     rclcpp::ParameterValue(static_cast<unsigned char>(0xff)));
@@ -201,7 +208,7 @@ void TestNode::initNode(double inflation_radius)
 TEST_F(TestNode, testAdjacentToObstacleCanStillMove)
 {
   initNode(4.1);
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
   layers.resizeMap(10, 10, 1, 0, 0);
 
@@ -233,7 +240,7 @@ TEST_F(TestNode, testAdjacentToObstacleCanStillMove)
 TEST_F(TestNode, testInflationShouldNotCreateUnknowns)
 {
   initNode(4.1);
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
   layers.resizeMap(10, 10, 1, 0, 0);
 
@@ -257,7 +264,7 @@ TEST_F(TestNode, testInflationShouldNotCreateUnknowns)
   EXPECT_EQ(countValues(*costmap, nav2_costmap_2d::NO_INFORMATION), 0u);
 }
 
-TEST_F(TestNode, testInflationInUnknown)
+TEST_F(TestNode, testInflationInUnkown)
 {
   std::vector<rclcpp::Parameter> parameters;
   // Set cost_scaling_factor parameter to 1.0 for inflation layer
@@ -269,7 +276,7 @@ TEST_F(TestNode, testInflationInUnknown)
 
   node_->set_parameter(rclcpp::Parameter("track_unknown_space", true));
 
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, true);
   layers.resizeMap(9, 9, 1, 0, 0);
 
@@ -292,7 +299,7 @@ TEST_F(TestNode, testInflationInUnknown)
   EXPECT_EQ(countValues(*costmap, nav2_costmap_2d::NO_INFORMATION), 4u);
 }
 
-TEST_F(TestNode, testInflationAroundUnknown)
+TEST_F(TestNode, testInflationAroundUnkown)
 {
   auto inflation_radius = 4.1;
   std::vector<rclcpp::Parameter> parameters;
@@ -305,7 +312,7 @@ TEST_F(TestNode, testInflationAroundUnknown)
 
   node_->set_parameter(rclcpp::Parameter("track_unknown_space", true));
 
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
   layers.resizeMap(10, 10, 1, 0, 0);
 
@@ -330,7 +337,7 @@ TEST_F(TestNode, testInflationAroundUnknown)
 TEST_F(TestNode, testCostFunctionCorrectness)
 {
   initNode(10.5);
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
 
   layers.resizeMap(100, 100, 1, 0, 0);
@@ -396,126 +403,6 @@ TEST_F(TestNode, testCostFunctionCorrectness)
 }
 
 /**
- * Test inflation around a large obstacle square on a large map
- * This tests the inflation layer's performance and correctness at scale
- */
-TEST_F(TestNode, testLargeScaleInflation)
-  {
-    const double inflation_radius = 10.5;
-    initNode(inflation_radius);
-    nav2::TransformBuffer tf(node_->get_clock());
-    nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
-
-    // Create a 9000x9000 map
-    layers.resizeMap(9000, 9000, 1, 0, 0);
-
-    std::vector<Point> polygon = setRadii(layers, 5.0, 6.25);
-
-    std::shared_ptr<nav2_costmap_2d::ObstacleLayer> olayer = nullptr;
-    addObstacleLayer(layers, tf, node_, olayer);
-
-    std::shared_ptr<nav2_costmap_2d::InflationLayer> ilayer = nullptr;
-    addInflationLayer(layers, tf, node_, ilayer);
-
-    layers.setFootprint(polygon);
-
-    // Create a 5000x5000 lethal square centered in the map
-    // Square goes from (2000, 2000) to (6999, 6999)
-    const unsigned int square_start = 2000;
-    const unsigned int square_end = 6999;
-
-    // First, update the map to initialize all layers
-    layers.updateMap(0, 0, 0);
-    nav2_costmap_2d::Costmap2D * costmap = layers.getCostmap();
-
-    // Directly set costs in the costmap for efficiency (instead of adding 25M observations)
-    for (unsigned int x = square_start; x <= square_end; ++x) {
-    for (unsigned int y = square_start; y <= square_end; ++y) {
-      costmap->setCost(x, y, nav2_costmap_2d::LETHAL_OBSTACLE);
-    }
-    }
-
-    // Now run inflation on the updated costmap
-    ilayer->updateCosts(*costmap, 0, 0, 9000, 9000);
-
-    const int inflation_cells = static_cast<int>(std::ceil(inflation_radius /
-      costmap->getResolution()));
-
-    // Check all cells around the square perimeter within the inflation radius
-    // This validates the inflation correctness comprehensively
-
-    // Top edge: all cells above the square within inflation radius
-    for (unsigned int x = square_start; x <= square_end; ++x) {
-    for (int offset = 1; offset <= inflation_cells; ++offset) {
-      const int test_y = static_cast<int>(square_start) - offset;
-      if (test_y >= 0) {
-        const unsigned char actual_cost = costmap->getCost(x, test_y);
-        const unsigned char expected_cost = ilayer->computeCost(static_cast<double>(offset));
-        ASSERT_EQ(actual_cost, expected_cost)
-            << "Top edge: at (" << x << ", " << test_y << ") " << offset << " cells away";
-      }
-    }
-    }
-
-    // Bottom edge: all cells below the square within inflation radius
-    for (unsigned int x = square_start; x <= square_end; ++x) {
-    for (int offset = 1; offset <= inflation_cells; ++offset) {
-      const unsigned int test_y = square_end + offset;
-      if (test_y < costmap->getSizeInCellsY()) {
-        const unsigned char actual_cost = costmap->getCost(x, test_y);
-        const unsigned char expected_cost = ilayer->computeCost(static_cast<double>(offset));
-        ASSERT_EQ(actual_cost, expected_cost)
-            << "Bottom edge: at (" << x << ", " << test_y << ") " << offset << " cells away";
-      }
-    }
-    }
-
-    // Left edge: all cells to the left of the square within inflation radius
-    for (unsigned int y = square_start; y <= square_end; ++y) {
-    for (int offset = 1; offset <= inflation_cells; ++offset) {
-      const int test_x = static_cast<int>(square_start) - offset;
-      if (test_x >= 0) {
-        const unsigned char actual_cost = costmap->getCost(test_x, y);
-        const unsigned char expected_cost = ilayer->computeCost(static_cast<double>(offset));
-        ASSERT_EQ(actual_cost, expected_cost)
-            << "Left edge: at (" << test_x << ", " << y << ") " << offset << " cells away";
-      }
-    }
-    }
-
-    // Right edge: all cells to the right of the square within inflation radius
-    for (unsigned int y = square_start; y <= square_end; ++y) {
-    for (int offset = 1; offset <= inflation_cells; ++offset) {
-      const unsigned int test_x = square_end + offset;
-      if (test_x < costmap->getSizeInCellsX()) {
-        const unsigned char actual_cost = costmap->getCost(test_x, y);
-        const unsigned char expected_cost = ilayer->computeCost(static_cast<double>(offset));
-        ASSERT_EQ(actual_cost, expected_cost)
-            << "Right edge: at (" << test_x << ", " << y << ") " << offset << " cells away";
-      }
-    }
-    }
-
-    // Additionally, verify that cells just outside the inflation radius are free space
-    // Check a point far from any obstacle
-    const unsigned int far_x = 100;
-    const unsigned int far_y = 100;
-    ASSERT_EQ(costmap->getCost(far_x, far_y), nav2_costmap_2d::FREE_SPACE)
-      << "Cell far from obstacles should be FREE_SPACE";
-
-    // Verify cells just outside the square but within inflation radius have appropriate costs
-    const int test_x_signed = static_cast<int>(square_start) - inflation_cells / 2;
-    const int test_y_signed = static_cast<int>(square_start) - inflation_cells / 2;
-    if (test_x_signed >= 0 && test_y_signed >= 0) {
-    const unsigned int test_x = static_cast<unsigned int>(test_x_signed);
-    const unsigned int test_y = static_cast<unsigned int>(test_y_signed);
-    const unsigned char cost = costmap->getCost(test_x, test_y);
-    ASSERT_GT(cost, nav2_costmap_2d::FREE_SPACE)
-        << "Cell within inflation radius should have inflated cost";
-    }
-}
-
-/**
  * Test that there is no regression and that costs do not get
  * underestimated with the distance-as-key map used to replace
  * the previously used priority queue. This is a more thorough
@@ -525,7 +412,7 @@ TEST_F(TestNode, testInflationOrderCorrectness)
 {
   const double inflation_radius = 4.1;
   initNode(inflation_radius);
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
   layers.resizeMap(10, 10, 1, 0, 0);
 
@@ -558,7 +445,7 @@ TEST_F(TestNode, testInflationOrderCorrectness)
 TEST_F(TestNode, testInflation)
 {
   initNode(1);
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
 
   // Footprint with inscribed radius = 2.1
@@ -636,7 +523,7 @@ TEST_F(TestNode, testInflation)
 TEST_F(TestNode, testInflation2)
 {
   initNode(1);
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
 
   // Footprint with inscribed radius = 2.1
@@ -656,7 +543,7 @@ TEST_F(TestNode, testInflation2)
 
   waitForMap(slayer);
 
-  // Create a small L-Shape all at once
+  // Creat a small L-Shape all at once
   addObservation(olayer, 1, 1, MAX_Z);
   addObservation(olayer, 2, 1, MAX_Z);
   addObservation(olayer, 2, 2, MAX_Z);
@@ -674,7 +561,7 @@ TEST_F(TestNode, testInflation2)
 TEST_F(TestNode, testInflation3)
 {
   initNode(3);
-  nav2::TransformBuffer tf(node_->get_clock());
+  tf2_ros::Buffer tf(node_->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
   layers.resizeMap(10, 10, 1, 0, 0);
 
@@ -719,7 +606,7 @@ TEST_F(TestNode, testDynParamsSet)
 {
   auto costmap = std::make_shared<nav2_costmap_2d::Costmap2DROS>("test_costmap");
 
-  costmap->declare_parameter("global_frame", std::string("base_link"));
+  costmap->set_parameter(rclcpp::Parameter("global_frame", std::string("base_link")));
   costmap->on_configure(rclcpp_lifecycle::State());
 
   costmap->on_activate(rclcpp_lifecycle::State());
@@ -735,170 +622,20 @@ TEST_F(TestNode, testDynParamsSet)
     rclcpp::Parameter("inflation_layer.cost_scaling_factor", 0.0),
     rclcpp::Parameter("inflation_layer.inflate_unknown", true),
     rclcpp::Parameter("inflation_layer.inflate_around_unknown", true),
-    rclcpp::Parameter("inflation_layer.enabled", false),
-    rclcpp::Parameter("inflation_layer.num_threads", 1)
+    rclcpp::Parameter("inflation_layer.enabled", false)
   });
 
   rclcpp::spin_until_future_complete(
     costmap->get_node_base_interface(),
     results);
 
-  EXPECT_TRUE(results.get().successful);
   EXPECT_EQ(costmap->get_parameter("inflation_layer.inflation_radius").as_double(), 0.0);
   EXPECT_EQ(costmap->get_parameter("inflation_layer.cost_scaling_factor").as_double(), 0.0);
   EXPECT_EQ(costmap->get_parameter("inflation_layer.inflate_unknown").as_bool(), true);
   EXPECT_EQ(costmap->get_parameter("inflation_layer.inflate_around_unknown").as_bool(), true);
   EXPECT_EQ(costmap->get_parameter("inflation_layer.enabled").as_bool(), false);
-  EXPECT_EQ(costmap->get_parameter("inflation_layer.num_threads").as_int(), 1);
-
-  // Test setting num_threads back to auto-detection (-1)
-  auto results2 = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("inflation_layer.num_threads", -1)
-  });
-
-  rclcpp::spin_until_future_complete(
-    costmap->get_node_base_interface(),
-    results2);
-
-  EXPECT_TRUE(results2.get().successful);
-  EXPECT_EQ(costmap->get_parameter("inflation_layer.num_threads").as_int(), -1);
-
-  // Test that invalid num_threads value (-2) is rejected
-  auto results3 = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("inflation_layer.num_threads", -2)
-  });
-
-  rclcpp::spin_until_future_complete(
-    costmap->get_node_base_interface(),
-    results3);
-
-  // With OpenMP, -2 should be rejected; without OpenMP, any value is accepted
-  // Either way, verify the parameter value is consistent with the result
-  auto result3_val = results3.get();
-  if (result3_val.successful) {
-    EXPECT_EQ(costmap->get_parameter("inflation_layer.num_threads").as_int(), -2);
-  } else {
-    // Value should remain unchanged at -1
-    EXPECT_EQ(costmap->get_parameter("inflation_layer.num_threads").as_int(), -1);
-  }
-
-  // Setting invalid inflation radius should not update the parameter
-  auto invalid_result = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("inflation_layer.inflation_radius", -1.0)
-  });
-
-  rclcpp::spin_until_future_complete(
-    costmap->get_node_base_interface(),
-    invalid_result);
-
-  EXPECT_EQ(costmap->get_parameter("inflation_layer.inflation_radius").as_double(), 0.0);
-
-  auto result_custom_inscribed_radius = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("inflation_layer.custom_inscribed_radius", 0.3)
-  });
-  rclcpp::spin_until_future_complete(
-    costmap->get_node_base_interface(),
-    result_custom_inscribed_radius);
-  EXPECT_TRUE(result_custom_inscribed_radius.get().successful);
-  EXPECT_EQ(
-    costmap->get_parameter("inflation_layer.custom_inscribed_radius").as_double(), 0.3);
-
-  // Setting custom_inscribed_radius to -1.0 should be accepted
-  auto result_custom_inscribed_radius_neg = parameter_client->set_parameters_atomically(
-  {
-    rclcpp::Parameter("inflation_layer.custom_inscribed_radius", -1.0)
-  });
-  rclcpp::spin_until_future_complete(
-    costmap->get_node_base_interface(),
-    result_custom_inscribed_radius_neg);
-  EXPECT_TRUE(result_custom_inscribed_radius_neg.get().successful);
-  EXPECT_EQ(
-    costmap->get_parameter("inflation_layer.custom_inscribed_radius").as_double(), -1.0);
 
   costmap->on_deactivate(rclcpp_lifecycle::State());
   costmap->on_cleanup(rclcpp_lifecycle::State());
   costmap->on_shutdown(rclcpp_lifecycle::State());
-}
-
-/**
- * Test that custom_inscribed_radius overrides the footprint-derived inscribed radius,
- * and that resetting it to -1.0 restores the footprint-derived behavior.
- *
- * A footprint with inscribed_radius=5.0 is used. With custom_inscribed_radius=2.0,
- * cells at distance 3-5 should NOT be INSCRIBED_INFLATED_OBSTACLE. After resetting
- * custom_inscribed_radius to -1.0, the footprint radius takes effect again and those
- * cells should become INSCRIBED_INFLATED_OBSTACLE.
- */
-TEST_F(TestNode, testCustomInscribedRadius)
-{
-  std::vector<rclcpp::Parameter> parameters;
-  parameters.push_back(rclcpp::Parameter("inflation.cost_scaling_factor", 1.0));
-  parameters.push_back(rclcpp::Parameter("inflation.inflation_radius", 10.5));
-  parameters.push_back(rclcpp::Parameter("inflation.custom_inscribed_radius", 2.0));
-  initNode(parameters);
-
-  nav2::TransformBuffer tf(node_->get_clock());
-  nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
-  layers.resizeMap(100, 100, 1, 0, 0);
-
-  // Footprint with inscribed_radius = 5.0; without the custom param this would
-  // mark cells up to 5 cells away as INSCRIBED_INFLATED_OBSTACLE.
-  std::vector<Point> polygon = setRadii(layers, 5.0, 6.25);
-
-  std::shared_ptr<nav2_costmap_2d::ObstacleLayer> olayer = nullptr;
-  addObstacleLayer(layers, tf, node_, olayer);
-  std::shared_ptr<nav2_costmap_2d::InflationLayer> ilayer = nullptr;
-  addInflationLayer(layers, tf, node_, ilayer);
-  layers.setFootprint(polygon);
-
-  addObservation(olayer, 50, 50, MAX_Z);
-  layers.updateMap(0, 0, 0);
-  nav2_costmap_2d::Costmap2D * map = layers.getCostmap();
-
-  // Cells within 2 cells should be INSCRIBED_INFLATED_OBSTACLE
-  for (int i = 1; i <= 2; i++) {
-    EXPECT_EQ(map->getCost(50 + i, 50), nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-      << "Cell at distance " << i << " should be INSCRIBED_INFLATED_OBSTACLE";
-  }
-
-  // Cells between 3 and 5 cells away should have intermediate cost, NOT INSCRIBED,
-  // because custom_inscribed_radius=2.0 overrides the footprint's inscribed_radius=5.0
-  for (int i = 3; i <= 5; i++) {
-    EXPECT_LT(map->getCost(50 + i, 50), nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-      << "Cell at distance " << i << " should NOT be INSCRIBED_INFLATED_OBSTACLE "
-      "(custom_inscribed_radius=2.0 < footprint inscribed_radius=5.0)";
-    EXPECT_GT(map->getCost(50 + i, 50), nav2_costmap_2d::FREE_SPACE)
-      << "Cell at distance " << i << " should still have inflated cost";
-  }
-
-  // Set custom_inscribed_radius to -1.0 to restore the footprint-derived inscribed_radius=5.0.
-  ilayer->activate();
-  node_->set_parameter(rclcpp::Parameter("inflation.custom_inscribed_radius", -1.0));
-  layers.updateMap(0, 0, 0);
-
-  // All cells within 5 cells should now be INSCRIBED_INFLATED_OBSTACLE
-  for (int i = 1; i <= 5; i++) {
-    EXPECT_EQ(map->getCost(50 + i, 50), nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE)
-      << "After reset to -1.0, cell at distance " << i
-      << " should be INSCRIBED_INFLATED_OBSTACLE";
-  }
-
-  ilayer->deactivate();
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

@@ -19,11 +19,17 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_route/route_planner.hpp"
 #include "nav2_msgs/action/compute_route.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route;  // NOLINT
 
@@ -124,8 +130,8 @@ TEST(RoutePlannerTest, test_route_planner_positive)
   geometry_msgs::msg::PoseStamped start_pose, goal_pose;
   RouteRequest route_request;
 
-  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
-  nav2::TransformBuffer::SharedPtr tf_buffer;
+  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> collision_checker;
   RoutePlanner planner;
   planner.configure(node, tf_buffer, collision_checker);
@@ -183,8 +189,8 @@ TEST(RoutePlannerTest, test_route_planner_negative)
   geometry_msgs::msg::PoseStamped start_pose, goal_pose;
   RouteRequest route_request;
 
-  auto node = std::make_shared<nav2::LifecycleNode>("router_test");
-  nav2::TransformBuffer::SharedPtr tf_buffer;
+  auto node = std::make_shared<nav2_util::LifecycleNode>("router_test");
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer;
   node->declare_parameter("max_iterations", rclcpp::ParameterValue(5));
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> collision_checker;
   RoutePlanner planner;
@@ -217,13 +223,4 @@ TEST(RoutePlannerTest, test_route_planner_negative)
     planner.findRoute(
       graph, start, goal, blocked_ids,
       route_request), nav2_core::NoValidGraph);
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-  rclcpp::init(argc, argv);
-  int result = RUN_ALL_TESTS();
-  rclcpp::shutdown();
-  return result;
 }

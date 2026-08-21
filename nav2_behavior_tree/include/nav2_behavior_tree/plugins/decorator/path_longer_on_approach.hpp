@@ -19,11 +19,10 @@
 #include <memory>
 #include <limits>
 
-#include "behaviortree_cpp/decorator_node.h"
-#include "behaviortree_cpp/json_export.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_msgs/msg/path.hpp"
-#include "nav2_behavior_tree/bt_utils.hpp"
+#include "behaviortree_cpp/decorator_node.h"
+#include "behaviortree_cpp/json_export.h"
 #include "nav2_behavior_tree/json_utils.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -31,7 +30,7 @@ namespace nav2_behavior_tree
 {
 
 /**
- * @brief A BT::DecoratorNode that ticks its child every time when the length of
+ * @brief A BT::DecoratorNode that ticks its child everytime when the length of
  * the new path is smaller than the old one by the length given by the user.
  *
  * Usage in XML:
@@ -81,6 +80,16 @@ public:
 
 private:
   /**
+   * @brief Checks if the global path is updated
+   * @param new_path new path to the goal
+   * @param old_path current path to the goal
+   * @return whether the path is updated for the current goal
+   */
+  bool isPathUpdated(
+    nav_msgs::msg::Path & new_path,
+    nav_msgs::msg::Path & old_path);
+
+  /**
    * @brief Checks if the robot is in the goal proximity
    * @param old_path current path to the goal
    * @param prox_leng proximity length from the goal
@@ -94,7 +103,7 @@ private:
    * @brief Checks if the new path is longer
    * @param new_path new path to the goal
    * @param old_path current path to the goal
-   * @param length_factor multiplier for path length check
+   * @param length_factor multipler for path length check
    * @return whether the new path is longer
    */
   bool isNewPathLonger(
@@ -107,7 +116,7 @@ private:
   nav_msgs::msg::Path old_path_;
   double prox_len_ = std::numeric_limits<double>::max();
   double length_factor_ = std::numeric_limits<double>::max();
-  nav2::LifecycleNode::SharedPtr node_;
+  rclcpp::Node::SharedPtr node_;
   bool first_time_ = true;
 };
 

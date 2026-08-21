@@ -19,20 +19,18 @@
 
 #include "nav2_behavior_tree/bt_action_node.hpp"
 #include "nav2_msgs/action/spin.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::Spin
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
- * <Spin spin_dist="1.57" server_name="spin" server_timeout="10" is_recovery="true"
- *       disable_collision_checks="false" error_code_id="{spin_error_code}"
- *       error_msg="{spin_error_msg}"/>
+ * <Spin spin_dist="1.57" server_name="spin"
+ *       server_timeout="10" is_recovery="true"
+ *       error_code_id="{spin_error_code}"/>
  * @endcode
  */
 class SpinAction : public BtActionNode<nav2_msgs::action::Spin>
@@ -73,7 +71,8 @@ public:
         BT::InputPort<double>("spin_dist", 1.57, "Spin distance"),
         BT::InputPort<double>("time_allowance", 10.0, "Allowed time for spinning"),
         BT::InputPort<bool>("is_recovery", true, "True if recovery"),
-        BT::InputPort<bool>("disable_collision_checks", false, "Disable collision checking"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The spin behavior error code")
       });
   }
 

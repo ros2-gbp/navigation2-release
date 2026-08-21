@@ -15,11 +15,12 @@
 #include <memory>
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
+#include "nav2_amcl/amcl_node.hpp"
+#include "std_msgs/msg/string.hpp"
 #include "geometry_msgs/msg/pose_array.hpp"
-#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
+using std::placeholders::_1;
 using namespace std::chrono_literals;
 
 class TestAmclPose : public ::testing::Test
@@ -32,18 +33,17 @@ public:
     tol_ = 0.25;
 
     node = rclcpp::Node::make_shared("localization_test");
-    executor_.add_node(node);
 
     while (node->count_subscribers("scan") < 1) {
       std::this_thread::sleep_for(100ms);
-      executor_.spin_some();
+      rclcpp::spin_some(node);
     }
 
     initial_pose_pub_ = node->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
       "initialpose", rclcpp::SystemDefaultsQoS());
     subscription_ = node->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
       "amcl_pose", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-      std::bind(&TestAmclPose::amcl_pose_callback, this, std::placeholders::_1));
+      std::bind(&TestAmclPose::amcl_pose_callback, this, _1));
     initial_pose_pub_->publish(testPose_);
   }
 
@@ -51,11 +51,10 @@ public:
 
 protected:
   std::shared_ptr<rclcpp::Node> node;
-  rclcpp::executors::SingleThreadedExecutor executor_;
   void initTestPose();
 
 private:
-  void amcl_pose_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::ConstSharedPtr msg)
+  void amcl_pose_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg)
   {
     auto amcl_pose = msg->pose;
     amcl_pose_x = amcl_pose.pose.position.x;
@@ -63,7 +62,7 @@ private:
     pose_callback_ = true;
   }
   rclcpp::Publisher<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr initial_pose_pub_;
-  nav2::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr subscription_;
   geometry_msgs::msg::PoseWithCovarianceStamped testPose_;
   double amcl_pose_x;
   double amcl_pose_y;
@@ -78,7 +77,7 @@ bool TestAmclPose::defaultAmclTest()
     // TODO(mhpanah): Initial pose should only be published once.
     initial_pose_pub_->publish(testPose_);
     std::this_thread::sleep_for(1s);
-    executor_.spin_some();
+    rclcpp::spin_some(node);
   }
   if (std::abs(amcl_pose_x - testPose_.pose.pose.position.x) < tol_ &&
     std::abs(amcl_pose_y - testPose_.pose.pose.position.y) < tol_)
@@ -113,7 +112,7 @@ TEST_F(TestAmclPose, SimpleAmclTest)
   EXPECT_EQ(true, defaultAmclTest());
 }
 
-int main(int argc, char ** argv)
+int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
 

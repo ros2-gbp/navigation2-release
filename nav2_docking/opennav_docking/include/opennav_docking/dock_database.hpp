@@ -23,14 +23,13 @@
 #include "rclcpp/rclcpp.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "pluginlib/class_list_macros.hpp"
-#include "nav2_ros_common/service_server.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/node_utils.hpp"
-#include "nav2_ros_common/simple_action_server.hpp"
+
+#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_util/node_utils.hpp"
+#include "nav2_util/simple_action_server.hpp"
 #include "opennav_docking/utils.hpp"
 #include "opennav_docking/types.hpp"
 #include "nav2_msgs/srv/reload_dock_database.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace opennav_docking
 {
@@ -44,7 +43,7 @@ public:
   /**
    * @brief A constructor for opennav_docking::DockDatabase
    */
-  explicit DockDatabase(std::mutex & mutex);
+  explicit DockDatabase(std::shared_ptr<std::mutex> mutex = std::make_shared<std::mutex>());
 
   /**
    * @brief A setup function to populate database
@@ -53,7 +52,7 @@ public:
    * @return If successful
    */
   bool initialize(
-    const nav2::LifecycleNode::WeakPtr & parent, nav2::TransformBuffer::SharedPtr tf);
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent, std::shared_ptr<tf2_ros::Buffer> tf);
 
   /**
    * @brief A destructor for opennav_docking::DockDatabase
@@ -104,13 +103,13 @@ protected:
    * @return bool If successful
    */
   bool getDockPlugins(
-    const nav2::LifecycleNode::SharedPtr & node, nav2::TransformBuffer::SharedPtr tf);
+    const rclcpp_lifecycle::LifecycleNode::SharedPtr & node, std::shared_ptr<tf2_ros::Buffer> tf);
 
   /**
    * @brief Populate database of dock instances
    * @param Node Node to get values from
    */
-  bool getDockInstances(const nav2::LifecycleNode::SharedPtr & node);
+  bool getDockInstances(const rclcpp_lifecycle::LifecycleNode::SharedPtr & node);
 
   /**
    * @brief Find a dock instance in the database from ID
@@ -125,16 +124,15 @@ protected:
    * @param response Service response
    */
   void reloadDbCb(
-    const std::shared_ptr<rmw_request_id_t> request_header,
     const std::shared_ptr<nav2_msgs::srv::ReloadDockDatabase::Request> request,
     std::shared_ptr<nav2_msgs::srv::ReloadDockDatabase::Response> response);
 
-  nav2::LifecycleNode::WeakPtr node_;
-  std::mutex & mutex_;  // Don't reload database while actively docking
+  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
+  std::shared_ptr<std::mutex> mutex_;  // Don't reload database while actively docking
   DockPluginMap dock_plugins_;
   DockMap dock_instances_;
   pluginlib::ClassLoader<opennav_docking_core::ChargingDock> dock_loader_;
-  nav2::ServiceServer<nav2_msgs::srv::ReloadDockDatabase>::SharedPtr reload_db_service_;
+  rclcpp::Service<nav2_msgs::srv::ReloadDockDatabase>::SharedPtr reload_db_service_;
 };
 
 }  // namespace opennav_docking

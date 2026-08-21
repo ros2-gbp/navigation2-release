@@ -20,8 +20,6 @@
 #include <algorithm>
 #include <iostream>
 
-#include "tf2/utils.hpp"
-
 #include "nav2_costmap_2d/costmap_topic_collision_checker.hpp"
 
 #include "nav2_costmap_2d/cost_values.hpp"
@@ -58,7 +56,7 @@ CostmapTopicCollisionChecker::CostmapTopicCollisionChecker(
 }
 
 bool CostmapTopicCollisionChecker::isCollisionFree(
-  const geometry_msgs::msg::Pose & pose,
+  const geometry_msgs::msg::Pose2D & pose,
   bool fetch_costmap_and_footprint)
 {
   try {
@@ -79,7 +77,7 @@ bool CostmapTopicCollisionChecker::isCollisionFree(
 }
 
 double CostmapTopicCollisionChecker::scorePose(
-  const geometry_msgs::msg::Pose & pose,
+  const geometry_msgs::msg::Pose2D & pose,
   bool fetch_costmap_and_footprint)
 {
   if (fetch_costmap_and_footprint) {
@@ -91,7 +89,7 @@ double CostmapTopicCollisionChecker::scorePose(
   }
 
   unsigned int cell_x, cell_y;
-  if (!collision_checker_.worldToMap(pose.position.x, pose.position.y, cell_x, cell_y)) {
+  if (!collision_checker_.worldToMap(pose.x, pose.y, cell_x, cell_y)) {
     RCLCPP_DEBUG(rclcpp::get_logger(name_), "Map Cell: [%d, %d]", cell_x, cell_y);
     throw IllegalPoseException(name_, "Pose Goes Off Grid.");
   }
@@ -100,7 +98,7 @@ double CostmapTopicCollisionChecker::scorePose(
 }
 
 Footprint CostmapTopicCollisionChecker::getFootprint(
-  const geometry_msgs::msg::Pose & pose,
+  const geometry_msgs::msg::Pose2D & pose,
   bool fetch_latest_footprint)
 {
   if (fetch_latest_footprint) {
@@ -112,12 +110,8 @@ Footprint CostmapTopicCollisionChecker::getFootprint(
       throw CollisionCheckerException("Current footprint not available.");
     }
   }
-
   Footprint footprint;
-  double x = pose.position.x;
-  double y = pose.position.y;
-  double theta = tf2::getYaw(pose.orientation);
-  transformFootprint(x, y, theta, footprint_, footprint);
+  transformFootprint(pose.x, pose.y, pose.theta, footprint_, footprint);
 
   return footprint;
 }

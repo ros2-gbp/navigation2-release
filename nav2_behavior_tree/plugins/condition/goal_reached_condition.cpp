@@ -17,8 +17,7 @@
 
 #include "nav2_util/robot_utils.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_ros_common/node_utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "nav2_util/node_utils.hpp"
 
 #include "nav2_behavior_tree/plugins/condition/goal_reached_condition.hpp"
 
@@ -30,7 +29,7 @@ GoalReachedCondition::GoalReachedCondition(
   const BT::NodeConfiguration & conf)
 : BT::ConditionNode(condition_name, conf)
 {
-  auto node = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
+  auto node = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 
   robot_base_frame_ = BT::deconflictPortAndParamFrame<std::string>(
     node, "robot_base_frame", this);
@@ -43,10 +42,13 @@ GoalReachedCondition::~GoalReachedCondition()
 
 void GoalReachedCondition::initialize()
 {
-  node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
+  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 
-  goal_reached_tol_ = node_->declare_or_get_parameter("goal_reached_tol", 0.25);
-  tf_ = config().blackboard->get<nav2::TransformBuffer::SharedPtr>("tf_buffer");
+  nav2_util::declare_parameter_if_not_declared(
+    node_, "goal_reached_tol",
+    rclcpp::ParameterValue(0.25));
+  node_->get_parameter_or<double>("goal_reached_tol", goal_reached_tol_, 0.25);
+  tf_ = config().blackboard->get<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer");
 
   node_->get_parameter("transform_tolerance", transform_tolerance_);
 }

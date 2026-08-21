@@ -19,22 +19,18 @@
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_lifecycle_manager/lifecycle_manager_client.hpp"
-#include "rclcpp/rclcpp.hpp"
+#include "rcutils/cmdline_parser.h"
 
 using namespace std::chrono_literals;
 
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  rclcpp::Logger logger = rclcpp::get_logger("test_updown");
-  RCLCPP_INFO(logger, "Initializing test");
+  RCLCPP_INFO(rclcpp::get_logger("test_updown"), "Initializing test");
   auto node = std::make_shared<rclcpp::Node>("lifecycle_manager_service_client");
   nav2_lifecycle_manager::LifecycleManagerClient client_nav("lifecycle_manager_navigation", node);
   nav2_lifecycle_manager::LifecycleManagerClient client_loc("lifecycle_manager_localization", node);
-  nav2_lifecycle_manager::LifecycleManagerClient client_keepout_zone(
-    "lifecycle_manager_keepout_zone", node);
-  nav2_lifecycle_manager::LifecycleManagerClient client_speed_zone(
-    "lifecycle_manager_speed_zone", node);
+  bool test_passed = true;
 
   // Wait for a few seconds to let all of the nodes come up
   std::this_thread::sleep_for(5s);
@@ -42,50 +38,38 @@ int main(int argc, char ** argv)
   // Start the nav2 system, bringing it to the ACTIVE state
   client_nav.startup();
   client_loc.startup();
-  client_keepout_zone.startup();
-  client_speed_zone.startup();
 
   // Wait for a couple secs to make sure the nodes have processed all discovery
   // info before starting
-  RCLCPP_INFO(logger, "Waiting for nodes to be active");
+  RCLCPP_INFO(rclcpp::get_logger("test_updown"), "Waiting for nodes to be active");
   std::this_thread::sleep_for(2s);
 
   // The system should now be active
-  int retries_number = 10;
-  bool test_passed = false;
-  while (retries_number) {
-    if (client_nav.is_active() == nav2_lifecycle_manager::SystemStatus::ACTIVE &&
-      client_loc.is_active() == nav2_lifecycle_manager::SystemStatus::ACTIVE &&
-      client_keepout_zone.is_active() == nav2_lifecycle_manager::SystemStatus::ACTIVE &&
-      client_speed_zone.is_active() == nav2_lifecycle_manager::SystemStatus::ACTIVE)
-    {
-      test_passed = true;
-      break;
-    }
-
-    RCLCPP_WARN(logger, "Not all nodes are active. Repeat status request.");
+  int retries = 0;
+  while ((client_nav.is_active() != nav2_lifecycle_manager::SystemStatus::ACTIVE) &&
+    (client_loc.is_active() != nav2_lifecycle_manager::SystemStatus::ACTIVE) &&
+    (retries < 10))
+  {
     std::this_thread::sleep_for(2s);
-    retries_number--;
+    retries++;
   }
-
-  if (!test_passed) {
+  if (retries == 10) {
     // the system isn't active
-    RCLCPP_ERROR(logger, "System startup failed");
+    RCLCPP_ERROR(rclcpp::get_logger("test_updown"), "System startup failed");
+    test_passed = false;
   }
 
   // Shut down the nav2 system, bringing it to the FINALIZED state
   client_nav.shutdown();
   client_loc.shutdown();
-  client_keepout_zone.shutdown();
-  client_speed_zone.shutdown();
 
   if (test_passed) {
     RCLCPP_INFO(
-      logger,
+      rclcpp::get_logger("test_updown"),
       "****************************************************  TEST PASSED!");
   } else {
     RCLCPP_INFO(
-      logger,
+      rclcpp::get_logger("test_updown"),
       "****************************************************  TEST FAILED!");
   }
   rclcpp::shutdown();

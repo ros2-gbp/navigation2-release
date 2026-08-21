@@ -12,15 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <string>
-#include <memory>
-#include <limits>
-
-#include "nav_msgs/msg/path.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_util/geometry_utils.hpp"
-#include "behaviortree_cpp/decorator_node.h"
-
 #include "nav2_behavior_tree/plugins/action/concatenate_paths_action.hpp"
 
 namespace nav2_behavior_tree
@@ -43,8 +34,8 @@ inline BT::NodeStatus ConcatenatePaths::tick()
 
   if (input_path1.poses.empty() && input_path2.poses.empty()) {
     RCLCPP_ERROR(
-      config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node")->get_logger(),
-      "No input paths provided to concatenate. Both paths are empty.");
+    config().blackboard->get<rclcpp::Node::SharedPtr>("node")->get_logger(),
+    "No input paths provided to concatenate. Both paths are empty.");
     return BT::NodeStatus::FAILURE;
   }
 

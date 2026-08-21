@@ -17,11 +17,9 @@
 #include <vector>
 #include <string>
 
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav_msgs/msg/path.hpp"
-#include "nav_msgs/msg/goals.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "planner_tester.hpp"
+#include "nav2_util/lifecycle_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_core/planner_exceptions.hpp"
 
@@ -41,14 +39,13 @@ void testSmallPathValidityAndOrientation(std::string plugin, double length)
 {
   auto obj = std::make_shared<nav2_system_tests::NavFnPlannerTester>();
   rclcpp_lifecycle::State state;
-  obj->declare_parameter("GridBased.plugin", rclcpp::ParameterValue(plugin));
+  obj->set_parameter(rclcpp::Parameter("GridBased.plugin", plugin));
   obj->declare_parameter(
     "GridBased.use_final_approach_orientation", rclcpp::ParameterValue(false));
   obj->onConfigure(state);
 
   geometry_msgs::msg::PoseStamped start;
   geometry_msgs::msg::PoseStamped goal;
-  std::vector<geometry_msgs::msg::PoseStamped> no_viapoints;
 
   start.pose.position.x = 0.5;
   start.pose.position.y = 0.5;
@@ -64,10 +61,10 @@ void testSmallPathValidityAndOrientation(std::string plugin, double length)
 
   // Test without use_final_approach_orientation
   // expecting end path pose orientation to be equal to goal orientation
-  auto path = obj->getPlan(start, goal, no_viapoints, "GridBased", dummy_cancel_checker);
+  auto path = obj->getPlan(start, goal, "GridBased", dummy_cancel_checker);
   EXPECT_GT((int)path.poses.size(), 0);
   EXPECT_NEAR(tf2::getYaw(path.poses.back().pose.orientation), -M_PI, 0.01);
-  obj->onCleanup(state);
+  // obj->onCleanup(state);
   obj.reset();
 }
 
@@ -75,18 +72,18 @@ void testSmallPathValidityAndNoOrientation(std::string plugin, double length)
 {
   auto obj = std::make_shared<nav2_system_tests::NavFnPlannerTester>();
   rclcpp_lifecycle::State state;
-  obj->declare_parameter("GridBased.plugin", rclcpp::ParameterValue(plugin));
+  obj->set_parameter(rclcpp::Parameter("GridBased.plugin", plugin));
 
   // Test WITH use_final_approach_orientation
   // expecting end path pose orientation to be equal to approach orientation
   // which in the one pose corner case should be the start pose orientation
   obj->declare_parameter(
     "GridBased.use_final_approach_orientation", rclcpp::ParameterValue(true));
+  obj->set_parameter(rclcpp::Parameter("GridBased.use_final_approach_orientation", true));
   obj->onConfigure(state);
 
   geometry_msgs::msg::PoseStamped start;
   geometry_msgs::msg::PoseStamped goal;
-  std::vector<geometry_msgs::msg::PoseStamped> no_viapoints;
 
   start.pose.position.x = 0.5;
   start.pose.position.y = 0.5;
@@ -100,7 +97,7 @@ void testSmallPathValidityAndNoOrientation(std::string plugin, double length)
 
   auto dummy_cancel_checker = []() {return false;};
 
-  auto path = obj->getPlan(start, goal, no_viapoints, "GridBased", dummy_cancel_checker);
+  auto path = obj->getPlan(start, goal, "GridBased", dummy_cancel_checker);
   EXPECT_GT((int)path.poses.size(), 0);
 
   int path_size = path.poses.size();
@@ -117,7 +114,7 @@ void testSmallPathValidityAndNoOrientation(std::string plugin, double length)
       atan2(dy, dx),
       0.01);
   }
-  obj->onCleanup(state);
+  // obj->onCleanup(state);
   obj.reset();
 }
 
@@ -125,13 +122,12 @@ void testCancel(std::string plugin)
 {
   auto obj = std::make_shared<nav2_system_tests::NavFnPlannerTester>();
   rclcpp_lifecycle::State state;
-  obj->declare_parameter("GridBased.plugin", rclcpp::ParameterValue(plugin));
+  obj->set_parameter(rclcpp::Parameter("GridBased.plugin", plugin));
   obj->declare_parameter("GridBased.terminal_checking_interval", rclcpp::ParameterValue(1));
   obj->onConfigure(state);
 
   geometry_msgs::msg::PoseStamped start;
   geometry_msgs::msg::PoseStamped goal;
-  std::vector<geometry_msgs::msg::PoseStamped> no_viapoints;
 
   start.pose.position.x = 0.0;
   start.pose.position.y = 0.0;
@@ -146,9 +142,9 @@ void testCancel(std::string plugin)
   auto always_cancelled = []() {return true;};
 
   EXPECT_THROW(
-    obj->getPlan(start, goal, no_viapoints, "GridBased", always_cancelled),
+    obj->getPlan(start, goal, "GridBased", always_cancelled),
     nav2_core::PlannerCancelled);
-  obj->onCleanup(state);
+  // obj->onCleanup(state);
   obj.reset();
 }
 
@@ -156,24 +152,23 @@ TEST(testPluginMap, Failures)
 {
   auto obj = std::make_shared<nav2_system_tests::NavFnPlannerTester>();
   rclcpp_lifecycle::State state;
-  obj->declare_parameter("expected_planner_frequency", rclcpp::ParameterValue(100000.0));
+  obj->set_parameter(rclcpp::Parameter("expected_planner_frequency", 100000.0));
   obj->onConfigure(state);
   obj->create_subscription<nav_msgs::msg::Path>(
-    "plan", callback);
+    "plan", rclcpp::SystemDefaultsQoS(), callback);
 
   geometry_msgs::msg::PoseStamped start;
   geometry_msgs::msg::PoseStamped goal;
-  std::vector<geometry_msgs::msg::PoseStamped> no_viapoints;
   std::string plugin_fake = "fake";
   std::string plugin_none = "";
 
   auto dummy_cancel_checker = []() {return false;};
 
-  auto path = obj->getPlan(start, goal, no_viapoints, plugin_none, dummy_cancel_checker);
+  auto path = obj->getPlan(start, goal, plugin_none, dummy_cancel_checker);
   EXPECT_EQ(path.header.frame_id, std::string("map"));
 
   try {
-    path = obj->getPlan(start, goal, no_viapoints, plugin_fake, dummy_cancel_checker);
+    path = obj->getPlan(start, goal, plugin_fake, dummy_cancel_checker);
     FAIL() << "Failed to throw invalid planner id exception";
   } catch (const nav2_core::InvalidPlanner & ex) {
     EXPECT_EQ(ex.what(), std::string("Planner id fake is invalid"));

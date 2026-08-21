@@ -18,14 +18,15 @@
 #include <string>
 #include <memory>
 
+#include "nav2_mppi_controller/tools/path_handler.hpp"
 #include "nav2_mppi_controller/optimizer.hpp"
 #include "nav2_mppi_controller/tools/trajectory_visualizer.hpp"
 #include "nav2_mppi_controller/models/constraints.hpp"
 #include "nav2_mppi_controller/tools/utils.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+
 #include "nav2_core/controller.hpp"
 #include "nav2_core/goal_checker.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 namespace nav2_mppi_controller
 {
@@ -52,8 +53,8 @@ public:
     * @param costmap_ros Costmap2DROS object of environment
     */
   void configure(
-    const nav2::LifecycleNode::WeakPtr & parent,
-    std::string name, const nav2::TransformBuffer::SharedPtr tf,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+    std::string name, const std::shared_ptr<tf2_ros::Buffer> tf,
     const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   /**
@@ -81,21 +82,17 @@ public:
     * @param robot_pose Robot pose
     * @param robot_speed Robot speed
     * @param goal_checker Pointer to the goal checker for awareness if completed task
-    * @param transformed_global_plan The global plan after being processed by the path handler
-    * @param global_goal The last pose of the global plan
     */
   geometry_msgs::msg::TwistStamped computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped & robot_pose,
     const geometry_msgs::msg::Twist & robot_speed,
-    nav2_core::GoalChecker * goal_checker,
-    const nav_msgs::msg::Path & transformed_global_plan,
-    const geometry_msgs::msg::PoseStamped & global_goal) override;
+    nav2_core::GoalChecker * goal_checker) override;
 
   /**
-    * @brief Receives a new plan from the Planner Server
-    * @param raw_global_path The global plan from the Planner Server
+    * @brief Set new reference path to track
+    * @param path Path to track
     */
-  void newPathReceived(const nav_msgs::msg::Path & raw_global_path) override;
+  void setPlan(const nav_msgs::msg::Path & path) override;
 
   /**
     * @brief Set new speed limit from callback
@@ -107,27 +104,24 @@ public:
 protected:
   /**
     * @brief Visualize trajectories
-    * @param cmd_stamp Command stamp
-    * @param optimal_trajectory Optimal trajectory, if already computed
+    * @param transformed_plan Transformed input plan
     */
   void visualize(
-    const builtin_interfaces::msg::Time & cmd_stamp,
-    const Eigen::ArrayXXf & optimal_trajectory);
+    nav_msgs::msg::Path transformed_plan,
+    const builtin_interfaces::msg::Time & cmd_stamp);
 
   std::string name_;
-  nav2::LifecycleNode::WeakPtr parent_;
+  rclcpp_lifecycle::LifecycleNode::WeakPtr parent_;
   rclcpp::Logger logger_{rclcpp::get_logger("MPPIController")};
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
-  nav2::TransformBuffer::SharedPtr tf_buffer_;
-  nav2::Publisher<nav_msgs::msg::Trajectory>::SharedPtr opt_traj_pub_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 
   std::unique_ptr<ParametersHandler> parameters_handler_;
   Optimizer optimizer_;
+  PathHandler path_handler_;
   TrajectoryVisualizer trajectory_visualizer_;
 
   bool visualize_;
-  int critic_index_to_visualize_;
-  bool publish_optimal_trajectory_;
 };
 
 }  // namespace nav2_mppi_controller

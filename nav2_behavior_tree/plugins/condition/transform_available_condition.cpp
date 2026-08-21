@@ -12,13 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <string>
 #include <chrono>
 #include <memory>
-#include <string>
-
-#include "rclcpp/rclcpp.hpp"
-#include "tf2/time.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 #include "nav2_behavior_tree/plugins/condition/transform_available_condition.hpp"
 
@@ -33,8 +29,8 @@ TransformAvailableCondition::TransformAvailableCondition(
 : BT::ConditionNode(condition_name, conf),
   was_found_(false)
 {
-  node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
-  tf_ = config().blackboard->get<nav2::TransformBuffer::SharedPtr>("tf_buffer");
+  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
+  tf_ = config().blackboard->get<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer");
 }
 
 TransformAvailableCondition::~TransformAvailableCondition()

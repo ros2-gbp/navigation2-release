@@ -21,9 +21,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "nav2_route/interfaces/route_operation.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "std_srvs/srv/trigger.hpp"
-#include "nav2_ros_common/service_server.hpp"
 
 namespace nav2_route
 {
@@ -49,7 +48,7 @@ public:
    * @brief Configure
    */
   void configure(
-    const nav2::LifecycleNode::SharedPtr node,
+    const nav2_util::LifecycleNode::SharedPtr node,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & name) override;
 
@@ -99,7 +98,7 @@ protected:
   std::string name_;
   std::atomic_bool reroute_;
   rclcpp::Logger logger_{rclcpp::get_logger("ReroutingService")};
-  typename nav2::ServiceServer<std_srvs::srv::Trigger>::SharedPtr service_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr service_;
 };
 
 }  // namespace nav2_route

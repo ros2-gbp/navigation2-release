@@ -19,7 +19,14 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/layer.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 class LayerWrapper : public nav2_costmap_2d::Layer
 {
@@ -32,14 +39,14 @@ class LayerWrapper : public nav2_costmap_2d::Layer
 TEST(DeclareParameter, useValidParameter)
 {
   LayerWrapper layer;
-  nav2::LifecycleNode::SharedPtr node =
-    std::make_shared<nav2::LifecycleNode>("test_node");
-  nav2::TransformBuffer tf(node->get_clock());
+  nav2_util::LifecycleNode::SharedPtr node =
+    std::make_shared<nav2_util::LifecycleNode>("test_node");
+  tf2_ros::Buffer tf(node->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
 
   layer.initialize(&layers, "test_layer", &tf, node, nullptr);
 
-  node->declare_parameter("test_layer.test1", rclcpp::ParameterValue("test_val1"));
+  layer.declareParameter("test1", rclcpp::ParameterValue("test_val1"));
   try {
     std::string val = node->get_parameter("test_layer.test1").as_string();
     EXPECT_EQ(val, "test_val1");
@@ -51,31 +58,18 @@ TEST(DeclareParameter, useValidParameter)
 TEST(DeclareParameter, useInvalidParameter)
 {
   LayerWrapper layer;
-  nav2::LifecycleNode::SharedPtr node =
-    std::make_shared<nav2::LifecycleNode>("test_node");
-  nav2::TransformBuffer tf(node->get_clock());
+  nav2_util::LifecycleNode::SharedPtr node =
+    std::make_shared<nav2_util::LifecycleNode>("test_node");
+  tf2_ros::Buffer tf(node->get_clock());
   nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
 
   layer.initialize(&layers, "test_layer", &tf, node, nullptr);
 
-  node->declare_parameter("test_layer.test2", rclcpp::PARAMETER_STRING);
+  layer.declareParameter("test2", rclcpp::PARAMETER_STRING);
   try {
     std::string val = node->get_parameter("test_layer.test2").as_string();
     FAIL() << "Incorrectly handling test_layer.test2 parameter which was not set";
   } catch (rclcpp::exceptions::ParameterUninitializedException & ex) {
     SUCCEED();
   }
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

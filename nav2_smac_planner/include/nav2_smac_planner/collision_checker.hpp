@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License. Reserved.
 
-#include <memory>
 #include <vector>
+#include <memory>
 
 #include "nav2_costmap_2d/footprint_collision_checker.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
@@ -45,7 +45,7 @@ public:
   GridCollisionChecker(
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap,
     unsigned int num_quantizations,
-    nav2::LifecycleNode::SharedPtr node);
+    rclcpp_lifecycle::LifecycleNode::SharedPtr node);
 
   /**
    * @brief A constructor for nav2_smac_planner::GridCollisionChecker

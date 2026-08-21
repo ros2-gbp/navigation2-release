@@ -63,28 +63,29 @@ namespace nav2_map_server
 {
 
 MapServer::MapServer(const rclcpp::NodeOptions & options)
-: nav2::LifecycleNode("map_server", "", options), map_available_(false)
+: nav2_util::LifecycleNode("map_server", "", options), map_available_(false)
 {
   RCLCPP_INFO(get_logger(), "Creating");
+
+  // Declare the node parameters
+  declare_parameter("yaml_filename", rclcpp::PARAMETER_STRING);
+  declare_parameter("topic_name", "map");
+  declare_parameter("frame_id", "map");
 }
 
 MapServer::~MapServer()
 {
 }
 
-nav2::CallbackReturn
+nav2_util::CallbackReturn
 MapServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Configuring");
-  auto node = shared_from_this();
 
   // Get the name of the YAML file to use (can be empty if no initial map should be used)
-  std::string yaml_filename = node->declare_or_get_parameter(
-    "yaml_filename", std::string(""));
-  std::string topic_name = node->declare_or_get_parameter(
-    "topic_name", std::string("map"));
-  frame_id_ = node->declare_or_get_parameter(
-    "frame_id", std::string("map"));
+  std::string yaml_filename = get_parameter("yaml_filename").as_string();
+  std::string topic_name = get_parameter("topic_name").as_string();
+  frame_id_ = get_parameter("frame_id").as_string();
 
   // only try to load map if parameter was set
   if (!yaml_filename.empty()) {
@@ -114,17 +115,17 @@ MapServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
   // Create a publisher using the QoS settings to emulate a ROS1 latched topic
   occ_pub_ = create_publisher<nav_msgs::msg::OccupancyGrid>(
     topic_name,
-    nav2::qos::LatchedPublisherQoS());
+    rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
 
   // Create a service that loads the occupancy grid from a file
   load_map_service_ = create_service<nav2_msgs::srv::LoadMap>(
     service_prefix + std::string(load_map_service_name_),
     std::bind(&MapServer::loadMapCallback, this, _1, _2, _3));
 
-  return nav2::CallbackReturn::SUCCESS;
+  return nav2_util::CallbackReturn::SUCCESS;
 }
 
-nav2::CallbackReturn
+nav2_util::CallbackReturn
 MapServer::on_activate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Activating");
@@ -139,10 +140,10 @@ MapServer::on_activate(const rclcpp_lifecycle::State & /*state*/)
   // create bond connection
   createBond();
 
-  return nav2::CallbackReturn::SUCCESS;
+  return nav2_util::CallbackReturn::SUCCESS;
 }
 
-nav2::CallbackReturn
+nav2_util::CallbackReturn
 MapServer::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Deactivating");
@@ -152,10 +153,10 @@ MapServer::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   // destroy bond connection
   destroyBond();
 
-  return nav2::CallbackReturn::SUCCESS;
+  return nav2_util::CallbackReturn::SUCCESS;
 }
 
-nav2::CallbackReturn
+nav2_util::CallbackReturn
 MapServer::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Cleaning up");
@@ -166,14 +167,14 @@ MapServer::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
   map_available_ = false;
   msg_ = nav_msgs::msg::OccupancyGrid();
 
-  return nav2::CallbackReturn::SUCCESS;
+  return nav2_util::CallbackReturn::SUCCESS;
 }
 
-nav2::CallbackReturn
+nav2_util::CallbackReturn
 MapServer::on_shutdown(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Shutting down");
-  return nav2::CallbackReturn::SUCCESS;
+  return nav2_util::CallbackReturn::SUCCESS;
 }
 
 void MapServer::getMapCallback(

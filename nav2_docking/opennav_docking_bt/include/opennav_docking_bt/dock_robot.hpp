@@ -31,7 +31,7 @@ namespace opennav_docking_bt
  *
  * Usage in XML:
  * @code
- * <DockRobot dock_id="{dock_id}" error_code_id="{dock_error_code}" error_msg="{dock_error_msg}"/>
+ * <DockRobot dock_id="{dock_id}" error_code_id="{dock_error_code}"/>
  * @endcode
  */
 class DockRobotAction
@@ -100,6 +100,8 @@ public:
 
         BT::OutputPort<ActionResult::_success_type>(
           "success", "If the action was successful"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "Error code"),
         BT::OutputPort<ActionResult::_num_retries_type>(
           "num_retries", "The number of retries executed"),
       });

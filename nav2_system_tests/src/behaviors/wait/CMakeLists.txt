@@ -4,25 +4,12 @@ ament_add_gtest_executable(${test_wait_behavior_exec}
   test_wait_behavior_node.cpp
   wait_behavior_tester.cpp
 )
-target_link_libraries(${test_wait_behavior_exec}
-  angles::angles
-  geometry_msgs::geometry_msgs
-  nav2_msgs::nav2_msgs
-  nav2_util::nav2_util_core
-  nav2_ros_common::nav2_ros_common
-  rclcpp::rclcpp
-  rclcpp_action::rclcpp_action
-  tf2::tf2
-  tf2_ros::tf2_ros
-  nav2_ros_common::nav2_ros_common
-)
-target_include_directories(${test_wait_behavior_exec}
-  PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-    "$<INSTALL_INTERFACE:include/${PROJECT_NAME}>"
+
+ament_target_dependencies(${test_wait_behavior_exec}
+  ${dependencies}
 )
 
-nav2_add_test(test_wait_behavior
+ament_add_test(test_wait_behavior
   GENERATE_RESULT_FOR_RETURN_CODE_ZERO
   COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test_wait_behavior_launch.py"
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"

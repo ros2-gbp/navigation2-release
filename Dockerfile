@@ -6,7 +6,7 @@
 # docker build -t nav2:latest \
 #   --build-arg UNDERLAY_MIXINS \
 #   --build-arg OVERLAY_MIXINS ./
-ARG FROM_IMAGE=ros:lyrical
+ARG FROM_IMAGE=ros:jazzy
 ARG UNDERLAY_WS=/opt/underlay_ws
 ARG OVERLAY_WS=/opt/overlay_ws
 
@@ -45,9 +45,6 @@ APT::Install-Suggests "0";\n\
 ' > /etc/apt/apt.conf.d/01norecommend
 ENV PYTHONUNBUFFERED 1
 
-# Add testing repo for unreleased binary packages
-RUN echo "deb [trusted=yes] http://repo.ros2.org/ubuntu/testing $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-testing.list
-
 # install CI dependencies
 ARG RTI_NC_LICENSE_ACCEPTED=yes
 RUN apt-get update && \
@@ -60,7 +57,6 @@ RUN apt-get update && \
       ros-$ROS_DISTRO-rmw-fastrtps-cpp \
       ros-$ROS_DISTRO-rmw-connextdds \
       ros-$ROS_DISTRO-rmw-cyclonedds-cpp \
-      ros-$ROS_DISTRO-rmw-zenoh-cpp \
     && pip3 install --break-system-packages \
       fastcov \
       git+https://github.com/ruffsl/colcon-cache.git@a937541bfc496c7a267db7ee9d6cceca61e470ca \
@@ -172,9 +168,9 @@ RUN mkdir -p $ROOT_SRV
 
 # install demo dependencies
 RUN apt-get update && apt-get install -y \
-      ros-$ROS_DISTRO-rviz2
+      ros-$ROS_DISTRO-rviz2 
 
-# install gzweb dependencies
+# install gzweb dependacies
 RUN apt-get install -y --no-install-recommends \
       imagemagick \
       libboost-all-dev \
@@ -200,14 +196,14 @@ RUN cd $GZWEB_WS && . /usr/share/gazebo/setup.sh && \
     ln -s $GZWEB_WS/http/client/assets http/client/assets/models && \
     ln -s $GZWEB_WS/http/client $ROOT_SRV/gzweb
 
-# patch gzserver
+# patch gzsever
 RUN GZSERVER=$(which gzserver) && \
     mv $GZSERVER $GZSERVER.orig && \
     echo '#!/bin/bash' > $GZSERVER && \
     echo 'exec xvfb-run -s "-screen 0 1280x1024x24" gzserver.orig "$@"' >> $GZSERVER && \
     chmod +x $GZSERVER
 
-# install foxglove dependencies
+# install foxglove dependacies
 RUN apt-get install -y --no-install-recommends \
       ros-$ROS_DISTRO-foxglove-bridge
 

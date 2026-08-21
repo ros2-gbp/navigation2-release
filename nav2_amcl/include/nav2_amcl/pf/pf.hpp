@@ -28,8 +28,6 @@
 #ifndef NAV2_AMCL__PF__PF_HPP_
 #define NAV2_AMCL__PF__PF_HPP_
 
-#include <stdint.h>
-
 #include "nav2_amcl/pf/pf_vector.hpp"
 #include "nav2_amcl/pf/pf_kdtree.hpp"
 
@@ -147,7 +145,7 @@ pf_t * pf_alloc(
 // Free an existing filter
 void pf_free(pf_t * pf);
 
-// Initialize the filter using a gaussian
+// Initialize the filter using a guassian
 void pf_init(pf_t * pf, pf_vector_t mean, pf_matrix_t cov);
 
 // Initialize the filter using some model

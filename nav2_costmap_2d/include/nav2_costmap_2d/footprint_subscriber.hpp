@@ -15,14 +15,12 @@
 #ifndef NAV2_COSTMAP_2D__FOOTPRINT_SUBSCRIBER_HPP_
 #define NAV2_COSTMAP_2D__FOOTPRINT_SUBSCRIBER_HPP_
 
-#include <atomic>
 #include <string>
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/footprint.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_util/robot_utils.hpp"
 
 namespace nav2_costmap_2d
@@ -38,23 +36,22 @@ public:
   /**
    * @brief A constructor
    */
-  template<typename NodeT>
-  explicit FootprintSubscriber(
-    const NodeT & parent,
+  FootprintSubscriber(
+    const nav2_util::LifecycleNode::WeakPtr & parent,
     const std::string & topic_name,
-    nav2::TransformBuffer & tf,
+    tf2_ros::Buffer & tf,
     std::string robot_base_frame = "base_link",
-    double transform_tolerance = 0.1)
-  : tf_(tf),
-    robot_base_frame_(robot_base_frame),
-    transform_tolerance_(transform_tolerance)
-  {
-    // Could be using a user rclcpp::Node, so need to use the Nav2 factory to create the
-    // subscription to convert nav2::LifecycleNode, rclcpp::Node or rclcpp_lifecycle::LifecycleNode
-    footprint_sub_ = nav2::interfaces::create_subscription<geometry_msgs::msg::PolygonStamped>(
-      parent, topic_name,
-      std::bind(&FootprintSubscriber::footprint_callback, this, std::placeholders::_1));
-  }
+    double transform_tolerance = 0.1);
+
+  /**
+   * @brief A constructor
+   */
+  FootprintSubscriber(
+    const rclcpp::Node::WeakPtr & parent,
+    const std::string & topic_name,
+    tf2_ros::Buffer & tf,
+    std::string robot_base_frame = "base_link",
+    double transform_tolerance = 0.1);
 
   /**
    * @brief A destructor
@@ -87,14 +84,14 @@ protected:
   /**
    * @brief Callback to process new footprint updates.
    */
-  void footprint_callback(const geometry_msgs::msg::PolygonStamped::ConstSharedPtr & msg);
+  void footprint_callback(const geometry_msgs::msg::PolygonStamped::SharedPtr msg);
 
-  nav2::TransformBuffer & tf_;
+  tf2_ros::Buffer & tf_;
   std::string robot_base_frame_;
   double transform_tolerance_;
-  std::atomic_bool footprint_received_{false};
-  std::atomic<geometry_msgs::msg::PolygonStamped::ConstSharedPtr> footprint_;
-  nav2::Subscription<geometry_msgs::msg::PolygonStamped>::SharedPtr footprint_sub_;
+  bool footprint_received_{false};
+  geometry_msgs::msg::PolygonStamped::SharedPtr footprint_;
+  rclcpp::Subscription<geometry_msgs::msg::PolygonStamped>::SharedPtr footprint_sub_;
 };
 
 }  // namespace nav2_costmap_2d

@@ -42,8 +42,7 @@ public:
     const rclcpp::Node::SharedPtr & node,
     std::string action_name)
   : action_name_(action_name),
-    goal_count_(0),
-    result_(std::make_shared<typename ActionT::Result>())
+    goal_count_(0)
   {
     action_server_ = rclcpp_action::create_server<ActionT>(
       node->get_node_base_interface(),
@@ -72,7 +71,6 @@ public:
     failure_ranges_.clear();
     running_ranges_.clear();
     goal_count_ = 0;
-    updateResultForSuccess(result_);
   }
 
   int getGoalCount() const
@@ -80,22 +78,18 @@ public:
     return goal_count_;
   }
 
-  std::shared_ptr<typename ActionT::Result> getResult(void)
-  {
-    return result_;
-  }
-
 protected:
-  virtual void updateResultForFailure(std::shared_ptr<typename ActionT::Result> & result)
+  virtual std::shared_ptr<typename ActionT::Result> fillResult()
   {
-    result->error_code = ActionT::Result::UNKNOWN;
-    result->error_msg = "Unknown Failure";
+    return std::make_shared<typename ActionT::Result>();
   }
 
-  virtual void updateResultForSuccess(std::shared_ptr<typename ActionT::Result> & result)
+  virtual void updateResultForFailure(std::shared_ptr<typename ActionT::Result> &)
   {
-    result->error_code = ActionT::Result::NONE;
-    result->error_msg = "";
+  }
+
+  virtual void updateResultForSuccess(std::shared_ptr<typename ActionT::Result> &)
+  {
   }
 
   virtual rclcpp_action::GoalResponse handle_goal(
@@ -115,6 +109,7 @@ protected:
     const typename std::shared_ptr<rclcpp_action::ServerGoalHandle<ActionT>> goal_handle)
   {
     goal_count_++;
+    auto result = fillResult();
 
     // if current goal index exists in running range, the thread sleeps for 1 second
     // to simulate a long running action
@@ -128,15 +123,15 @@ protected:
     // if current goal index exists in failure range, the goal will be aborted
     for (auto & index : failure_ranges_) {
       if (goal_count_ >= index.first && goal_count_ <= index.second) {
-        updateResultForFailure(result_);
-        goal_handle->abort(result_);
+        updateResultForFailure(result);
+        goal_handle->abort(result);
         return;
       }
     }
 
     // goal succeeds for all other indices
-    updateResultForSuccess(result_);
-    goal_handle->succeed(result_);
+    updateResultForSuccess(result);
+    goal_handle->succeed(result);
   }
 
   void handle_accepted(
@@ -158,7 +153,6 @@ protected:
   Ranges running_ranges_;
 
   unsigned int goal_count_;
-  std::shared_ptr<typename ActionT::Result> result_;
 };
 }  // namespace nav2_system_tests
 

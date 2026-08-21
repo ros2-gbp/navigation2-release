@@ -24,7 +24,7 @@
 #include <limits>
 
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_msgs/msg/collision_monitor_state.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
@@ -34,7 +34,7 @@
 #include "geometry_msgs/msg/polygon_stamped.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_ros/transform_broadcaster.h"
 
 #include "nav2_collision_monitor/types.hpp"
 #include "nav2_collision_monitor/collision_monitor_node.hpp"
@@ -50,7 +50,6 @@ static const char CMD_VEL_IN_TOPIC[]{"cmd_vel_in"};
 static const char CMD_VEL_OUT_TOPIC[]{"cmd_vel_out"};
 static const char STATE_TOPIC[]{"collision_monitor_state"};
 static const char COLLISION_POINTS_MARKERS_TOPIC[]{"/collision_monitor/collision_points_marker"};
-static const char TRIGGERING_POINTS_TOPIC[]{"/collision_monitor/triggering_points"};
 static const char FOOTPRINT_TOPIC[]{"footprint"};
 static const char SCAN_NAME[]{"Scan"};
 static const char POINTCLOUD_NAME[]{"PointCloud"};
@@ -97,25 +96,25 @@ class CollisionMonitorWrapper : public nav2_collision_monitor::CollisionMonitor
 public:
   void start()
   {
-    ASSERT_EQ(on_configure(get_current_state()), nav2::CallbackReturn::SUCCESS);
-    ASSERT_EQ(on_activate(get_current_state()), nav2::CallbackReturn::SUCCESS);
+    ASSERT_EQ(on_configure(get_current_state()), nav2_util::CallbackReturn::SUCCESS);
+    ASSERT_EQ(on_activate(get_current_state()), nav2_util::CallbackReturn::SUCCESS);
   }
 
   void stop()
   {
-    ASSERT_EQ(on_deactivate(get_current_state()), nav2::CallbackReturn::SUCCESS);
-    ASSERT_EQ(on_cleanup(get_current_state()), nav2::CallbackReturn::SUCCESS);
-    ASSERT_EQ(on_shutdown(get_current_state()), nav2::CallbackReturn::SUCCESS);
+    ASSERT_EQ(on_deactivate(get_current_state()), nav2_util::CallbackReturn::SUCCESS);
+    ASSERT_EQ(on_cleanup(get_current_state()), nav2_util::CallbackReturn::SUCCESS);
+    ASSERT_EQ(on_shutdown(get_current_state()), nav2_util::CallbackReturn::SUCCESS);
   }
 
   void configure()
   {
-    ASSERT_EQ(on_configure(get_current_state()), nav2::CallbackReturn::SUCCESS);
+    ASSERT_EQ(on_configure(get_current_state()), nav2_util::CallbackReturn::SUCCESS);
   }
 
   void cant_configure()
   {
-    ASSERT_EQ(on_configure(get_current_state()), nav2::CallbackReturn::FAILURE);
+    ASSERT_EQ(on_configure(get_current_state()), nav2_util::CallbackReturn::FAILURE);
   }
 
   bool correctDataReceived(const double expected_dist, const rclcpp::Time & stamp)
@@ -190,99 +189,77 @@ public:
     const std::chrono::nanoseconds & timeout);
   bool waitActionState(const std::chrono::nanoseconds & timeout);
   bool waitCollisionPointsMarker(const std::chrono::nanoseconds & timeout);
-  bool waitTriggeringPoints(const std::chrono::nanoseconds & timeout);
   bool waitToggle(
     rclcpp::Client<nav2_msgs::srv::Toggle>::SharedFuture result_future,
     const std::chrono::nanoseconds & timeout);
 
 protected:
-  void cmdVelOutCallback(geometry_msgs::msg::Twist::ConstSharedPtr msg);
-  void actionStateCallback(nav2_msgs::msg::CollisionMonitorState::ConstSharedPtr msg);
-  void collisionPointsMarkerCallback(visualization_msgs::msg::MarkerArray::ConstSharedPtr msg);
-  void triggeringPointsCallback(visualization_msgs::msg::MarkerArray::ConstSharedPtr msg);
+  void cmdVelOutCallback(geometry_msgs::msg::Twist::SharedPtr msg);
+  void actionStateCallback(nav2_msgs::msg::CollisionMonitorState::SharedPtr msg);
+  void collisionPointsMarkerCallback(visualization_msgs::msg::MarkerArray::SharedPtr msg);
 
   // CollisionMonitor node
   std::shared_ptr<CollisionMonitorWrapper> cm_;
-  rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
 
   // Footprint publisher
-  nav2::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr
-    footprint_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr footprint_pub_;
 
   // Data source publishers
-  nav2::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr scan_pub_;
-  nav2::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_pub_;
-  nav2::Publisher<sensor_msgs::msg::Range>::SharedPtr range_pub_;
-  nav2::Publisher<geometry_msgs::msg::PolygonInstanceStamped>::SharedPtr
-    polygon_source_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr scan_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr range_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PolygonInstanceStamped>::SharedPtr polygon_source_pub_;
 
   // Working with cmd_vel_in/cmd_vel_out
-  nav2::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_in_pub_;
-  nav2::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_out_sub_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_in_pub_;
+  rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_out_sub_;
 
-  geometry_msgs::msg::Twist::ConstSharedPtr cmd_vel_out_;
+  geometry_msgs::msg::Twist::SharedPtr cmd_vel_out_;
 
   // CollisionMonitor Action state
-  nav2::Subscription<nav2_msgs::msg::CollisionMonitorState>::SharedPtr action_state_sub_;
-  nav2_msgs::msg::CollisionMonitorState::ConstSharedPtr action_state_;
+  rclcpp::Subscription<nav2_msgs::msg::CollisionMonitorState>::SharedPtr action_state_sub_;
+  nav2_msgs::msg::CollisionMonitorState::SharedPtr action_state_;
 
   // CollisionMonitor collision points markers
-  nav2::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr
+  rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr
     collision_points_marker_sub_;
-  visualization_msgs::msg::MarkerArray::ConstSharedPtr collision_points_marker_msg_;
-
-  // CollisionMonitor triggering points markers
-  nav2::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr
-    triggering_points_sub_;
-  visualization_msgs::msg::MarkerArray::ConstSharedPtr triggering_points_msg_;
+  visualization_msgs::msg::MarkerArray::SharedPtr collision_points_marker_msg_;
 
   // Service client for setting CollisionMonitor parameters
-  nav2::ServiceClient<rcl_interfaces::srv::SetParameters>::SharedPtr parameters_client_;
+  rclcpp::Client<rcl_interfaces::srv::SetParameters>::SharedPtr parameters_client_;
 
   // Service client for toggling collision monitor
-  nav2::ServiceClient<nav2_msgs::srv::Toggle>::SharedPtr toggle_client_;
+  rclcpp::Client<nav2_msgs::srv::Toggle>::SharedPtr toggle_client_;
 };  // Tester
 
 Tester::Tester()
 {
   cm_ = std::make_shared<CollisionMonitorWrapper>();
-  executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
-  executor_->add_node(cm_->get_node_base_interface());
-  cm_->declare_parameter("enable_stamped_cmd_vel", rclcpp::ParameterValue(false));
 
   footprint_pub_ = cm_->create_publisher<geometry_msgs::msg::PolygonStamped>(
     FOOTPRINT_TOPIC, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
-  footprint_pub_->on_activate();
 
   scan_pub_ = cm_->create_publisher<sensor_msgs::msg::LaserScan>(
     SCAN_NAME, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
-  scan_pub_->on_activate();
   pointcloud_pub_ = cm_->create_publisher<sensor_msgs::msg::PointCloud2>(
     POINTCLOUD_NAME, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
-  pointcloud_pub_->on_activate();
   range_pub_ = cm_->create_publisher<sensor_msgs::msg::Range>(
     RANGE_NAME, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
-  range_pub_->on_activate();
   polygon_source_pub_ = cm_->create_publisher<geometry_msgs::msg::PolygonInstanceStamped>(
     POLYGON_NAME, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
-  polygon_source_pub_->on_activate();
 
   cmd_vel_in_pub_ = cm_->create_publisher<geometry_msgs::msg::Twist>(
     CMD_VEL_IN_TOPIC, rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
-  cmd_vel_in_pub_->on_activate();
   cmd_vel_out_sub_ = cm_->create_subscription<geometry_msgs::msg::Twist>(
-    CMD_VEL_OUT_TOPIC,
+    CMD_VEL_OUT_TOPIC, rclcpp::SystemDefaultsQoS(),
     std::bind(&Tester::cmdVelOutCallback, this, std::placeholders::_1));
 
   action_state_sub_ = cm_->create_subscription<nav2_msgs::msg::CollisionMonitorState>(
-    STATE_TOPIC,
+    STATE_TOPIC, rclcpp::SystemDefaultsQoS(),
     std::bind(&Tester::actionStateCallback, this, std::placeholders::_1));
   collision_points_marker_sub_ = cm_->create_subscription<visualization_msgs::msg::MarkerArray>(
-    COLLISION_POINTS_MARKERS_TOPIC,
+    COLLISION_POINTS_MARKERS_TOPIC, rclcpp::SystemDefaultsQoS(),
     std::bind(&Tester::collisionPointsMarkerCallback, this, std::placeholders::_1));
-  triggering_points_sub_ = cm_->create_subscription<visualization_msgs::msg::MarkerArray>(
-    TRIGGERING_POINTS_TOPIC,
-    std::bind(&Tester::triggeringPointsCallback, this, std::placeholders::_1));
   parameters_client_ =
     cm_->create_client<rcl_interfaces::srv::SetParameters>(
     std::string(
@@ -295,50 +272,57 @@ Tester::~Tester()
 {
   footprint_pub_.reset();
 
-  scan_pub_->on_deactivate();
   scan_pub_.reset();
-  pointcloud_pub_->on_deactivate();
   pointcloud_pub_.reset();
-  range_pub_->on_deactivate();
   range_pub_.reset();
-  polygon_source_pub_->on_deactivate();
   polygon_source_pub_.reset();
 
-  cmd_vel_in_pub_->on_deactivate();
   cmd_vel_in_pub_.reset();
   cmd_vel_out_sub_.reset();
 
   action_state_sub_.reset();
   collision_points_marker_sub_.reset();
-  triggering_points_sub_.reset();
 
   cm_.reset();
-  executor_.reset();
 }
 
 void Tester::setCommonParameters()
 {
-  cm_->declare_parameter("enabled", rclcpp::ParameterValue(true));
-
   cm_->declare_parameter(
     "cmd_vel_in_topic", rclcpp::ParameterValue(CMD_VEL_IN_TOPIC));
+  cm_->set_parameter(
+    rclcpp::Parameter("cmd_vel_in_topic", CMD_VEL_IN_TOPIC));
   cm_->declare_parameter(
     "cmd_vel_out_topic", rclcpp::ParameterValue(CMD_VEL_OUT_TOPIC));
+  cm_->set_parameter(
+    rclcpp::Parameter("cmd_vel_out_topic", CMD_VEL_OUT_TOPIC));
   cm_->declare_parameter(
     "state_topic", rclcpp::ParameterValue(STATE_TOPIC));
+  cm_->set_parameter(
+    rclcpp::Parameter("state_topic", STATE_TOPIC));
 
   cm_->declare_parameter(
     "base_frame_id", rclcpp::ParameterValue(BASE_FRAME_ID));
+  cm_->set_parameter(
+    rclcpp::Parameter("base_frame_id", BASE_FRAME_ID));
   cm_->declare_parameter(
     "odom_frame_id", rclcpp::ParameterValue(ODOM_FRAME_ID));
+  cm_->set_parameter(
+    rclcpp::Parameter("odom_frame_id", ODOM_FRAME_ID));
 
   cm_->declare_parameter(
     "transform_tolerance", rclcpp::ParameterValue(TRANSFORM_TOLERANCE));
+  cm_->set_parameter(
+    rclcpp::Parameter("transform_tolerance", TRANSFORM_TOLERANCE));
   cm_->declare_parameter(
     "source_timeout", rclcpp::ParameterValue(SOURCE_TIMEOUT));
+  cm_->set_parameter(
+    rclcpp::Parameter("source_timeout", SOURCE_TIMEOUT));
 
   cm_->declare_parameter(
     "stop_pub_timeout", rclcpp::ParameterValue(STOP_PUB_TIMEOUT));
+  cm_->set_parameter(
+    rclcpp::Parameter("stop_pub_timeout", STOP_PUB_TIMEOUT));
 }
 
 void Tester::addPolygon(
@@ -349,6 +333,8 @@ void Tester::addPolygon(
   if (type == POLYGON) {
     cm_->declare_parameter(
       polygon_name + ".type", rclcpp::ParameterValue("polygon"));
+    cm_->set_parameter(
+      rclcpp::Parameter(polygon_name + ".type", "polygon"));
 
     if (at != "approach") {
       const std::string points = "[[" +
@@ -358,59 +344,95 @@ void Tester::addPolygon(
         std::to_string(-size) + ", " + std::to_string(size) + "]]";
       cm_->declare_parameter(
         polygon_name + ".points", rclcpp::ParameterValue(points));
+      cm_->set_parameter(
+        rclcpp::Parameter(polygon_name + ".points", points));
     } else {  // at == "approach"
       cm_->declare_parameter(
         polygon_name + ".footprint_topic", rclcpp::ParameterValue(FOOTPRINT_TOPIC));
+      cm_->set_parameter(
+        rclcpp::Parameter(polygon_name + ".footprint_topic", FOOTPRINT_TOPIC));
     }
   } else if (type == CIRCLE) {
     cm_->declare_parameter(
       polygon_name + ".type", rclcpp::ParameterValue("circle"));
+    cm_->set_parameter(
+      rclcpp::Parameter(polygon_name + ".type", "circle"));
 
     cm_->declare_parameter(
       polygon_name + ".radius", rclcpp::ParameterValue(size));
+    cm_->set_parameter(
+      rclcpp::Parameter(polygon_name + ".radius", size));
   } else if (type == VELOCITY_POLYGON) {
     cm_->declare_parameter(
       polygon_name + ".type", rclcpp::ParameterValue("velocity_polygon"));
+    cm_->set_parameter(
+      rclcpp::Parameter(polygon_name + ".type", "velocity_polygon"));
     cm_->declare_parameter(
       polygon_name + ".holonomic", rclcpp::ParameterValue(false));
+    cm_->set_parameter(
+      rclcpp::Parameter(polygon_name + ".holonomic", false));
   } else {  // type == POLYGON_UNKNOWN
     cm_->declare_parameter(
       polygon_name + ".type", rclcpp::ParameterValue("unknown"));
+    cm_->set_parameter(
+      rclcpp::Parameter(polygon_name + ".type", "unknown"));
   }
 
   cm_->declare_parameter(
     polygon_name + ".enabled", rclcpp::ParameterValue(true));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".enabled", true));
 
   cm_->declare_parameter(
     polygon_name + ".action_type", rclcpp::ParameterValue(at));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".action_type", at));
 
   cm_->declare_parameter(
     polygon_name + ".min_points", rclcpp::ParameterValue(MIN_POINTS));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".min_points", MIN_POINTS));
 
   cm_->declare_parameter(
     polygon_name + ".slowdown_ratio", rclcpp::ParameterValue(SLOWDOWN_RATIO));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".slowdown_ratio", SLOWDOWN_RATIO));
 
   cm_->declare_parameter(
     polygon_name + ".linear_limit", rclcpp::ParameterValue(LINEAR_LIMIT));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".linear_limit", LINEAR_LIMIT));
 
   cm_->declare_parameter(
     polygon_name + ".angular_limit", rclcpp::ParameterValue(ANGULAR_LIMIT));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".angular_limit", ANGULAR_LIMIT));
 
   cm_->declare_parameter(
     polygon_name + ".time_before_collision", rclcpp::ParameterValue(TIME_BEFORE_COLLISION));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".time_before_collision", TIME_BEFORE_COLLISION));
 
   cm_->declare_parameter(
     polygon_name + ".simulation_time_step", rclcpp::ParameterValue(SIMULATION_TIME_STEP));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".simulation_time_step", SIMULATION_TIME_STEP));
 
   cm_->declare_parameter(
     polygon_name + ".visualize", rclcpp::ParameterValue(false));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".visualize", false));
 
   cm_->declare_parameter(
     polygon_name + ".polygon_pub_topic", rclcpp::ParameterValue(polygon_name));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + ".polygon_pub_topic", polygon_name));
 
   if (!sources_names.empty()) {
     cm_->declare_parameter(
       polygon_name + ".sources_names", rclcpp::ParameterValue(sources_names));
+    cm_->set_parameter(
+      rclcpp::Parameter(polygon_name + ".sources_names", sources_names));
   }
 }
 
@@ -427,18 +449,28 @@ void Tester::addPolygonVelocitySubPolygon(
     std::to_string(-size) + ", " + std::to_string(size) + "]]";
   cm_->declare_parameter(
     polygon_name + "." + sub_polygon_name + ".points", rclcpp::ParameterValue(points));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + "." + sub_polygon_name + ".points", points));
 
   cm_->declare_parameter(
     polygon_name + "." + sub_polygon_name + ".linear_min", rclcpp::ParameterValue(linear_min));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + "." + sub_polygon_name + ".linear_min", linear_min));
 
   cm_->declare_parameter(
     polygon_name + "." + sub_polygon_name + ".linear_max", rclcpp::ParameterValue(linear_max));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + "." + sub_polygon_name + ".linear_max", linear_max));
 
   cm_->declare_parameter(
     polygon_name + "." + sub_polygon_name + ".theta_min", rclcpp::ParameterValue(theta_min));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + "." + sub_polygon_name + ".theta_min", theta_min));
 
   cm_->declare_parameter(
     polygon_name + "." + sub_polygon_name + ".theta_max", rclcpp::ParameterValue(theta_max));
+  cm_->set_parameter(
+    rclcpp::Parameter(polygon_name + "." + sub_polygon_name + ".theta_max", theta_max));
 }
 
 void Tester::addSource(
@@ -447,37 +479,59 @@ void Tester::addSource(
   if (type == SCAN) {
     cm_->declare_parameter(
       source_name + ".type", rclcpp::ParameterValue("scan"));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".type", "scan"));
   } else if (type == POINTCLOUD) {
     cm_->declare_parameter(
       source_name + ".type", rclcpp::ParameterValue("pointcloud"));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".type", "pointcloud"));
 
     cm_->declare_parameter(
       source_name + ".min_height", rclcpp::ParameterValue(0.1));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".min_height", 0.1));
     cm_->declare_parameter(
       source_name + ".max_height", rclcpp::ParameterValue(1.0));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".max_height", 1.0));
     cm_->declare_parameter(
       source_name + ".use_global_height", rclcpp::ParameterValue(false));
   } else if (type == RANGE) {
     cm_->declare_parameter(
       source_name + ".type", rclcpp::ParameterValue("range"));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".type", "range"));
 
     cm_->declare_parameter(
       source_name + ".obstacles_angle", rclcpp::ParameterValue(M_PI / 200));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".obstacles_angle", M_PI / 200));
   } else if (type == POLYGON_SOURCE) {
     cm_->declare_parameter(
       source_name + ".type", rclcpp::ParameterValue("polygon"));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".type", "polygon"));
 
     cm_->declare_parameter(
       source_name + ".sampling_distance", rclcpp::ParameterValue(0.1));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".sampling_distance", 0.1));
     cm_->declare_parameter(
       source_name + ".polygon_similarity_threshold", rclcpp::ParameterValue(2.0));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".polygon_similarity_threshold", 2.0));
   } else {  // type == SOURCE_UNKNOWN
     cm_->declare_parameter(
       source_name + ".type", rclcpp::ParameterValue("unknown"));
+    cm_->set_parameter(
+      rclcpp::Parameter(source_name + ".type", "unknown"));
   }
 
   cm_->declare_parameter(
     source_name + ".topic", rclcpp::ParameterValue(source_name));
+  cm_->set_parameter(
+    rclcpp::Parameter(source_name + ".topic", source_name));
 }
 
 void Tester::setVectors(
@@ -485,7 +539,10 @@ void Tester::setVectors(
   const std::vector<std::string> & sources)
 {
   cm_->declare_parameter("polygons", rclcpp::ParameterValue(polygons));
+  cm_->set_parameter(rclcpp::Parameter("polygons", polygons));
+
   cm_->declare_parameter("observation_sources", rclcpp::ParameterValue(sources));
+  cm_->set_parameter(rclcpp::Parameter("observation_sources", sources));
 }
 
 void Tester::setPolygonVelocityVectors(
@@ -493,23 +550,19 @@ void Tester::setPolygonVelocityVectors(
   const std::vector<std::string> & polygons)
 {
   cm_->declare_parameter(polygon_name + ".velocity_polygons", rclcpp::ParameterValue(polygons));
+  cm_->set_parameter(rclcpp::Parameter(polygon_name + ".velocity_polygons", polygons));
 }
 
 void Tester::setGlobalHeightParams(const std::string & source_name, const double min_height)
 {
-  cm_->declare_or_get_parameter(
-    source_name + ".use_global_height", true);
   cm_->set_parameter(rclcpp::Parameter(source_name + ".use_global_height", true));
-
-  cm_->declare_or_get_parameter(
-    source_name + ".min_height", min_height);
   cm_->set_parameter(rclcpp::Parameter(source_name + ".min_height", min_height));
 }
 
 void Tester::sendTransforms(const rclcpp::Time & stamp)
 {
-  nav2::TransformBroadcaster::SharedPtr tf_broadcaster =
-    nav2::create_transform_broadcaster(cm_);
+  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster =
+    std::make_shared<tf2_ros::TransformBroadcaster>(cm_);
 
   geometry_msgs::msg::TransformStamped transform;
   transform.transform.rotation.x = 0.0;
@@ -700,7 +753,6 @@ void Tester::publishCmdVel(const double x, const double y, const double tw)
   cmd_vel_out_ = nullptr;
   action_state_ = nullptr;
   collision_points_marker_msg_ = nullptr;
-  triggering_points_msg_ = nullptr;
 
   std::unique_ptr<geometry_msgs::msg::Twist> msg =
     std::make_unique<geometry_msgs::msg::Twist>();
@@ -722,7 +774,7 @@ bool Tester::waitData(
     if (cm_->correctDataReceived(expected_dist, stamp)) {
       return true;
     }
-    executor_->spin_some();
+    rclcpp::spin_some(cm_->get_node_base_interface());
     std::this_thread::sleep_for(10ms);
   }
   return false;
@@ -735,7 +787,7 @@ bool Tester::waitCmdVel(const std::chrono::nanoseconds & timeout)
     if (cmd_vel_out_) {
       return true;
     }
-    executor_->spin_some();
+    rclcpp::spin_some(cm_->get_node_base_interface());
     std::this_thread::sleep_for(10ms);
   }
   return false;
@@ -751,7 +803,7 @@ bool Tester::waitFuture(
     if (status == std::future_status::ready) {
       return true;
     }
-    executor_->spin_some();
+    rclcpp::spin_some(cm_->get_node_base_interface());
     std::this_thread::sleep_for(10ms);
   }
   return false;
@@ -767,7 +819,7 @@ bool Tester::waitToggle(
     if (status == std::future_status::ready) {
       return true;
     }
-    executor_->spin_some();
+    rclcpp::spin_some(cm_->get_node_base_interface());
     std::this_thread::sleep_for(10ms);
   }
   return false;
@@ -780,7 +832,7 @@ bool Tester::waitActionState(const std::chrono::nanoseconds & timeout)
     if (action_state_) {
       return true;
     }
-    executor_->spin_some();
+    rclcpp::spin_some(cm_->get_node_base_interface());
     std::this_thread::sleep_for(10ms);
   }
   return false;
@@ -793,43 +845,25 @@ bool Tester::waitCollisionPointsMarker(const std::chrono::nanoseconds & timeout)
     if (collision_points_marker_msg_) {
       return true;
     }
-    executor_->spin_some();
+    rclcpp::spin_some(cm_->get_node_base_interface());
     std::this_thread::sleep_for(10ms);
   }
   return false;
 }
 
-bool Tester::waitTriggeringPoints(const std::chrono::nanoseconds & timeout)
-{
-  rclcpp::Time start_time = cm_->now();
-  while (rclcpp::ok() && cm_->now() - start_time <= rclcpp::Duration(timeout)) {
-    if (triggering_points_msg_) {
-      return true;
-    }
-    executor_->spin_some();
-    std::this_thread::sleep_for(10ms);
-  }
-  return false;
-}
-
-void Tester::cmdVelOutCallback(geometry_msgs::msg::Twist::ConstSharedPtr msg)
+void Tester::cmdVelOutCallback(geometry_msgs::msg::Twist::SharedPtr msg)
 {
   cmd_vel_out_ = msg;
 }
 
-void Tester::actionStateCallback(nav2_msgs::msg::CollisionMonitorState::ConstSharedPtr msg)
+void Tester::actionStateCallback(nav2_msgs::msg::CollisionMonitorState::SharedPtr msg)
 {
   action_state_ = msg;
 }
 
-void Tester::collisionPointsMarkerCallback(visualization_msgs::msg::MarkerArray::ConstSharedPtr msg)
+void Tester::collisionPointsMarkerCallback(visualization_msgs::msg::MarkerArray::SharedPtr msg)
 {
   collision_points_marker_msg_ = msg;
-}
-
-void Tester::triggeringPointsCallback(visualization_msgs::msg::MarkerArray::ConstSharedPtr msg)
-{
-  triggering_points_msg_ = msg;
 }
 
 TEST_F(Tester, testToggleService)
@@ -840,30 +874,26 @@ TEST_F(Tester, testToggleService)
   addSource(SCAN_NAME, SCAN);
   setVectors({"Stop"}, {SCAN_NAME});
 
-  // Test the parameter in disabled state
-  cm_->set_parameter(rclcpp::Parameter("enabled", false));
-
   // Start collision monitor node
   cm_->start();
-  ASSERT_FALSE(cm_->isEnabled());
 
   auto request = std::make_shared<nav2_msgs::srv::Toggle::Request>();
-
-  // Enable test
-  request->enable = true;
-  {
-    auto result_future = toggle_client_->async_call(request);
-    ASSERT_TRUE(waitToggle(result_future, 2s));
-  }
-  ASSERT_TRUE(cm_->isEnabled());
 
   // Disable test
   request->enable = false;
   {
-    auto result_future = toggle_client_->async_call(request);
-    ASSERT_TRUE(waitToggle(result_future, 2s));
+    auto result_future = toggle_client_->async_send_request(request);
+    ASSERT_TRUE(waitToggle(result_future.share(), 2s));
   }
   ASSERT_FALSE(cm_->isEnabled());
+
+  // Enable test
+  request->enable = true;
+  {
+    auto result_future = toggle_client_->async_send_request(request);
+    ASSERT_TRUE(waitToggle(result_future.share(), 2s));
+  }
+  ASSERT_TRUE(cm_->isEnabled());
 
   // Stop the collision monitor
   cm_->stop();
@@ -976,7 +1006,6 @@ TEST_F(Tester, testPolygonSource)
   sendTransforms(curr_time);
 
   // 1. Obstacle is far away from robot
-  curr_time = cm_->now();
   publishPolygon(4.5, curr_time);
   ASSERT_TRUE(waitData(std::hypot(1.0, 4.5), 500ms, curr_time));
   publishCmdVel(0.5, 0.2, 0.1);
@@ -986,7 +1015,6 @@ TEST_F(Tester, testPolygonSource)
   ASSERT_NEAR(cmd_vel_out_->angular.z, 0.1, EPSILON);
 
   // 2. Obstacle is in limit robot zone
-  curr_time = cm_->now();
   publishPolygon(3.0, curr_time);
   EXPECT_TRUE(waitData(std::hypot(1.0, 3.0), 500ms, curr_time));
   publishCmdVel(0.5, 0.2, 0.1);
@@ -1003,7 +1031,6 @@ TEST_F(Tester, testPolygonSource)
   EXPECT_EQ(action_state_->polygon_name, "Limit");
 
   // 3. Obstacle is in slowdown robot zone
-  curr_time = cm_->now();
   publishPolygon(1.5, curr_time);
   EXPECT_TRUE(waitData(std::hypot(1.0, 1.5), 500ms, curr_time));
   publishCmdVel(0.5, 0.2, 0.1);
@@ -1029,7 +1056,6 @@ TEST_F(Tester, testPolygonSource)
   EXPECT_EQ(action_state_->polygon_name, "Stop");
 
   // 5. Restoring back normal operation
-  curr_time = cm_->now();
   publishPolygon(4.5, curr_time);
   ASSERT_TRUE(waitData(std::hypot(1.0, 4.5), 500ms, curr_time));
   publishCmdVel(0.5, 0.2, 0.1);
@@ -1321,7 +1347,7 @@ TEST_F(Tester, testSourceTimeoutOverride)
   // change_ratio = (1.5 m / 3.0 m/s) / TIME_BEFORE_COLLISION s
   double change_ratio = (1.5 / 3.0) / TIME_BEFORE_COLLISION;
   // Range configured but not published, range source should be considered invalid
-  // but as we set the source_timeout of the Range source to 0.0, its validity check is overridden
+  // but as we set the source_timeout of the Range source to 0.0, its validity check is overidden
   ASSERT_NEAR(
     cmd_vel_out_->linear.x, 3.0 * change_ratio, 3.0 * SIMULATION_TIME_STEP / TIME_BEFORE_COLLISION);
   ASSERT_NEAR(cmd_vel_out_->linear.y, 0.0, EPSILON);
@@ -1439,7 +1465,7 @@ TEST_F(Tester, testPolygonNotEnabled)
   parameter_msg->value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
   parameter_msg->value.bool_value = false;
   set_parameters_msg->parameters.push_back(*parameter_msg);
-  auto result_future = parameters_client_->async_call(set_parameters_msg);
+  auto result_future = parameters_client_->async_send_request(set_parameters_msg).future.share();
   ASSERT_TRUE(waitFuture(result_future, 2s));
 
   // Check that robot does not stop when polygon is disabled
@@ -1494,7 +1520,7 @@ TEST_F(Tester, testSourceNotEnabled)
   parameter_msg->value.type = rcl_interfaces::msg::ParameterType::PARAMETER_BOOL;
   parameter_msg->value.bool_value = false;
   set_parameters_msg->parameters.push_back(*parameter_msg);
-  auto result_future = parameters_client_->async_call(set_parameters_msg);
+  auto result_future = parameters_client_->async_send_request(set_parameters_msg).future.share();
   ASSERT_TRUE(waitFuture(result_future, 2s));
 
   // Check that robot does not stop when source is disabled
@@ -1577,6 +1603,7 @@ TEST_F(Tester, testSourcesNotSet)
   addPolygon("Stop", POLYGON, 1.0, "stop");
   addSource(SCAN_NAME, SCAN);
   cm_->declare_parameter("polygons", rclcpp::ParameterValue(std::vector<std::string>{"Stop"}));
+  cm_->set_parameter(rclcpp::Parameter("polygons", std::vector<std::string>{"Stop"}));
 
   // Check that Collision Monitor node can not be configured for this parameters set
   cm_->cant_configure();
@@ -1612,62 +1639,6 @@ TEST_F(Tester, testCollisionPointsMarkers)
   cm_->stop();
 }
 
-TEST_F(Tester, testTriggeringPointsMarkers)
-{
-  rclcpp::Time curr_time = cm_->now();
-
-  // Stop polygon of half-size 1.0 around base_link, single scan source.
-  setCommonParameters();
-  addPolygon("Stop", POLYGON, 1.0, "stop");
-  addSource(SCAN_NAME, SCAN);
-  setVectors({"Stop"}, {SCAN_NAME});
-
-  cm_->start();
-  sendTransforms(curr_time);
-
-  // No obstacle: triggering_points should contain only the DELETEALL clear marker.
-  publishCmdVel(0.5, 0.0, 0.0);
-  ASSERT_TRUE(waitTriggeringPoints(500ms));
-  ASSERT_EQ(triggering_points_msg_->markers.size(), 1u);
-  EXPECT_EQ(
-    triggering_points_msg_->markers[0].action,
-    visualization_msgs::msg::Marker::DELETEALL);
-
-  // Obstacle inside the Stop polygon: STOP action triggers, marker array must
-  // contain the clear marker plus one POINTS marker for the Scan source.
-  publishScan(0.5, curr_time);
-  ASSERT_TRUE(waitData(0.5, 500ms, curr_time));
-  publishCmdVel(0.5, 0.0, 0.0);
-  ASSERT_TRUE(waitTriggeringPoints(500ms));
-  ASSERT_TRUE(waitActionState(500ms));
-  ASSERT_EQ(action_state_->action_type, STOP);
-
-  ASSERT_EQ(triggering_points_msg_->markers.size(), 2u);
-  EXPECT_EQ(
-    triggering_points_msg_->markers[0].action,
-    visualization_msgs::msg::Marker::DELETEALL);
-
-  const auto & points_marker = triggering_points_msg_->markers[1];
-  EXPECT_EQ(points_marker.type, visualization_msgs::msg::Marker::POINTS);
-  EXPECT_EQ(points_marker.action, visualization_msgs::msg::Marker::ADD);
-  EXPECT_EQ(points_marker.ns, std::string("Stop/") + SCAN_NAME);
-  EXPECT_EQ(points_marker.header.frame_id, BASE_FRAME_ID);
-  EXPECT_TRUE(points_marker.frame_locked);
-  // STOP colour: red.
-  EXPECT_FLOAT_EQ(points_marker.color.r, 1.0f);
-  EXPECT_FLOAT_EQ(points_marker.color.g, 0.0f);
-  EXPECT_FLOAT_EQ(points_marker.color.b, 0.0f);
-  EXPECT_FLOAT_EQ(points_marker.color.a, 1.0f);
-
-  ASSERT_FALSE(points_marker.points.empty());
-  for (const auto & p : points_marker.points) {
-    EXPECT_LE(std::abs(p.x), 1.0 + EPSILON);
-    EXPECT_LE(std::abs(p.y), 1.0 + EPSILON);
-  }
-
-  cm_->stop();
-}
-
 TEST_F(Tester, testVelocityPolygonStop)
 {
   // Set Collision Monitor parameters.
@@ -1675,12 +1646,12 @@ TEST_F(Tester, testVelocityPolygonStop)
   // 1. Forward:  0 -> 0.5 m/s
   // 2. Backward: 0 -> -0.5 m/s
   setCommonParameters();
-  addPolygon("VelocityPolygon", VELOCITY_POLYGON, 1.0, "stop");
-  addPolygonVelocitySubPolygon("VelocityPolygon", "Forward", 0.0, 0.5, 0.0, 1.0, 4.0);
-  addPolygonVelocitySubPolygon("VelocityPolygon", "Backward", -0.5, 0.0, 0.0, 1.0, 2.0);
-  setPolygonVelocityVectors("VelocityPolygon", {"Forward", "Backward"});
+  addPolygon("VelocityPoylgon", VELOCITY_POLYGON, 1.0, "stop");
+  addPolygonVelocitySubPolygon("VelocityPoylgon", "Forward", 0.0, 0.5, 0.0, 1.0, 4.0);
+  addPolygonVelocitySubPolygon("VelocityPoylgon", "Backward", -0.5, 0.0, 0.0, 1.0, 2.0);
+  setPolygonVelocityVectors("VelocityPoylgon", {"Forward", "Backward"});
   addSource(POINTCLOUD_NAME, POINTCLOUD);
-  setVectors({"VelocityPolygon"}, {POINTCLOUD_NAME});
+  setVectors({"VelocityPoylgon"}, {POINTCLOUD_NAME});
 
   rclcpp::Time curr_time = cm_->now();
   // Start Collision Monitor node
@@ -1707,7 +1678,7 @@ TEST_F(Tester, testVelocityPolygonStop)
   ASSERT_NEAR(cmd_vel_out_->angular.z, 0.0, EPSILON);
   ASSERT_TRUE(waitActionState(500ms));
   ASSERT_EQ(action_state_->action_type, STOP);
-  ASSERT_EQ(action_state_->polygon_name, "VelocityPolygon");
+  ASSERT_EQ(action_state_->polygon_name, "VelocityPoylgon");
 
   // 3. Switch to Backward velocity polygon
   // Obstacle is far away from Backward velocity polygon
@@ -1730,7 +1701,7 @@ TEST_F(Tester, testVelocityPolygonStop)
   ASSERT_NEAR(cmd_vel_out_->angular.z, 0.0, EPSILON);
   ASSERT_TRUE(waitActionState(500ms));
   ASSERT_EQ(action_state_->action_type, STOP);
-  ASSERT_EQ(action_state_->polygon_name, "VelocityPolygon");
+  ASSERT_EQ(action_state_->polygon_name, "VelocityPoylgon");
 
   // Stop Collision Monitor node
   cm_->stop();

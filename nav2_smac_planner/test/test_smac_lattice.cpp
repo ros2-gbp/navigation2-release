@@ -18,16 +18,24 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "ament_index_cpp/get_package_share_directory.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/costmap_subscriber.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/a_star.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 #include "nav2_smac_planner/smac_planner_lattice.hpp"
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 // Simple wrapper to be able to call a private member
 class LatticeWrap : public nav2_smac_planner::SmacPlannerLattice
@@ -35,35 +43,7 @@ class LatticeWrap : public nav2_smac_planner::SmacPlannerLattice
 public:
   void callDynamicParams(std::vector<rclcpp::Parameter> parameters)
   {
-    auto result = validateParameterUpdatesCallback(parameters);
-    if (result.successful) {
-      updateParametersCallback(parameters);
-    }
-  }
-
-  int getCoarseSearchResolution()
-  {
-    return _coarse_search_resolution;
-  }
-
-  int getMaxIterations()
-  {
-    return _max_iterations;
-  }
-
-  int getMaxOnApproachIterations()
-  {
-    return _max_on_approach_iterations;
-  }
-
-  double getMaxPlanningTime()
-  {
-    return _max_planning_time;
-  }
-
-  nav2_smac_planner::GoalHeadingMode getGoalHeadingMode()
-  {
-    return _goal_heading_mode;
+    dynamicParametersCallback(parameters);
   }
 
   bool getAllowReverseExpansion()
@@ -88,131 +68,44 @@ public:
 
 TEST(SmacTest, test_smac_lattice)
 {
-  nav2::LifecycleNode::SharedPtr nodeLattice =
-    std::make_shared<nav2::LifecycleNode>("SmacLatticeTest");
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(nodeLattice->get_node_base_interface());
+  rclcpp_lifecycle::LifecycleNode::SharedPtr nodeLattice =
+    std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacLatticeTest");
   nodeLattice->declare_parameter("test.debug_visualizations", rclcpp::ParameterValue(true));
 
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
     std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
   costmap_ros->on_configure(rclcpp_lifecycle::State());
 
-  geometry_msgs::msg::PoseArray::ConstSharedPtr received_expansions;
-  nav_msgs::msg::Path::ConstSharedPtr received_unsmoothed_plan;
-  bool expansions_received = false;
-  bool unsmoothed_plan_received = false;
-
-  auto expansions_sub = nodeLattice->create_subscription<geometry_msgs::msg::PoseArray>(
-    "expansions",
-    [&](const geometry_msgs::msg::PoseArray::ConstSharedPtr msg) {
-      received_expansions = msg;
-      expansions_received = true;
-    });
-
-  auto unsmoothed_plan_sub = nodeLattice->create_subscription<nav_msgs::msg::Path>(
-    "unsmoothed_plan",
-    [&](const nav_msgs::msg::Path::ConstSharedPtr msg) {
-      unsmoothed_plan_received = true;
-      received_unsmoothed_plan = msg;
-    });
-
   auto dummy_cancel_checker = []() {
       return false;
     };
 
-  std::vector<geometry_msgs::msg::PoseStamped> no_viapoints{};
-  geometry_msgs::msg::PoseStamped start, goal, viapoint;
+  geometry_msgs::msg::PoseStamped start, goal;
   start.pose.position.x = 0.0;
   start.pose.position.y = 0.0;
   start.pose.orientation.w = 1.0;
   goal.pose.position.x = 1.0;
   goal.pose.position.y = 1.0;
   goal.pose.orientation.w = 1.0;
-  viapoint.pose.position.x = 0.5;
-  viapoint.pose.position.y = 0.5;
-  viapoint.pose.orientation.w = 1.0;
-  std::vector<geometry_msgs::msg::PoseStamped> viapoints{viapoint};
-  auto planner = std::make_unique<LatticeWrap>();
+  auto planner = std::make_unique<nav2_smac_planner::SmacPlannerLattice>();
   try {
-    // invalid goal heading mode
-    nodeLattice->declare_parameter("test.goal_heading_mode", std::string("UNKNOWN"));
-    nodeLattice->set_parameter(rclcpp::Parameter("test.goal_heading_mode", std::string("UNKNOWN")));
-    EXPECT_THROW(planner->configure(nodeLattice, "test", nullptr, costmap_ros), std::runtime_error);
-    nodeLattice->set_parameter(rclcpp::Parameter("test.goal_heading_mode", std::string("DEFAULT")));
-
-    // invalid Configuration resolution
-    nodeLattice->set_parameter(rclcpp::Parameter("test.coarse_search_resolution", -1));
-    nodeLattice->set_parameter(rclcpp::Parameter("test.max_iterations", -1));
-    nodeLattice->set_parameter(rclcpp::Parameter("test.max_on_approach_iterations", -1));
-
-    EXPECT_NO_THROW(planner->configure(nodeLattice, "test", nullptr, costmap_ros));
-    EXPECT_EQ(planner->getCoarseSearchResolution(), 1);
-    EXPECT_EQ(planner->getMaxIterations(), std::numeric_limits<int>::max());
-    EXPECT_EQ(planner->getMaxOnApproachIterations(), std::numeric_limits<int>::max());
-
-
-    // Valid configuration
-    nodeLattice->set_parameter(rclcpp::Parameter("test.max_iterations", 1000000));
-    nodeLattice->set_parameter(rclcpp::Parameter("test.max_on_approach_iterations", 1000));
-
-    // Coarse search resolution will throw, not multiple of number of heading(16 default)
-    nodeLattice->set_parameter(rclcpp::Parameter("test.coarse_search_resolution", 3));
-    EXPECT_THROW(planner->configure(nodeLattice, "test", nullptr, costmap_ros), std::runtime_error);
-
-    // Valid configuration
-    nodeLattice->set_parameter(rclcpp::Parameter("test.coarse_search_resolution", 4));
     // Expect to throw due to invalid prims file in param
     planner->configure(nodeLattice, "test", nullptr, costmap_ros);
-    EXPECT_EQ(planner->getCoarseSearchResolution(), 4);
   } catch (...) {
   }
   planner->activate();
 
   try {
-    planner->createPlan(start, goal, viapoints, dummy_cancel_checker);
+    planner->createPlan(start, goal, dummy_cancel_checker);
   } catch (...) {
   }
-
-  executor.spin_all(std::chrono::milliseconds(50));
-  EXPECT_EQ(expansions_received, true);
-  EXPECT_FALSE(received_expansions->poses.empty());
-  EXPECT_EQ(received_expansions->header.frame_id, "map");
-  for (const auto & pose : received_expansions->poses) {
-    EXPECT_FALSE(std::isnan(pose.position.x));
-    EXPECT_FALSE(std::isnan(pose.position.y));
-    EXPECT_FALSE(std::isnan(pose.orientation.w));
-  }
-  EXPECT_EQ(unsmoothed_plan_received, true);
-  EXPECT_FALSE(received_unsmoothed_plan->poses.empty());
-  EXPECT_EQ(received_unsmoothed_plan->header.frame_id, "map");
-  for (const auto & pose_stamped : received_unsmoothed_plan->poses) {
-    EXPECT_FALSE(std::isnan(pose_stamped.pose.position.x));
-    EXPECT_FALSE(std::isnan(pose_stamped.pose.position.y));
-    EXPECT_FALSE(std::isnan(pose_stamped.pose.orientation.w));
-  }
-
 
   // corner case where the start and goal are on the same cell
   goal.pose.position.x = 0.01;
   goal.pose.position.y = 0.01;
 
-  nav_msgs::msg::Path plan = planner->createPlan(start, goal, no_viapoints, dummy_cancel_checker);
+  nav_msgs::msg::Path plan = planner->createPlan(start, goal, dummy_cancel_checker);
   EXPECT_EQ(plan.poses.size(), 1);  // single point path
-
-  auto rec_param = std::make_shared<rclcpp::AsyncParametersClient>(
-    nodeLattice->get_node_base_interface(), nodeLattice->get_node_topics_interface(),
-    nodeLattice->get_node_graph_interface(),
-    nodeLattice->get_node_services_interface());
-
-  auto results = rec_param->set_parameters_atomically(
-    {rclcpp::Parameter("test.max_iterations", 1),
-      rclcpp::Parameter("test.analytic_expansion_max_length", 1.0)});
-  executor.spin_until_future_complete(results);
-  goal.pose.position.x = 4.0;
-  goal.pose.position.y = 4.0;
-  EXPECT_THROW(planner->createPlan(
-    start, goal, no_viapoints, dummy_cancel_checker), std::runtime_error);
 
   planner->deactivate();
   planner->cleanup();
@@ -225,8 +118,8 @@ TEST(SmacTest, test_smac_lattice)
 
 TEST(SmacTest, test_smac_lattice_reconfigure)
 {
-  nav2::LifecycleNode::SharedPtr nodeLattice =
-    std::make_shared<nav2::LifecycleNode>("SmacLatticeTest");
+  rclcpp_lifecycle::LifecycleNode::SharedPtr nodeLattice =
+    std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacLatticeTest");
 
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
     std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
@@ -274,67 +167,24 @@ TEST(SmacTest, test_smac_lattice_reconfigure)
       results);
   } catch (...) {
   }
-  // test edge cases Goal heading mode, make sure we don't reset the goal when invalid
+
+  // So instead, lets call manually on a change
   std::vector<rclcpp::Parameter> parameters;
-  parameters.push_back(rclcpp::Parameter("test.goal_heading_mode", std::string("BIDIRECTIONAL")));
-  EXPECT_NO_THROW(planner->callDynamicParams(parameters));
-  EXPECT_EQ(planner->getGoalHeadingMode(), nav2_smac_planner::GoalHeadingMode::BIDIRECTIONAL);
-
-  parameters.push_back(rclcpp::Parameter("test.goal_heading_mode", std::string("invalid")));
-  EXPECT_NO_THROW(planner->callDynamicParams(parameters));
-  EXPECT_EQ(planner->getGoalHeadingMode(), nav2_smac_planner::GoalHeadingMode::BIDIRECTIONAL);
-
-  // test invalid max planning time
-  parameters.clear();
-  parameters.push_back(rclcpp::Parameter("test.max_planning_time", -1.0));
-  EXPECT_NO_THROW(planner->callDynamicParams(parameters));
-  EXPECT_EQ(planner->getMaxPlanningTime(), 10.0);
-
-  // test coarse resolution edge cases.
-  // Negative coarse search resolution
-  parameters.clear();
-  parameters.push_back(rclcpp::Parameter("test.coarse_search_resolution", -1));
-  EXPECT_NO_THROW(planner->callDynamicParams(parameters));
-  EXPECT_EQ(planner->getCoarseSearchResolution(), 1);
-
-  // test value when coarse resolution
-  // is not multiple number_of_headings
-  parameters.clear();
-  parameters.push_back(rclcpp::Parameter("test.coarse_search_resolution", 5));
-  EXPECT_NO_THROW(planner->callDynamicParams(parameters));
-  EXPECT_EQ(planner->getCoarseSearchResolution(), 1);
-
-  // Similar modulous test but when the issue is from the  number
-  // of heading, test output includes number of heading 15
-  parameters.clear();
-
-  parameters.push_back(rclcpp::Parameter("test.coarse_search_resolution", 4));
-  parameters.push_back(
-    rclcpp::Parameter(
-      "test.lattice_filepath",
-      nav2::get_package_share_directory("nav2_smac_planner") +
-      "/sample_primitives/test/output.json"));
-  EXPECT_NO_THROW(planner->callDynamicParams(parameters));
-  EXPECT_EQ(planner->getCoarseSearchResolution(), 4);
-
-
-  // So instead, let's call manually on a change
-  parameters.clear();
   parameters.push_back(rclcpp::Parameter("test.lattice_filepath", std::string("HI")));
   EXPECT_THROW(planner->callDynamicParams(parameters), std::runtime_error);
 }
 
 TEST(SmacTest, test_smac_lattice_omni_configure)
 {
-  nav2::LifecycleNode::SharedPtr nodeLattice =
-    std::make_shared<nav2::LifecycleNode>("SmacLatticeOmniTest");
+  rclcpp_lifecycle::LifecycleNode::SharedPtr nodeLattice =
+    std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacLatticeOmniTest");
 
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
     std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
   costmap_ros->on_configure(rclcpp_lifecycle::State());
 
   std::string omni_filepath =
-    nav2::get_package_share_directory("nav2_smac_planner") +
+    ament_index_cpp::get_package_share_directory("nav2_smac_planner") +
     "/sample_primitives/5cm_resolution/0.5m_turning_radius/omni/output.json";
 
   nodeLattice->declare_parameter("test_omni.lattice_filepath", omni_filepath);
@@ -359,8 +209,8 @@ TEST(SmacTest, test_smac_lattice_omni_configure)
 
 TEST(SmacTest, test_smac_lattice_omni_reconfigure)
 {
-  nav2::LifecycleNode::SharedPtr nodeLattice =
-    std::make_shared<nav2::LifecycleNode>("SmacLatticeOmniReconfigTest");
+  rclcpp_lifecycle::LifecycleNode::SharedPtr nodeLattice =
+    std::make_shared<rclcpp_lifecycle::LifecycleNode>("SmacLatticeOmniReconfigTest");
 
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
     std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
@@ -374,7 +224,7 @@ TEST(SmacTest, test_smac_lattice_omni_reconfigure)
   planner->activate();
 
   std::string omni_filepath =
-    nav2::get_package_share_directory("nav2_smac_planner") +
+    ament_index_cpp::get_package_share_directory("nav2_smac_planner") +
     "/sample_primitives/5cm_resolution/0.5m_turning_radius/omni/output.json";
 
   // Reconfigure to OMNI with reverse expansion enabled
@@ -396,17 +246,4 @@ TEST(SmacTest, test_smac_lattice_omni_reconfigure)
   costmap_ros->on_cleanup(rclcpp_lifecycle::State());
   costmap_ros.reset();
   nodeLattice.reset();
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

@@ -15,13 +15,14 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import LifecycleNode
+from launch_ros.actions import Node
 
 
-def generate_launch_description() -> LaunchDescription:
+def generate_launch_description():
     bringup_dir = get_package_share_directory('nav2_bringup')
     params_file = LaunchConfiguration('params_file')
     declare_params_file_cmd = DeclareLaunchArgument(
@@ -36,15 +37,12 @@ def generate_launch_description() -> LaunchDescription:
         default_value='base_scan',
     )
 
-    loopback_sim_cmd = LifecycleNode(
+    loopback_sim_cmd = Node(
         package='nav2_loopback_sim',
         executable='loopback_simulator',
         name='loopback_simulator',
-        namespace='',
         output='screen',
-        autostart=True,
-        parameters=[params_file, {'scan_frame_id': scan_frame_id,
-                                  'use_sim_time': True}],
+        parameters=[params_file, {'scan_frame_id': scan_frame_id}],
     )
 
     ld = LaunchDescription()

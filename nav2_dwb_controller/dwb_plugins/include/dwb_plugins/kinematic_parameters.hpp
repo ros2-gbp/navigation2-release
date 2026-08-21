@@ -39,8 +39,8 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <stdexcept>
-#include "nav2_ros_common/lifecycle_node.hpp"
+
+#include "nav2_util/lifecycle_node.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 namespace dwb_plugins
@@ -141,49 +141,26 @@ class KinematicsHandler
 public:
   KinematicsHandler();
   ~KinematicsHandler();
-  void initialize(const nav2::LifecycleNode::SharedPtr & nh, const std::string & plugin_name);
-  void activate();
-  void deactivate();
+  void initialize(const nav2_util::LifecycleNode::SharedPtr & nh, const std::string & plugin_name);
 
-  inline KinematicParameters getKinematics()
-  {
-    KinematicParameters * ptr = kinematics_.load();
-    if (ptr == nullptr) {
-      throw std::runtime_error("Can't call KinematicsHandler::getKinematics().");
-    }
-    return *ptr;
-  }
+  inline KinematicParameters getKinematics() {return *kinematics_.load();}
 
   void setSpeedLimit(const double & speed_limit, const bool & percentage);
 
   using Ptr = std::shared_ptr<KinematicsHandler>;
 
 protected:
-  nav2::LifecycleNode::WeakPtr node_;
-  rclcpp::Logger logger_{rclcpp::get_logger("DWBController")};
+  nav2_util::LifecycleNode::WeakPtr node_;
   std::atomic<KinematicParameters *> kinematics_;
 
   // Dynamic parameters handler
-  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
   /**
-   * @brief Validate incoming parameter updates before applying them.
-   * This callback is triggered when one or more parameters are about to be updated.
-   * It checks the validity of parameter values and rejects updates that would lead
-   * to invalid or inconsistent configurations
-   * @param parameters List of parameters that are being updated.
-   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
+   * @brief Callback executed when a paramter change is detected
+   * @param parameters list of changed parameters
    */
-  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
-    const std::vector<rclcpp::Parameter> & parameters);
-
-  /**
-   * @brief Apply parameter updates after validation
-   * This callback is executed when parameters have been successfully updated.
-   * It updates the internal configuration of the node with the new parameter values.
-   * @param parameters List of parameters that have been updated.
-   */
-  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
+  rcl_interfaces::msg::SetParametersResult dynamicParametersCallback(
+    std::vector<rclcpp::Parameter> parameters);
   void update_kinematics(KinematicParameters kinematics);
   std::string plugin_name_;
 };

@@ -27,18 +27,27 @@ namespace nav2_costmap_2d
 void
 DenoiseLayer::onInitialize()
 {
+  // Enable/disable plugin
+  declareParameter("enabled", rclcpp::ParameterValue(true));
+  // Smaller groups should be filtered
+  declareParameter("minimal_group_size", rclcpp::ParameterValue(2));
+  // Pixels connectivity type
+  declareParameter("group_connectivity_type", rclcpp::ParameterValue(8));
+
   const auto node = node_.lock();
 
   if (!node) {
     throw std::runtime_error("DenoiseLayer::onInitialize: Failed to lock node");
   }
-  enabled_ = node->declare_or_get_parameter(name_ + "." + "enabled", true);
-  // Smaller groups should be filtered
-  const int minimal_group_size_param = node->declare_or_get_parameter(
-    name_ + "." + "minimal_group_size", 2);
-  // Pixels connectivity type
-  const int group_connectivity_type_param = node->declare_or_get_parameter(
-    name_ + "." + "group_connectivity_type", 8);
+  node->get_parameter(name_ + "." + "enabled", enabled_);
+
+  auto getInt = [&](const std::string & parameter_name) {
+      int param{};
+      node->get_parameter(name_ + "." + parameter_name, param);
+      return param;
+    };
+
+  const int minimal_group_size_param = getInt("minimal_group_size");
 
   if (minimal_group_size_param <= 1) {
     RCLCPP_WARN(
@@ -50,6 +59,8 @@ DenoiseLayer::onInitialize()
   } else {
     minimal_group_size_ = static_cast<size_t>(minimal_group_size_param);
   }
+
+  const int group_connectivity_type_param = getInt("group_connectivity_type");
 
   if (group_connectivity_type_param == 4) {
     group_connectivity_type_ = ConnectivityType::Way4;
@@ -66,13 +77,13 @@ DenoiseLayer::onInitialize()
     }
   }
 
-  setCurrent(true);
+  current_ = true;
 }
 
 void
 DenoiseLayer::reset()
 {
-  setCurrent(false);
+  current_ = false;
 }
 
 bool
@@ -114,7 +125,7 @@ DenoiseLayer::updateCosts(
     RCLCPP_ERROR(logger_, "%s", (std::string("Inner error: ") + ex.what()).c_str());
   }
 
-  setCurrent(true);
+  current_ = true;
 }
 
 void

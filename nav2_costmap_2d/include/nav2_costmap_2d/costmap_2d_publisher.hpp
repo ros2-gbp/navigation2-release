@@ -50,11 +50,10 @@
 #include "nav2_msgs/msg/costmap.hpp"
 #include "nav2_msgs/msg/costmap_update.hpp"
 #include "nav2_msgs/srv/get_costmap.hpp"
-#include "tf2/transform_datatypes.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "tf2/LinearMath/Quaternion.hpp"
+#include "tf2/transform_datatypes.h"
+#include "nav2_util/lifecycle_node.hpp"
+#include "tf2/LinearMath/Quaternion.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "nav2_ros_common/service_server.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -69,7 +68,7 @@ public:
    * @brief  Constructor for the Costmap2DPublisher
    */
   Costmap2DPublisher(
-    const nav2::LifecycleNode::WeakPtr & parent,
+    const nav2_util::LifecycleNode::WeakPtr & parent,
     Costmap2D * costmap,
     std::string global_frame,
     std::string topic_name,
@@ -166,18 +165,17 @@ private:
   double map_vis_z_{0.0};
 
   // Publisher for translated costmap values as msg::OccupancyGrid used in visualization
-  nav2::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_pub_;
-  nav2::Publisher<map_msgs::msg::OccupancyGridUpdate>::SharedPtr
+  rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::OccupancyGrid>::SharedPtr costmap_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<map_msgs::msg::OccupancyGridUpdate>::SharedPtr
     costmap_update_pub_;
 
   // Publisher for raw costmap values as msg::Costmap from layered costmap
-  nav2::Publisher<nav2_msgs::msg::Costmap>::SharedPtr costmap_raw_pub_;
-  nav2::Publisher<nav2_msgs::msg::CostmapUpdate>::SharedPtr
+  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::Costmap>::SharedPtr costmap_raw_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::CostmapUpdate>::SharedPtr
     costmap_raw_update_pub_;
 
   // Service for getting the costmaps
-  nav2::ServiceServer<nav2_msgs::srv::GetCostmap>::SharedPtr
-    costmap_service_;
+  rclcpp::Service<nav2_msgs::srv::GetCostmap>::SharedPtr costmap_service_;
 
   float grid_resolution_{0.0};
   unsigned int grid_width_{0};

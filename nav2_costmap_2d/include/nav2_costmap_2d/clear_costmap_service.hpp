@@ -18,7 +18,6 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <functional>
 
 #include "rclcpp/rclcpp.hpp"
 #include "nav2_msgs/srv/clear_costmap_except_region.hpp"
@@ -26,8 +25,7 @@
 #include "nav2_msgs/srv/clear_costmap_around_pose.hpp"
 #include "nav2_msgs/srv/clear_entire_costmap.hpp"
 #include "nav2_costmap_2d/costmap_layer.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/service_server.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -44,8 +42,7 @@ public:
   /**
    * @brief A constructor
    */
-  ClearCostmapService(
-    const nav2::LifecycleNode::WeakPtr & parent, Costmap2DROS & costmap);
+  ClearCostmapService(const nav2_util::LifecycleNode::WeakPtr & parent, Costmap2DROS & costmap);
 
   /**
    * @brief A constructor
@@ -59,23 +56,18 @@ public:
 
   /**
    * @brief Clears the region outside of a user-specified area reverting to the static map
-   * @return true if the requested plugins were successfully cleared, false otherwise
    */
-  bool clearRegion(double reset_distance, bool invert, const std::vector<std::string> & plugins);
+  void clearRegion(double reset_distance, bool invert);
 
   /**
    * @brief Clears the region around a specific pose
-   * @return true if the requested plugins were successfully cleared, false otherwise
    */
-  bool clearAroundPose(
-    const geometry_msgs::msg::PoseStamped & pose, double reset_distance,
-    const std::vector<std::string> & plugins);
+  void clearAroundPose(const geometry_msgs::msg::PoseStamped & pose, double reset_distance);
 
   /**
-   * @brief Clears the entire layer
-   * @return true if the requested plugins were successfully cleared, false otherwise
+   * @brief Clears all layers
    */
-  bool clearEntirely(const std::vector<std::string> & plugins);
+  void clearEntirely();
 
 private:
   // The Logger object for logging
@@ -88,8 +80,7 @@ private:
   unsigned char reset_value_;
 
   // Server for clearing the costmap
-  nav2::ServiceServer<nav2_msgs::srv::ClearCostmapExceptRegion>::SharedPtr
-    clear_except_service_;
+  rclcpp::Service<nav2_msgs::srv::ClearCostmapExceptRegion>::SharedPtr clear_except_service_;
   /**
    * @brief Callback to clear costmap except in a given region
    */
@@ -98,8 +89,7 @@ private:
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapExceptRegion::Request> request,
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapExceptRegion::Response> response);
 
-  nav2::ServiceServer<nav2_msgs::srv::ClearCostmapAroundRobot>::SharedPtr
-    clear_around_service_;
+  rclcpp::Service<nav2_msgs::srv::ClearCostmapAroundRobot>::SharedPtr clear_around_service_;
   /**
    * @brief Callback to clear costmap in a given region
    */
@@ -108,7 +98,7 @@ private:
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundRobot::Request> request,
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundRobot::Response> response);
 
-  nav2::ServiceServer<nav2_msgs::srv::ClearCostmapAroundPose>::SharedPtr
+  rclcpp::Service<nav2_msgs::srv::ClearCostmapAroundPose>::SharedPtr
     clear_around_pose_service_;
   /**
    * @brief Callback to clear costmap around a given pose
@@ -118,8 +108,7 @@ private:
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundPose::Request> request,
     const std::shared_ptr<nav2_msgs::srv::ClearCostmapAroundPose::Response> response);
 
-  nav2::ServiceServer<nav2_msgs::srv::ClearEntireCostmap>::SharedPtr
-    clear_entire_service_;
+  rclcpp::Service<nav2_msgs::srv::ClearEntireCostmap>::SharedPtr clear_entire_service_;
   /**
    * @brief Callback to clear costmap
    */
@@ -139,33 +128,6 @@ private:
    * @brief Get the robot's position in the costmap using the master costmap
    */
   bool getPosition(double & x, double & y) const;
-
-  /**
-   * @brief Checks if the requested plugins are clearable and exist in the costmap layers
-   * @param requested_plugins List of plugin names to validate
-   * @param layers Pointer to all available plugins
-   * @param invalid_plugins Output: list of invalid plugins with reasons
-   */
-  void validatePlugins(
-    const std::vector<std::string> & requested_plugins,
-    const std::vector<std::shared_ptr<Layer>> * layers,
-    std::vector<std::string> & invalid_plugins) const;
-
-  /**
-   * @brief Checks if the requested plugins are valid.
-   * If valid, clears the requested plugins using the provided callback.
-   * If not valid, logs warnings for the invalid plugins and does not clear any plugins.
-   * @param plugins List of plugin names to clear
-   * @param layers Pointer to all available plugins
-   * @param clear_callback Clearing function to call if requested plugins are valid
-   * @param operation_name Name of the operation for logging (e.g. "clearAroundPose")
-   * @return true if all requested plugins were valid and cleared, false otherwise
-   */
-  bool validateAndClearPlugins(
-    const std::vector<std::string> & plugins,
-    const std::vector<std::shared_ptr<Layer>> * layers,
-    std::function<void(std::shared_ptr<CostmapLayer> &)> clear_callback,
-    const std::string & operation_name) const;
 };
 
 }  // namespace nav2_costmap_2d

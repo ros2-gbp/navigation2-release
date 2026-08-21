@@ -23,7 +23,7 @@ namespace nav2_rviz_plugins
 Selector::Selector(QWidget * parent)
 : Panel(parent)
 {
-  client_node_ = std::make_shared<rclcpp::Node>("nav2_rviz_selector_node");  //  nosemgrep
+  client_node_ = std::make_shared<rclcpp::Node>("nav2_rviz_selector_node");
   rclcpp::QoS qos(rclcpp::KeepLast(1));
   qos.transient_local().reliable();
 
@@ -35,8 +35,6 @@ Selector::Selector(QWidget * parent)
   pub_smoother_ = client_node_->create_publisher<std_msgs::msg::String>("smoother_selector", qos);
   pub_progress_checker_ =
     client_node_->create_publisher<std_msgs::msg::String>("progress_checker_selector", qos);
-  pub_path_handler_ =
-    client_node_->create_publisher<std_msgs::msg::String>("path_handler_selector", qos);
 
   main_layout_ = new QVBoxLayout;
   row_1_label_layout_ = new QHBoxLayout;
@@ -50,7 +48,6 @@ Selector::Selector(QWidget * parent)
   goal_checker_ = new QComboBox;
   smoother_ = new QComboBox;
   progress_checker_ = new QComboBox;
-  path_handler_ = new QComboBox;
 
   main_layout_->setContentsMargins(10, 10, 10, 10);
 
@@ -64,8 +61,6 @@ Selector::Selector(QWidget * parent)
   row_2_layout_->addWidget(smoother_);
   row_3_label_layout_->addWidget(new QLabel("Progress Checker"));
   row_3_layout_->addWidget(progress_checker_);
-  row_3_label_layout_->addWidget(new QLabel("Path Handler"));
-  row_3_layout_->addWidget(path_handler_);
 
   main_layout_->addLayout(row_1_label_layout_);
   main_layout_->addLayout(row_1_layout_);
@@ -96,23 +91,15 @@ Selector::Selector(QWidget * parent)
   connect(
     progress_checker_, QOverload<int>::of(&QComboBox::activated), this,
     &Selector::setProgressChecker);
-
-  connect(
-    path_handler_, QOverload<int>::of(&QComboBox::activated), this,
-    &Selector::setPathHandler);
 }
 
 Selector::~Selector()
 {
-  if (load_plugins_thread_.joinable()) {
-    load_plugins_thread_.join();
-  }
 }
 
 // Publish the selected controller or planner
 void Selector::setSelection(
-  QComboBox * combo_box,
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher)  //  nosemgrep
+  QComboBox * combo_box, rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher)
 {
   // If "default" option is selected, it gets removed and the next item is selected
   if (combo_box->findText("Default") != -1) {
@@ -124,10 +111,10 @@ void Selector::setSelection(
     return;
   }
 
-  auto msg = std::make_unique<std_msgs::msg::String>();
-  msg->data = combo_box->currentText().toStdString();
+  std_msgs::msg::String msg;
+  msg.data = combo_box->currentText().toStdString();
 
-  publisher->publish(std::move(msg));
+  publisher->publish(msg);
 }
 
 // Call setSelection() for controller
@@ -159,48 +146,38 @@ void Selector::setProgressChecker()
   setSelection(progress_checker_, pub_progress_checker_);
 }
 
-void Selector::setPathHandler()
-{
-  setSelection(path_handler_, pub_path_handler_);
-}
-
 void
 Selector::loadPlugins()
 {
-  load_plugins_thread_ = std::thread(
-    [this]() {
-      rclcpp::Rate rate(0.2);
-      while (rclcpp::ok() && !plugins_loaded_) {
-        RCLCPP_INFO(client_node_->get_logger(), "Trying to load plugins...");
-        nav2_rviz_plugins::pluginLoader(
-          client_node_, server_failed_, "controller_server", "controller_plugins", controller_);
-        nav2_rviz_plugins::pluginLoader(
-          client_node_, server_failed_, "planner_server", "planner_plugins", planner_);
-        nav2_rviz_plugins::pluginLoader(
-          client_node_, server_failed_, "controller_server", "goal_checker_plugins",
-          goal_checker_);
-        nav2_rviz_plugins::pluginLoader(
-          client_node_, server_failed_, "smoother_server", "smoother_plugins", smoother_);
-        nav2_rviz_plugins::pluginLoader(
-          client_node_, server_failed_, "controller_server", "progress_checker_plugins",
-          progress_checker_);
-        nav2_rviz_plugins::pluginLoader(
-          client_node_, server_failed_, "controller_server", "path_handler_plugins",
-          path_handler_);
-        if (controller_->count() > 0 &&
-        planner_->count() > 0 &&
-        goal_checker_->count() > 0 &&
-        smoother_->count() > 0 &&
-        progress_checker_->count() > 0 &&
-        path_handler_->count() > 0)
-        {
-          plugins_loaded_ = true;
-        } else {
-          RCLCPP_INFO(client_node_->get_logger(), "Failed to load plugins. Retrying...");
+  load_plugins_thread_ = std::thread([this]() {
+        rclcpp::Rate rate(0.2);
+        while (rclcpp::ok() && !plugins_loaded_) {
+          RCLCPP_INFO(client_node_->get_logger(), "Trying to load plugins...");
+          nav2_rviz_plugins::pluginLoader(
+            client_node_, server_failed_, "controller_server", "controller_plugins", controller_);
+          nav2_rviz_plugins::pluginLoader(
+            client_node_, server_failed_, "planner_server", "planner_plugins", planner_);
+          nav2_rviz_plugins::pluginLoader(
+            client_node_, server_failed_, "controller_server", "goal_checker_plugins",
+            goal_checker_);
+          nav2_rviz_plugins::pluginLoader(
+            client_node_, server_failed_, "smoother_server", "smoother_plugins", smoother_);
+          nav2_rviz_plugins::pluginLoader(
+            client_node_, server_failed_, "controller_server", "progress_checker_plugins",
+            progress_checker_);
+          if (controller_->count() > 0 &&
+          planner_->count() > 0 &&
+          goal_checker_->count() > 0 &&
+          smoother_->count() > 0 &&
+          progress_checker_->count() > 0)
+          {
+            plugins_loaded_ = true;
+          } else {
+            RCLCPP_INFO(client_node_->get_logger(), "Failed to load plugins. Retrying...");
+          }
+          rate.sleep();
         }
-        rate.sleep();
-      }
-    });
+  });
 }
 
 }  // namespace nav2_rviz_plugins

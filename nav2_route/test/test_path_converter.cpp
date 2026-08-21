@@ -19,20 +19,27 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_route/path_converter.hpp"
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route;  // NOLINT
 
 TEST(PathConverterTest, test_path_converter_api)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("edge_scorer_test");
-  auto node_thread = std::make_unique<nav2::NodeThread>(node);
+  auto node = std::make_shared<nav2_util::LifecycleNode>("edge_scorer_test");
+  auto node_thread = std::make_unique<nav2_util::NodeThread>(node);
 
   nav_msgs::msg::Path path_msg;
   auto sub = node->create_subscription<nav_msgs::msg::Path>(
-    "plan", [&](nav_msgs::msg::Path msg) {path_msg = msg;});
+    "plan", rclcpp::QoS(10), [&, this](nav_msgs::msg::Path msg) {path_msg = msg;});
 
   PathConverter converter;
   converter.configure(node);
@@ -86,7 +93,7 @@ TEST(PathConverterTest, test_path_converter_api)
 
 TEST(PathConverterTest, test_path_single_pt_path)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("edge_scorer_test");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("edge_scorer_test");
   PathConverter converter;
   converter.configure(node);
 
@@ -110,7 +117,7 @@ TEST(PathConverterTest, test_path_single_pt_path)
 
 TEST(PathConverterTest, test_prev_info_path)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("edge_scorer_test");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("edge_scorer_test");
   PathConverter converter;
   converter.configure(node);
 
@@ -139,7 +146,7 @@ TEST(PathConverterTest, test_prev_info_path)
 
 TEST(PathConverterTest, test_path_converter_interpolation)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("edge_scorer_test");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("edge_scorer_test");
   PathConverter converter;
   converter.configure(node);
 
@@ -159,7 +166,7 @@ TEST(PathConverterTest, test_path_converter_interpolation)
 
 TEST(PathConverterTest, test_path_converter_zero_length_edge)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("edge_scorer_test");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("edge_scorer_test");
   PathConverter converter;
   converter.configure(node);
 
@@ -167,13 +174,4 @@ TEST(PathConverterTest, test_path_converter_zero_length_edge)
   std::vector<geometry_msgs::msg::PoseStamped> poses;
   converter.interpolateEdge(x0, y0, x1, y1, poses);
   ASSERT_TRUE(poses.empty());
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-  rclcpp::init(argc, argv);
-  int result = RUN_ALL_TESTS();
-  rclcpp::shutdown();
-  return result;
 }

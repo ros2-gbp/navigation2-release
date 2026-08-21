@@ -13,15 +13,10 @@
 # limitations under the License. Reserved.
 
 from dataclasses import dataclass
-from typing import Any, Union
 
-from nav2_smac_planner.lattice_primitives.helper import angle_difference, normalize_angle
+from helper import angle_difference, normalize_angle
+
 import numpy as np
-from numpy.typing import NDArray
-
-AnyFloat = np.floating[Any]
-TrajectoryFloat = Union[float, AnyFloat]
-FloatNDArray = NDArray[AnyFloat]
 
 
 @dataclass(frozen=True)
@@ -47,43 +42,41 @@ class TrajectoryParameters:
     arc_end_point: Coordinates of the ending position of the arc
     """
 
-    turning_radius: TrajectoryFloat
+    turning_radius: float
     x_offset: float
     y_offset: float
-    end_point: FloatNDArray
+    end_point: np.array
     start_angle: float
     end_angle: float
     left_turn: bool
 
-    arc_start_point: FloatNDArray
-    arc_end_point: FloatNDArray
+    arc_start_point: float
+    arc_end_point: float
 
     @property
-    def arc_length(self) -> TrajectoryFloat:
+    def arc_length(self):
         """Arc length of the trajectory."""
-        result: TrajectoryFloat = self.turning_radius * angle_difference(
+        return self.turning_radius * angle_difference(
             self.start_angle, self.end_angle, self.left_turn
         )
-        return result
 
     @property
-    def start_straight_length(self) -> AnyFloat:
-        """Length of the straight line fromnorarc_start_pointm start to arc."""
+    def start_straight_length(self):
+        """Length of the straight line from start to arc."""
         return np.linalg.norm(self.arc_start_point)
 
     @property
-    def end_straight_length(self) -> AnyFloat:
+    def end_straight_length(self):
         """Length of the straight line from arc to end."""
         return np.linalg.norm(self.end_point - self.arc_end_point)
 
     @property
-    def total_length(self) -> AnyFloat:
+    def total_length(self):
         """Total length of trajectory."""
         return self.arc_length + self.start_straight_length + self.end_straight_length
 
     @staticmethod
-    def no_arc(end_point: FloatNDArray, start_angle: float,
-               end_angle: float) -> 'TrajectoryParameters':
+    def no_arc(end_point, start_angle, end_angle):
         """Create the parameters for a trajectory with no arc."""
         return TrajectoryParameters(
             turning_radius=0.0,
@@ -108,11 +101,11 @@ class Path:
     yaws: Yaws of poses along trajectory
     """
 
-    xs: FloatNDArray
-    ys: FloatNDArray
-    yaws: FloatNDArray
+    xs: np.array
+    ys: np.array
+    yaws: np.array
 
-    def __add__(self, rhs: 'Path') -> 'Path':
+    def __add__(self, rhs):
         """Add two paths together by concatenating them."""
         if self.xs is None:
             return rhs
@@ -123,7 +116,7 @@ class Path:
 
         return Path(xs, ys, yaws)
 
-    def to_output_format(self) -> Any:
+    def to_output_format(self):
         """Return the path data in a format suitable for outputting."""
         output_xs = self.xs.round(5)
         output_ys = self.ys.round(5)

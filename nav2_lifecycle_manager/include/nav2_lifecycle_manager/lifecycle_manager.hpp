@@ -24,17 +24,13 @@
 #include <vector>
 
 #include "nav2_util/lifecycle_service_client.hpp"
-#include "nav2_ros_common/node_thread.hpp"
-#include "nav2_ros_common/publisher.hpp"
-#include "nav2_ros_common/service_server.hpp"
+#include "nav2_util/node_thread.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/bool.hpp"
 #include "std_srvs/srv/empty.hpp"
 #include "nav2_msgs/srv/manage_lifecycle_nodes.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "bondcpp/bond.hpp"
 #include "diagnostic_updater/diagnostic_updater.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
 
 namespace nav2_lifecycle_manager
@@ -59,7 +55,7 @@ enum NodeState
  * Nav2 stack. It receives transition request and then uses lifecycle
  * interface to change lifecycle node's state.
  */
-class LifecycleManager : public rclcpp::Node  //  nosemgrep
+class LifecycleManager : public rclcpp::Node
 {
 public:
   /**
@@ -75,20 +71,16 @@ public:
 protected:
   // Callback group used by services and timers
   rclcpp::CallbackGroup::SharedPtr callback_group_;
-  std::unique_ptr<nav2::NodeThread> service_thread_;
+  std::unique_ptr<nav2_util::NodeThread> service_thread_;
 
   // The services provided by this node
-  nav2::ServiceServer<ManageLifecycleNodes>::SharedPtr manager_srv_;
-  nav2::ServiceServer<std_srvs::srv::Trigger>::SharedPtr is_active_srv_;
-
-  // Latched publisher for is_active status
-  nav2::Publisher<std_msgs::msg::Bool>::SharedPtr is_active_pub_;
-
+  rclcpp::Service<ManageLifecycleNodes>::SharedPtr manager_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr is_active_srv_;
   /**
    * @brief Lifecycle node manager callback function
    * @param request_header Header of the service request
    * @param request Service request
-   * @param response Service response
+   * @param reponse Service response
    */
   void managerCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
@@ -99,7 +91,7 @@ protected:
    * state.
    * @param request_header Header of the request
    * @param request Service request
-   * @param response Service response
+   * @param reponse Service response
    */
   void isActiveCallback(
     const std::shared_ptr<rmw_request_id_t> request_header,
@@ -156,18 +148,6 @@ protected:
    */
   void createLifecycleServiceClients();
 
-  // Support function for creating service servers
-  /**
-   * @brief Support function for creating service servers
-   */
-  void createLifecycleServiceServers();
-
-  // Support function for creating publishers
-  /**
-   * @brief Support function for creating publishers
-   */
-  void createLifecyclePublishers();
-
   // Support functions for shutdown
   /**
    * @brief Support function for shutdown
@@ -177,10 +157,6 @@ protected:
    * @brief Destroy all the lifecycle service clients.
    */
   void destroyLifecycleServiceClients();
-  /**
-   * @brief Destroy all the lifecycle publishers.
-   */
-  void destroyLifecyclePublishers();
 
   // Support function for creating bond timer
   /**
@@ -247,27 +223,15 @@ protected:
   void registerRclPreshutdownCallback();
 
   /**
-   * @brief Set the state of managed nodes
-   */
-  void setState(const NodeState & state);
-
-  /**
    * @brief function to check if managed nodes are active
    */
   bool isActive();
-
-  /**
-   * @brief Publish the is_active state
-   */
-  void publishIsActiveState();
 
   // Timer thread to look at bond connections
   rclcpp::TimerBase::SharedPtr init_timer_;
   rclcpp::TimerBase::SharedPtr bond_timer_;
   rclcpp::TimerBase::SharedPtr bond_respawn_timer_;
   std::chrono::milliseconds bond_timeout_;
-  std::chrono::milliseconds service_timeout_;
-  double bond_heartbeat_period_;
 
   // A map of all nodes to check bond connection
   std::map<std::string, std::shared_ptr<bond::Bond>> bond_map_;

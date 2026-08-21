@@ -18,26 +18,19 @@ import json
 import logging
 from pathlib import Path
 import time
-from typing import Any, cast, Dict, List, TypedDict
+
+import constants
+from lattice_generator import LatticeGenerator
 
 import matplotlib.pyplot as plt
-from nav2_smac_planner.lattice_primitives import constants
-from nav2_smac_planner.lattice_primitives.lattice_generator import ConfigDict, LatticeGenerator
-from nav2_smac_planner.lattice_primitives.trajectory import Trajectory
 import numpy as np
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class HeaderDict(TypedDict):
-    version: float
-    date_generated: str
-    lattice_metadata: Dict[str, Any]
-    primitives: List[Dict[str, Any]]
-
-
-def handle_arg_parsing() -> argparse.Namespace:
+def handle_arg_parsing():
     """
     Handle the parsing of arguments.
 
@@ -73,8 +66,7 @@ def handle_arg_parsing() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def create_heading_angle_list(minimal_set_trajectories: Dict[float, List[Trajectory]]
-                              ) -> List[float]:
+def create_heading_angle_list(minimal_set_trajectories: dict) -> list:
     """
     Create a sorted list of heading angles from the minimal trajectory set.
 
@@ -93,7 +85,7 @@ def create_heading_angle_list(minimal_set_trajectories: Dict[float, List[Traject
     return sorted(heading_angles, key=lambda x: (x < 0, x))
 
 
-def read_config(config_path: Path) -> ConfigDict:
+def read_config(config_path) -> dict:
     """
     Read in the user defined parameters via JSON.
 
@@ -111,11 +103,10 @@ def read_config(config_path: Path) -> ConfigDict:
     with open(config_path) as config_file:
         config = json.load(config_file)
 
-    return cast(ConfigDict, config)
+    return config
 
 
-def create_header(config: ConfigDict, minimal_set_trajectories: Dict[float, List[Trajectory]]
-                  ) -> HeaderDict:
+def create_header(config: dict, minimal_set_trajectories: dict) -> dict:
     """
     Create a dict containing all the fields to populate the header with.
 
@@ -132,7 +123,7 @@ def create_header(config: ConfigDict, minimal_set_trajectories: Dict[float, List
         A dictionary containing the fields to populate the header with
 
     """
-    header_dict: HeaderDict = {
+    header_dict = {
         'version': constants.VERSION,
         'date_generated': datetime.today().strftime('%Y-%m-%d'),
         'lattice_metadata': {},
@@ -153,7 +144,7 @@ def create_header(config: ConfigDict, minimal_set_trajectories: Dict[float, List
 
 
 def write_to_json(
-    output_path: Path, minimal_set_trajectories: Dict[float, List[Trajectory]], config: ConfigDict
+    output_path: Path, minimal_set_trajectories: dict, config: dict
 ) -> None:
     """
     Write the minimal spanning set to an output file.
@@ -182,7 +173,7 @@ def write_to_json(
             minimal_set_trajectories[start_angle], key=lambda x: x.parameters.end_angle
         ):
 
-            traj_info: Dict[str, Any] = {}
+            traj_info = {}
             traj_info['trajectory_id'] = idx
             traj_info['start_angle_index'] = heading_lookup[
                 trajectory.parameters.start_angle
@@ -213,7 +204,7 @@ def write_to_json(
 
 
 def save_visualizations(
-    visualizations_folder: Path, minimal_set_trajectories: Dict[float, List[Trajectory]]
+    visualizations_folder: Path, minimal_set_trajectories: dict
 ) -> None:
     """
     Draw the visualizations for every trajectory and save it as an image.
@@ -226,7 +217,7 @@ def save_visualizations(
         The minimal spanning set
 
     """
-    # Create the directory if it doesn't exist
+    # Create the directory if it doesnt exist
     visualizations_folder.mkdir(exist_ok=True)
 
     for start_angle in minimal_set_trajectories.keys():

@@ -22,7 +22,6 @@
 #include "nav_msgs/msg/path.hpp"
 #include "nav2_behavior_tree/bt_utils.hpp"
 #include "nav2_behavior_tree/json_utils.hpp"
-#include "nav2_msgs/msg/waypoint_status.hpp"
 
 
 class JsonTest : public testing::Test
@@ -41,8 +40,6 @@ protected:
     exporter.addConverter<std::vector<geometry_msgs::msg::PoseStamped>>();
     exporter.addConverter<nav_msgs::msg::Goals>();
     exporter.addConverter<nav_msgs::msg::Path>();
-    exporter.addConverter<nav2_msgs::msg::WaypointStatus>();
-    exporter.addConverter<std::vector<nav2_msgs::msg::WaypointStatus>>();
   }
 };
 
@@ -230,8 +227,7 @@ TEST_F(JsonTest, test_quaternion)
         "x": 1.0, "y": 2.0, "z": 3.0, "w": 4.0
       }
     )";
-  ASSERT_NO_THROW(
-    quaternion_test3 =
+  ASSERT_NO_THROW(quaternion_test3 =
     BT::convertFromString<geometry_msgs::msg::Quaternion>(test_json));
   ASSERT_EQ(quaternion_test.x, quaternion_test3.x);
   ASSERT_EQ(quaternion_test.y, quaternion_test3.y);
@@ -316,8 +312,7 @@ TEST_F(JsonTest, test_pose_stamped)
         }
       }
     )";
-  ASSERT_NO_THROW(
-    pose_stamped_test3 =
+  ASSERT_NO_THROW(pose_stamped_test3 =
     BT::convertFromString<geometry_msgs::msg::PoseStamped>(test_json));
   ASSERT_EQ(pose_stamped_test.header, pose_stamped_test3.header);
   ASSERT_EQ(pose_stamped_test.pose.position, pose_stamped_test3.pose.position);
@@ -368,8 +363,7 @@ TEST_F(JsonTest, test_pose_stamped_vector)
   ASSERT_EQ(json["poses"][0]["pose"]["position"]["x"], 3.0);
   ASSERT_EQ(json["poses"][0]["pose"]["position"]["y"], 4.0);
   ASSERT_EQ(json["poses"][0]["pose"]["position"]["z"], 5.0);
-  ASSERT_EQ(
-    json["poses"][0]["pose"]["orientation"]["__type"],
+  ASSERT_EQ(json["poses"][0]["pose"]["orientation"]["__type"],
     "geometry_msgs::msg::Quaternion");
   ASSERT_EQ(json["poses"][0]["pose"]["orientation"]["x"], 6.0);
   ASSERT_EQ(json["poses"][0]["pose"]["orientation"]["y"], 7.0);
@@ -377,21 +371,18 @@ TEST_F(JsonTest, test_pose_stamped_vector)
   ASSERT_EQ(json["poses"][0]["pose"]["orientation"]["w"], 9.0);
   ASSERT_EQ(json["poses"][1]["__type"], "geometry_msgs::msg::PoseStamped");
   ASSERT_EQ(json["poses"][1]["header"]["__type"], "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["poses"][1]["header"]["stamp"]["__type"],
+  ASSERT_EQ(json["poses"][1]["header"]["stamp"]["__type"],
     "builtin_interfaces::msg::Time");
   ASSERT_EQ(json["poses"][1]["header"]["stamp"]["sec"], 10);
   ASSERT_EQ(json["poses"][1]["header"]["stamp"]["nanosec"], 11);
   ASSERT_EQ(json["poses"][1]["header"]["frame_id"], "odom");
   ASSERT_EQ(json["poses"][1]["pose"]["__type"], "geometry_msgs::msg::Pose");
-  ASSERT_EQ(
-    json["poses"][1]["pose"]["position"]["__type"],
+  ASSERT_EQ(json["poses"][1]["pose"]["position"]["__type"],
     "geometry_msgs::msg::Point");
   ASSERT_EQ(json["poses"][1]["pose"]["position"]["x"], 12.0);
   ASSERT_EQ(json["poses"][1]["pose"]["position"]["y"], 13.0);
   ASSERT_EQ(json["poses"][1]["pose"]["position"]["z"], 14.0);
-  ASSERT_EQ(
-    json["poses"][1]["pose"]["orientation"]["__type"],
+  ASSERT_EQ(json["poses"][1]["pose"]["orientation"]["__type"],
     "geometry_msgs::msg::Quaternion");
   ASSERT_EQ(json["poses"][1]["pose"]["orientation"]["x"], 15.0);
   ASSERT_EQ(json["poses"][1]["pose"]["orientation"]["y"], 16.0);
@@ -547,8 +538,7 @@ TEST_F(JsonTest, test_goals)
   ASSERT_EQ(json["goals"]["header"]["frame_id"], "map");
   ASSERT_EQ(json["goals"]["goals"][0]["__type"], "geometry_msgs::msg::PoseStamped");
   ASSERT_EQ(json["goals"]["goals"][0]["header"]["__type"], "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["goals"]["goals"][0]["header"]["stamp"]["__type"],
+  ASSERT_EQ(json["goals"]["goals"][0]["header"]["stamp"]["__type"],
     "builtin_interfaces::msg::Time");
   ASSERT_EQ(json["goals"]["goals"][0]["header"]["stamp"]["sec"], 3);
   ASSERT_EQ(json["goals"]["goals"][0]["header"]["stamp"]["nanosec"], 4);
@@ -558,8 +548,7 @@ TEST_F(JsonTest, test_goals)
   ASSERT_EQ(json["goals"]["goals"][0]["pose"]["position"]["x"], 5.0);
   ASSERT_EQ(json["goals"]["goals"][0]["pose"]["position"]["y"], 6.0);
   ASSERT_EQ(json["goals"]["goals"][0]["pose"]["position"]["z"], 7.0);
-  ASSERT_EQ(
-    json["goals"]["goals"][0]["pose"]["orientation"]["__type"],
+  ASSERT_EQ(json["goals"]["goals"][0]["pose"]["orientation"]["__type"],
     "geometry_msgs::msg::Quaternion");
   ASSERT_EQ(json["goals"]["goals"][0]["pose"]["orientation"]["x"], 8.0);
   ASSERT_EQ(json["goals"]["goals"][0]["pose"]["orientation"]["y"], 9.0);
@@ -567,8 +556,7 @@ TEST_F(JsonTest, test_goals)
   ASSERT_EQ(json["goals"]["goals"][0]["pose"]["orientation"]["w"], 11.0);
   ASSERT_EQ(json["goals"]["goals"][1]["__type"], "geometry_msgs::msg::PoseStamped");
   ASSERT_EQ(json["goals"]["goals"][1]["header"]["__type"], "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["goals"]["goals"][1]["header"]["stamp"]["__type"],
+  ASSERT_EQ(json["goals"]["goals"][1]["header"]["stamp"]["__type"],
     "builtin_interfaces::msg::Time");
   ASSERT_EQ(json["goals"]["goals"][1]["header"]["stamp"]["sec"], 12);
   ASSERT_EQ(json["goals"]["goals"][1]["header"]["stamp"]["nanosec"], 13);
@@ -578,8 +566,7 @@ TEST_F(JsonTest, test_goals)
   ASSERT_EQ(json["goals"]["goals"][1]["pose"]["position"]["x"], 14.0);
   ASSERT_EQ(json["goals"]["goals"][1]["pose"]["position"]["y"], 15.0);
   ASSERT_EQ(json["goals"]["goals"][1]["pose"]["position"]["z"], 16.0);
-  ASSERT_EQ(
-    json["goals"]["goals"][1]["pose"]["orientation"]["__type"],
+  ASSERT_EQ(json["goals"]["goals"][1]["pose"]["orientation"]["__type"],
     "geometry_msgs::msg::Quaternion");
   ASSERT_EQ(json["goals"]["goals"][1]["pose"]["orientation"]["x"], 17.0);
   ASSERT_EQ(json["goals"]["goals"][1]["pose"]["orientation"]["y"], 18.0);
@@ -663,8 +650,7 @@ TEST_F(JsonTest, test_goals)
         ]
       }
     )";
-  ASSERT_NO_THROW(
-    goals_test3 =
+  ASSERT_NO_THROW(goals_test3 =
     BT::convertFromString<nav_msgs::msg::Goals>(test_json));
   ASSERT_EQ(goals_test.goals[0].header, goals_test3.goals[0].header);
   ASSERT_EQ(goals_test.goals[0].pose.position, goals_test3.goals[0].pose.position);
@@ -718,21 +704,18 @@ TEST_F(JsonTest, test_path)
   ASSERT_EQ(json["path"]["header"]["frame_id"], "map");
   ASSERT_EQ(json["path"]["poses"][0]["__type"], "geometry_msgs::msg::PoseStamped");
   ASSERT_EQ(json["path"]["poses"][0]["header"]["__type"], "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["path"]["poses"][0]["header"]["stamp"]["__type"],
+  ASSERT_EQ(json["path"]["poses"][0]["header"]["stamp"]["__type"],
     "builtin_interfaces::msg::Time");
   ASSERT_EQ(json["path"]["poses"][0]["header"]["stamp"]["sec"], 3);
   ASSERT_EQ(json["path"]["poses"][0]["header"]["stamp"]["nanosec"], 4);
   ASSERT_EQ(json["path"]["poses"][0]["header"]["frame_id"], "map");
   ASSERT_EQ(json["path"]["poses"][0]["pose"]["__type"], "geometry_msgs::msg::Pose");
-  ASSERT_EQ(
-    json["path"]["poses"][0]["pose"]["position"]["__type"],
+  ASSERT_EQ(json["path"]["poses"][0]["pose"]["position"]["__type"],
     "geometry_msgs::msg::Point");
   ASSERT_EQ(json["path"]["poses"][0]["pose"]["position"]["x"], 5.0);
   ASSERT_EQ(json["path"]["poses"][0]["pose"]["position"]["y"], 6.0);
   ASSERT_EQ(json["path"]["poses"][0]["pose"]["position"]["z"], 7.0);
-  ASSERT_EQ(
-    json["path"]["poses"][0]["pose"]["orientation"]["__type"],
+  ASSERT_EQ(json["path"]["poses"][0]["pose"]["orientation"]["__type"],
     "geometry_msgs::msg::Quaternion");
   ASSERT_EQ(json["path"]["poses"][0]["pose"]["orientation"]["x"], 8.0);
   ASSERT_EQ(json["path"]["poses"][0]["pose"]["orientation"]["y"], 9.0);
@@ -740,21 +723,18 @@ TEST_F(JsonTest, test_path)
   ASSERT_EQ(json["path"]["poses"][0]["pose"]["orientation"]["w"], 11.0);
   ASSERT_EQ(json["path"]["poses"][1]["__type"], "geometry_msgs::msg::PoseStamped");
   ASSERT_EQ(json["path"]["poses"][1]["header"]["__type"], "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["path"]["poses"][1]["header"]["stamp"]["__type"],
+  ASSERT_EQ(json["path"]["poses"][1]["header"]["stamp"]["__type"],
     "builtin_interfaces::msg::Time");
   ASSERT_EQ(json["path"]["poses"][1]["header"]["stamp"]["sec"], 12);
   ASSERT_EQ(json["path"]["poses"][1]["header"]["stamp"]["nanosec"], 13);
   ASSERT_EQ(json["path"]["poses"][1]["header"]["frame_id"], "odom");
   ASSERT_EQ(json["path"]["poses"][1]["pose"]["__type"], "geometry_msgs::msg::Pose");
-  ASSERT_EQ(
-    json["path"]["poses"][1]["pose"]["position"]["__type"],
+  ASSERT_EQ(json["path"]["poses"][1]["pose"]["position"]["__type"],
     "geometry_msgs::msg::Point");
   ASSERT_EQ(json["path"]["poses"][1]["pose"]["position"]["x"], 14.0);
   ASSERT_EQ(json["path"]["poses"][1]["pose"]["position"]["y"], 15.0);
   ASSERT_EQ(json["path"]["poses"][1]["pose"]["position"]["z"], 16.0);
-  ASSERT_EQ(
-    json["path"]["poses"][1]["pose"]["orientation"]["__type"],
+  ASSERT_EQ(json["path"]["poses"][1]["pose"]["orientation"]["__type"],
     "geometry_msgs::msg::Quaternion");
   ASSERT_EQ(json["path"]["poses"][1]["pose"]["orientation"]["x"], 17.0);
   ASSERT_EQ(json["path"]["poses"][1]["pose"]["orientation"]["y"], 18.0);
@@ -840,8 +820,7 @@ TEST_F(JsonTest, test_path)
         ]
       }
     )";
-  ASSERT_NO_THROW(
-    path_test3 =
+  ASSERT_NO_THROW(path_test3 =
     BT::convertFromString<nav_msgs::msg::Path>(test_json));
   ASSERT_EQ(path_test.header, path_test3.header);
   ASSERT_EQ(path_test.poses[0].header, path_test3.poses[0].header);
@@ -850,254 +829,4 @@ TEST_F(JsonTest, test_path)
   ASSERT_EQ(path_test.poses[1].header, path_test3.poses[1].header);
   ASSERT_EQ(path_test.poses[1].pose.position, path_test3.poses[1].pose.position);
   ASSERT_EQ(path_test.poses[1].pose.orientation, path_test3.poses[1].pose.orientation);
-}
-
-TEST_F(JsonTest, test_waypoint_status)
-{
-  BT::JsonExporter & exporter = BT::JsonExporter::get();
-
-  nav2_msgs::msg::WaypointStatus waypoint_status_test;
-  waypoint_status_test.waypoint_status = 1;
-  waypoint_status_test.waypoint_index = 2;
-  waypoint_status_test.waypoint_pose.header.stamp.sec = 1;
-  waypoint_status_test.waypoint_pose.header.stamp.nanosec = 2;
-  waypoint_status_test.waypoint_pose.header.frame_id = "map";
-  waypoint_status_test.waypoint_pose.pose.position.x = 3.0;
-  waypoint_status_test.waypoint_pose.pose.position.y = 4.0;
-  waypoint_status_test.waypoint_pose.pose.position.z = 5.0;
-  waypoint_status_test.waypoint_pose.pose.orientation.x = 6.0;
-  waypoint_status_test.waypoint_pose.pose.orientation.y = 7.0;
-  waypoint_status_test.waypoint_pose.pose.orientation.z = 8.0;
-  waypoint_status_test.waypoint_pose.pose.orientation.w = 9.0;
-  waypoint_status_test.error_code = 10;
-  waypoint_status_test.error_msg = "error";
-
-  nlohmann::json json;
-  exporter.toJson(BT::Any(waypoint_status_test), json["waypoint_status"]);
-
-  std::cout << json.dump(2) << std::endl;
-
-  ASSERT_EQ(json["waypoint_status"]["__type"], "nav2_msgs::msg::WaypointStatus");
-  ASSERT_EQ(json["waypoint_status"]["waypoint_status"], 1);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_index"], 2);
-  ASSERT_EQ(
-    json["waypoint_status"]["waypoint_pose"]["__type"],
-    "geometry_msgs::msg::PoseStamped");
-  ASSERT_EQ(
-    json["waypoint_status"]["waypoint_pose"]["header"]["__type"],
-    "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["waypoint_status"]["waypoint_pose"]["header"]["stamp"]["__type"],
-    "builtin_interfaces::msg::Time");
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["header"]["stamp"]["sec"], 1);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["header"]["stamp"]["nanosec"], 2);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["header"]["frame_id"], "map");
-  ASSERT_EQ(
-    json["waypoint_status"]["waypoint_pose"]["pose"]["__type"],
-    "geometry_msgs::msg::Pose");
-  ASSERT_EQ(
-    json["waypoint_status"]["waypoint_pose"]["pose"]["position"]["__type"],
-    "geometry_msgs::msg::Point");
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["pose"]["position"]["x"], 3.0);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["pose"]["position"]["y"], 4.0);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["pose"]["position"]["z"], 5.0);
-  ASSERT_EQ(
-    json["waypoint_status"]["waypoint_pose"]["pose"]["orientation"]["__type"],
-    "geometry_msgs::msg::Quaternion");
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["pose"]["orientation"]["x"], 6.0);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["pose"]["orientation"]["y"], 7.0);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["pose"]["orientation"]["z"], 8.0);
-  ASSERT_EQ(json["waypoint_status"]["waypoint_pose"]["pose"]["orientation"]["w"], 9.0);
-  ASSERT_EQ(json["waypoint_status"]["error_code"], 10);
-  ASSERT_EQ(json["waypoint_status"]["error_msg"], "error");
-
-  // Check the two-ways transform, i.e. "from_json"
-  auto waypoint_status_test2 =
-    exporter.fromJson(json["waypoint_status"])->first.cast<nav2_msgs::msg::WaypointStatus>();
-  ASSERT_EQ(waypoint_status_test.waypoint_status, waypoint_status_test2.waypoint_status);
-  ASSERT_EQ(waypoint_status_test.waypoint_index, waypoint_status_test2.waypoint_index);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.header.stamp.sec,
-    waypoint_status_test2.waypoint_pose.header.stamp.sec);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.header.stamp.nanosec,
-    waypoint_status_test2.waypoint_pose.header.stamp.nanosec);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.header.frame_id,
-    waypoint_status_test2.waypoint_pose.header.frame_id);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.pose.position.x,
-    waypoint_status_test2.waypoint_pose.pose.position.x);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.pose.position.y,
-    waypoint_status_test2.waypoint_pose.pose.position.y);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.pose.position.z,
-    waypoint_status_test2.waypoint_pose.pose.position.z);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.pose.orientation.x,
-    waypoint_status_test2.waypoint_pose.pose.orientation.x);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.pose.orientation.y,
-    waypoint_status_test2.waypoint_pose.pose.orientation.y);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.pose.orientation.z,
-    waypoint_status_test2.waypoint_pose.pose.orientation.z);
-  ASSERT_EQ(
-    waypoint_status_test.waypoint_pose.pose.orientation.w,
-    waypoint_status_test2.waypoint_pose.pose.orientation.w);
-  ASSERT_EQ(waypoint_status_test.error_code, waypoint_status_test2.error_code);
-  ASSERT_EQ(waypoint_status_test.error_msg, waypoint_status_test2.error_msg);
-
-  // Convert from string
-  nav2_msgs::msg::WaypointStatus waypoint_status_test3;
-  auto const test_json =
-    R"(json:
-      {
-        "__type": "nav2_msgs::msg::WaypointStatus",
-        "waypoint_status": 1,
-        "waypoint_index": 2,
-        "waypoint_pose": {
-          "__type": "geometry_msgs::msg::PoseStamped",
-          "header": {
-            "__type": "std_msgs::msg::Header",
-            "stamp": {"__type": "builtin_interfaces::msg::Time", "sec": 1, "nanosec": 2},
-            "frame_id": "map"
-          },
-          "pose": {
-            "__type": "geometry_msgs::msg::Pose",
-            "position": {
-              "__type": "geometry_msgs::msg::Point",
-              "x": 3.0, "y": 4.0, "z": 5.0
-            },
-            "orientation": {
-              "__type": "geometry_msgs::msg::Quaternion",
-              "x": 6.0, "y": 7.0, "z": 8.0, "w": 9.0
-            }
-          }
-        },
-        "error_code": 10,
-        "error_msg": "error"
-      }
-    )";
-  ASSERT_NO_THROW(
-    waypoint_status_test3 =
-    BT::convertFromString<nav2_msgs::msg::WaypointStatus>(test_json));
-  ASSERT_EQ(waypoint_status_test.waypoint_status, waypoint_status_test3.waypoint_status);
-  ASSERT_EQ(waypoint_status_test.waypoint_index, waypoint_status_test3.waypoint_index);
-  ASSERT_EQ(waypoint_status_test.waypoint_pose, waypoint_status_test3.waypoint_pose);
-  ASSERT_EQ(waypoint_status_test.error_code, waypoint_status_test3.error_code);
-  ASSERT_EQ(waypoint_status_test.error_msg, waypoint_status_test3.error_msg);
-}
-
-TEST_F(JsonTest, test_waypoint_status_vector)
-{
-  BT::JsonExporter & exporter = BT::JsonExporter::get();
-
-  std::vector<nav2_msgs::msg::WaypointStatus> waypoint_status_vector_test;
-  waypoint_status_vector_test.resize(2);
-  waypoint_status_vector_test[0].waypoint_status = 1;
-  waypoint_status_vector_test[0].waypoint_index = 2;
-  waypoint_status_vector_test[0].waypoint_pose.header.stamp.sec = 1;
-  waypoint_status_vector_test[0].waypoint_pose.header.stamp.nanosec = 2;
-  waypoint_status_vector_test[0].waypoint_pose.header.frame_id = "map";
-  waypoint_status_vector_test[0].waypoint_pose.pose.position.x = 3.0;
-  waypoint_status_vector_test[0].waypoint_pose.pose.position.y = 4.0;
-  waypoint_status_vector_test[0].waypoint_pose.pose.position.z = 5.0;
-  waypoint_status_vector_test[0].waypoint_pose.pose.orientation.x = 6.0;
-  waypoint_status_vector_test[0].waypoint_pose.pose.orientation.y = 7.0;
-  waypoint_status_vector_test[0].waypoint_pose.pose.orientation.z = 8.0;
-  waypoint_status_vector_test[0].waypoint_pose.pose.orientation.w = 9.0;
-  waypoint_status_vector_test[0].error_code = 10;
-  waypoint_status_vector_test[0].error_msg = "error";
-
-  waypoint_status_vector_test[1].waypoint_status = 11;
-  waypoint_status_vector_test[1].waypoint_index = 12;
-  waypoint_status_vector_test[1].waypoint_pose.header.stamp.sec = 13;
-  waypoint_status_vector_test[1].waypoint_pose.header.stamp.nanosec = 14;
-  waypoint_status_vector_test[1].waypoint_pose.header.frame_id = "odom";
-  waypoint_status_vector_test[1].waypoint_pose.pose.position.x = 15.0;
-  waypoint_status_vector_test[1].waypoint_pose.pose.position.y = 16.0;
-  waypoint_status_vector_test[1].waypoint_pose.pose.position.z = 17.0;
-  waypoint_status_vector_test[1].waypoint_pose.pose.orientation.x = 18.0;
-  waypoint_status_vector_test[1].waypoint_pose.pose.orientation.y = 19.0;
-  waypoint_status_vector_test[1].waypoint_pose.pose.orientation.z = 20.0;
-  waypoint_status_vector_test[1].waypoint_pose.pose.orientation.w = 21.0;
-  waypoint_status_vector_test[1].error_code = 22;
-  waypoint_status_vector_test[1].error_msg = "error2";
-
-  nlohmann::json json;
-  exporter.toJson(BT::Any(waypoint_status_vector_test), json["waypoint_status_vector"]);
-  std::cout << json.dump(2) << std::endl;
-
-  ASSERT_EQ(json["waypoint_status_vector"][0]["__type"], "nav2_msgs::msg::WaypointStatus");
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_status"], 1);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_index"], 2);
-  ASSERT_EQ(
-    json["waypoint_status_vector"][0]["waypoint_pose"]["__type"],
-    "geometry_msgs::msg::PoseStamped");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][0]["waypoint_pose"]["header"]["__type"],
-    "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][0]["waypoint_pose"]["header"]["stamp"]["__type"],
-    "builtin_interfaces::msg::Time");
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["header"]["stamp"]["sec"], 1);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["header"]["stamp"]["nanosec"], 2);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["header"]["frame_id"], "map");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["__type"],
-    "geometry_msgs::msg::Pose");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["position"]["__type"],
-    "geometry_msgs::msg::Point");
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["position"]["x"], 3.0);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["position"]["y"], 4.0);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["position"]["z"], 5.0);
-  ASSERT_EQ(
-    json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["orientation"]["__type"],
-    "geometry_msgs::msg::Quaternion");
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["orientation"]["x"], 6.0);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["orientation"]["y"], 7.0);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["orientation"]["z"], 8.0);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["waypoint_pose"]["pose"]["orientation"]["w"], 9.0);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["error_code"], 10);
-  ASSERT_EQ(json["waypoint_status_vector"][0]["error_msg"], "error");
-  ASSERT_EQ(json["waypoint_status_vector"][1]["__type"], "nav2_msgs::msg::WaypointStatus");
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_status"], 11);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_index"], 12);
-  ASSERT_EQ(
-    json["waypoint_status_vector"][1]["waypoint_pose"]["__type"],
-    "geometry_msgs::msg::PoseStamped");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][1]["waypoint_pose"]["header"]["__type"],
-    "std_msgs::msg::Header");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][1]["waypoint_pose"]["header"]["stamp"]["__type"],
-    "builtin_interfaces::msg::Time");
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["header"]["stamp"]["sec"], 13);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["header"]["stamp"]["nanosec"], 14);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["header"]["frame_id"], "odom");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["__type"],
-    "geometry_msgs::msg::Pose");
-  ASSERT_EQ(
-    json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["position"]["__type"],
-    "geometry_msgs::msg::Point");
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["position"]["x"], 15.0);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["position"]["y"], 16.0);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["position"]["z"], 17.0);
-  ASSERT_EQ(
-    json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["orientation"]["__type"],
-    "geometry_msgs::msg::Quaternion");
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["orientation"]["x"], 18.0);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["orientation"]["y"], 19.0);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["orientation"]["z"], 20.0);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["waypoint_pose"]["pose"]["orientation"]["w"], 21.0);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["error_code"], 22);
-  ASSERT_EQ(json["waypoint_status_vector"][1]["error_msg"], "error2");
-
-  // Check the two-ways transform, i.e. "from_json"
-  // auto waypoint_status_vector_test2 =
-  //   exporter.fromJson(json["waypoint_status_vector"])->first.cast<std::vector<nav2_msgs::msg::WaypointStatus>>();
 }

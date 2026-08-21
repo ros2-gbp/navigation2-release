@@ -18,7 +18,7 @@ namespace mppi
 {
 
 void CriticManager::on_configure(
-  nav2::LifecycleNode::WeakPtr parent, const std::string & name,
+  rclcpp_lifecycle::LifecycleNode::WeakPtr parent, const std::string & name,
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros, ParametersHandler * param_handler)
 {
   parent_ = parent;
@@ -26,7 +26,6 @@ void CriticManager::on_configure(
   name_ = name;
   auto node = parent_.lock();
   logger_ = node->get_logger();
-  clock_ = node->get_clock();
   parameters_handler_ = param_handler;
 
   getParams();
@@ -38,7 +37,6 @@ void CriticManager::getParams()
   auto node = parent_.lock();
   auto getParam = parameters_handler_->getParamGetter(name_);
   getParam(critic_names_, "critics", std::vector<std::string>{}, ParameterType::Static);
-  getParam(visualize_, "visualize", false);
 }
 
 void CriticManager::loadCritics()
@@ -46,13 +44,6 @@ void CriticManager::loadCritics()
   if (!loader_) {
     loader_ = std::make_unique<pluginlib::ClassLoader<critics::CriticFunction>>(
       "nav2_mppi_controller", "mppi::critics::CriticFunction");
-  }
-
-  auto node = parent_.lock();
-  if (visualize_) {
-    critics_effect_pub_ = node->create_publisher<nav2_msgs::msg::CriticsStats>(
-      "~/critics_stats");
-    critics_effect_pub_->on_activate();
   }
 
   critics_.clear();
@@ -74,49 +65,13 @@ std::string CriticManager::getFullName(const std::string & name)
 }
 
 void CriticManager::evalTrajectoriesScores(
-  CriticData & data)
+  CriticData & data) const
 {
-  std::unique_ptr<nav2_msgs::msg::CriticsStats> stats_msg;
-  if (visualize_) {
-    data.trajectories_in_collision.assign(data.costs.size(), false);
-    critic_costs_.clear();
-    critic_costs_.reserve(critics_.size());
-    stats_msg = std::make_unique<nav2_msgs::msg::CriticsStats>();
-    stats_msg->critics.reserve(critics_.size());
-    stats_msg->changed.reserve(critics_.size());
-    stats_msg->costs_sum.reserve(critics_.size());
-  }
-
-  for (size_t i = 0; i < critics_.size(); ++i) {
+  for (const auto & critic : critics_) {
     if (data.fail_flag) {
       break;
     }
-
-    // Store costs before critic evaluation
-    Eigen::ArrayXf costs_before;
-    if (visualize_) {
-      costs_before = data.costs;
-    }
-
-    critics_[i]->score(data);
-
-    // Calculate statistics if visualization is enabled
-    if (visualize_) {
-      stats_msg->critics.push_back(critic_names_[i]);
-
-      // Calculate sum of costs added by this individual critic
-      Eigen::ArrayXf cost_diff = data.costs - costs_before;
-      float costs_sum = cost_diff.sum();
-      stats_msg->costs_sum.push_back(costs_sum);
-      stats_msg->changed.push_back(costs_sum != 0.0f);
-      critic_costs_.emplace_back(critic_names_[i], std::move(cost_diff));
-    }
-  }
-
-  // Publish statistics if enabled
-  if (visualize_ && critics_effect_pub_) {
-    stats_msg->stamp = clock_->now();
-    critics_effect_pub_->publish(std::move(stats_msg));
+    critic->score(data);
   }
 }
 

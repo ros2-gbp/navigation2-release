@@ -43,27 +43,27 @@
 #include <string>
 #include <vector>
 
-#include "geometry_msgs/msg/polygon.hpp"
-#include "geometry_msgs/msg/polygon_stamped.hpp"
+#include "geometry_msgs/msg/polygon.h"
+#include "geometry_msgs/msg/polygon_stamped.h"
 #include "nav2_costmap_2d/costmap_2d_publisher.hpp"
 #include "nav2_costmap_2d/footprint.hpp"
 #include "nav2_costmap_2d/footprint_collision_checker.hpp"
 #include "nav2_costmap_2d/clear_costmap_service.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "nav2_costmap_2d/layer.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_msgs/srv/get_costs.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_msgs/srv/get_cost.hpp"
 #include "pluginlib/class_loader.hpp"
-#include "tf2/convert.hpp"
-#include "tf2/LinearMath/Transform.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
-#include "tf2/time.hpp"
-#include "tf2/transform_datatypes.hpp"
-#include "nav2_ros_common/service_server.hpp"
+#include "tf2/convert.h"
+#include "tf2/LinearMath/Transform.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2/time.h"
+#include "tf2/transform_datatypes.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-#include "tf2/utils.hpp"
+#include "tf2/utils.h"
 #pragma GCC diagnostic pop
 
 namespace nav2_costmap_2d
@@ -72,7 +72,7 @@ namespace nav2_costmap_2d
 /** @brief A ROS wrapper for a 2D Costmap. Handles subscribing to
  * topics that provide observations about obstacles in either the form
  * of PointCloud or LaserScan messages. */
-class Costmap2DROS : public nav2::LifecycleNode
+class Costmap2DROS : public nav2_util::LifecycleNode
 {
 public:
   /**
@@ -82,16 +82,25 @@ public:
   explicit Costmap2DROS(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
   /**
+   * @brief  Constructor for the wrapper, the node will
+   * be placed in a namespace equal to the node's name
+   * @param name Name of the costmap ROS node
+   * @param use_sim_time Whether to use simulation or real time
+   */
+  explicit Costmap2DROS(const std::string & name, const bool & use_sim_time = false);
+
+  /**
    * @brief  Constructor for the wrapper
-   * @param name Name of the costmap ROS node which will also be used as a local namespace
+   * @param name Name of the costmap ROS node
    * @param parent_namespace Absolute namespace of the node hosting the costmap node
+   * @param local_namespace Namespace to append to the parent namespace
    * @param use_sim_time Whether to use simulation or real time
    */
   explicit Costmap2DROS(
     const std::string & name,
-    const std::string & parent_namespace = "/",
-    const bool & use_sim_time = false,
-    const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+    const std::string & parent_namespace,
+    const std::string & local_namespace,
+    const bool & use_sim_time);
 
   /**
    * @brief Common initialization for constructors
@@ -106,27 +115,27 @@ public:
   /**
    * @brief Configure node
    */
-  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Activate node
    */
-  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Deactivate node
    */
-  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief Cleanup node
    */
-  nav2::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief shutdown node
    */
-  nav2::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
+  nav2_util::CallbackReturn on_shutdown(const rclcpp_lifecycle::State & state) override;
 
   /**
    * @brief as a child-LifecycleNode :
@@ -187,13 +196,6 @@ public:
   {
     return layered_costmap_->isCurrent();
   }
-
-  /**
-   * @brief Wait for the costmap to become current after updates or parameter changes
-   * @param timeout Maximum time to wait for costmap to become current
-   * @throws std::runtime_error if timeout is exceeded
-   */
-  void waitUntilCurrent(const rclcpp::Duration & timeout);
 
   /**
    * @brief Get the pose of the robot in the global frame of the costmap
@@ -319,9 +321,9 @@ public:
    * layered_costmap_->setFootprint().  Also saves the unpadded
    * footprint, which is available from
    * getUnpaddedRobotFootprint(). */
-  void setRobotFootprintPolygon(const geometry_msgs::msg::Polygon & footprint);
+  void setRobotFootprintPolygon(const geometry_msgs::msg::Polygon::SharedPtr footprint);
 
-  nav2::TransformBuffer::SharedPtr getTfBuffer() {return tf_buffer_;}
+  std::shared_ptr<tf2_ros::Buffer> getTfBuffer() {return tf_buffer_;}
 
   /**
    * @brief  Get the costmap's use_radius_ parameter, corresponding to
@@ -343,34 +345,34 @@ public:
    * @param request x and y coordinates in map
    * @param response cost of the point
   */
-  void getCostsCallback(
+  void getCostCallback(
     const std::shared_ptr<rmw_request_id_t>,
-    const std::shared_ptr<nav2_msgs::srv::GetCosts::Request> request,
-    const std::shared_ptr<nav2_msgs::srv::GetCosts::Response> response);
+    const std::shared_ptr<nav2_msgs::srv::GetCost::Request> request,
+    const std::shared_ptr<nav2_msgs::srv::GetCost::Response> response);
 
 protected:
   // Publishers and subscribers
-  nav2::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr
+  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PolygonStamped>::SharedPtr
     footprint_pub_;
   std::unique_ptr<Costmap2DPublisher> costmap_publisher_;
 
   std::vector<std::unique_ptr<Costmap2DPublisher>> layer_publishers_;
 
-  nav2::Subscription<geometry_msgs::msg::Polygon>::SharedPtr footprint_sub_;
-  nav2::Subscription<geometry_msgs::msg::PolygonStamped>::SharedPtr footprint_stamped_sub_;
-  nav2::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameter_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::Polygon>::SharedPtr footprint_sub_;
+  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameter_sub_;
 
-  // Dedicated callback group and executor for tf timer_interface and message filter
+  // Dedicated callback group and executor for tf timer_interface and message fillter
   rclcpp::CallbackGroup::SharedPtr callback_group_;
   rclcpp::executors::SingleThreadedExecutor::SharedPtr executor_;
-  std::unique_ptr<nav2::NodeThread> executor_thread_;
+  std::unique_ptr<nav2_util::NodeThread> executor_thread_;
 
   // Transform listener
-  nav2::TransformBuffer::SharedPtr tf_buffer_;
-  nav2::TransformListener::SharedPtr tf_listener_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
   std::unique_ptr<LayeredCostmap> layered_costmap_{nullptr};
   std::string name_;
+  std::string parent_namespace_;
 
   /**
    * @brief Function on timer for costmap update
@@ -414,8 +416,6 @@ protected:
   double transform_tolerance_{0};           ///< The timeout before transform errors
   double initial_transform_timeout_{0};   ///< The timeout before activation of the node errors
   double map_vis_z_{0};                 ///< The height of map, allows to avoid flickering at -0.008
-  /// If true, the footprint subscriber expects a PolygonStamped msg
-  bool subscribe_to_stamped_footprint_{false};
 
   bool is_lifecycle_follower_{true};   ///< whether is a child-LifecycleNode or an independent node
 
@@ -425,44 +425,19 @@ protected:
   std::vector<geometry_msgs::msg::Point> padded_footprint_;
 
   // Services
-  nav2::ServiceServer<nav2_msgs::srv::GetCosts>::SharedPtr get_cost_service_;
+  rclcpp::Service<nav2_msgs::srv::GetCost>::SharedPtr get_cost_service_;
   std::unique_ptr<ClearCostmapService> clear_costmap_service_;
 
   // Dynamic parameters handler
-  PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
-  OnSetParametersCallbackHandle::SharedPtr on_set_params_handler;
+  OnSetParametersCallbackHandle::SharedPtr dyn_params_handler;
 
   /**
-   * @brief Validate incoming parameter updates before applying them.
-   * This callback is triggered when one or more parameters are about to be updated.
-   * It checks the validity of parameter values and rejects updates that would lead
-   * to invalid or inconsistent configurations
-   * @param parameters List of parameters that are being updated.
-   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
+   * @brief Callback executed when a paramter change is detected
+   * @param parameters list of changed parameters
    */
-  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
-    const std::vector<rclcpp::Parameter> & parameters);
-
-  /**
-   * @brief Apply parameter updates after validation
-   * This callback is executed when parameters have been successfully updated.
-   * It updates the internal configuration of the node with the new parameter values.
-   * @param parameters List of parameters that have been updated.
-   */
-  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
+  rcl_interfaces::msg::SetParametersResult
+  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
 };
-
-// free functions
-
-/**
-  * @brief Given the node options of a parent node, expands of replaces
-  *         the fields for the node name, namespace and use_sim_time
-  */
-rclcpp::NodeOptions getChildNodeOptions(
-  const std::string & name,
-  const std::string & parent_namespace,
-  const bool & use_sim_time,
-  const rclcpp::NodeOptions & parent_options);
 
 }  // namespace nav2_costmap_2d
 

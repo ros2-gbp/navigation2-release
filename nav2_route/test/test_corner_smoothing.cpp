@@ -19,10 +19,17 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_route/corner_smoothing.hpp"
 // #include "nav2_route/types.hpp"
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route;  // NOLINT
 
@@ -40,10 +47,8 @@ TEST(CornerSmoothingTest, test_corner_smoothing)
   test_node3.coords.y = 10.0;
 
   double smoothing_radius = 2.0;
-  double angle_threshold = 2.9;
 
-  CornerArc corner_arc(test_node1.coords, test_node2.coords, test_node3.coords, smoothing_radius,
-    angle_threshold);
+  CornerArc corner_arc(test_node1.coords, test_node2.coords, test_node3.coords, smoothing_radius);
 
   Coordinates start = corner_arc.getCornerStart();
   Coordinates end = corner_arc.getCornerEnd();
@@ -69,10 +74,8 @@ TEST(LargeRadiusTest, test_large_radius_smoothing)
   test_node3.coords.y = 10.0;
 
   double smoothing_radius = 20.0;
-  double angle_threshold = 2.9;
 
-  CornerArc corner_arc(test_node1.coords, test_node2.coords, test_node3.coords, smoothing_radius,
-    angle_threshold);
+  CornerArc corner_arc(test_node1.coords, test_node2.coords, test_node3.coords, smoothing_radius);
 
   EXPECT_FALSE(corner_arc.isCornerValid());
 }
@@ -91,10 +94,8 @@ TEST(ColinearSmoothingTest, test_colinear_smoothing)
   test_node3.coords.y = 0.0;
 
   double smoothing_radius = 2.0;
-  double angle_threshold = 2.9;
 
-  CornerArc corner_arc(test_node1.coords, test_node2.coords, test_node3.coords, smoothing_radius,
-    angle_threshold);
+  CornerArc corner_arc(test_node1.coords, test_node2.coords, test_node3.coords, smoothing_radius);
 
   EXPECT_FALSE(corner_arc.isCornerValid());
 }
@@ -107,19 +108,8 @@ TEST(DegeneratePointsTest, test_degenerate_points_smoothing)
   test_node1.coords.y = 0.0;
 
   double smoothing_radius = 2.0;
-  double angle_threshold = 2.9;
 
-  CornerArc corner_arc(test_node1.coords, test_node1.coords, test_node1.coords, smoothing_radius,
-    angle_threshold);
+  CornerArc corner_arc(test_node1.coords, test_node1.coords, test_node1.coords, smoothing_radius);
 
   EXPECT_FALSE(corner_arc.isCornerValid());
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-  rclcpp::init(argc, argv);
-  int result = RUN_ALL_TESTS();
-  rclcpp::shutdown();
-  return result;
 }

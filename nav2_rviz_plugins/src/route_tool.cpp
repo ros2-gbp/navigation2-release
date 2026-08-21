@@ -28,12 +28,12 @@ RouteTool::RouteTool(QWidget * parent)
 {
   // Extend the widget with all attributes and children from UI file
   ui_->setupUi(this);
-  node_ = std::make_shared<nav2::LifecycleNode>("route_tool_node", "", rclcpp::NodeOptions());
+  node_ = std::make_shared<nav2_util::LifecycleNode>("route_tool_node", "", rclcpp::NodeOptions());
   node_->configure();
   graph_vis_publisher_ = node_->create_publisher<visualization_msgs::msg::MarkerArray>(
     "route_graph", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
   node_->activate();
-  tf_ = nav2::create_transform_buffer(node_);
+  tf_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
   graph_loader_ = std::make_shared<nav2_route::GraphLoader>(node_, tf_, "map");
   graph_saver_ = std::make_shared<nav2_route::GraphSaver>(node_, tf_, "map");
   ui_->add_node_button->setChecked(true);
@@ -55,7 +55,7 @@ void RouteTool::onInitialize(void)
   auto node = ros_node_abstraction->get_raw_node();
 
   clicked_point_subscription_ = node->create_subscription<geometry_msgs::msg::PointStamped>(
-    "clicked_point", 1, [this](const geometry_msgs::msg::PointStamped::ConstSharedPtr & msg) {
+    "clicked_point", 1, [this](const geometry_msgs::msg::PointStamped::SharedPtr msg) {
       ui_->add_field_1->setText(std::to_string(msg->point.x).c_str());
       ui_->add_field_2->setText(std::to_string(msg->point.y).c_str());
       ui_->edit_field_1->setText(std::to_string(msg->point.x).c_str());

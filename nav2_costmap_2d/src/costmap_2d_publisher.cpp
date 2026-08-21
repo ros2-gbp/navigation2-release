@@ -51,7 +51,7 @@ namespace nav2_costmap_2d
 char * Costmap2DPublisher::cost_translation_table_ = NULL;
 
 Costmap2DPublisher::Costmap2DPublisher(
-  const nav2::LifecycleNode::WeakPtr & parent,
+  const nav2_util::LifecycleNode::WeakPtr & parent,
   Costmap2D * costmap,
   std::string global_frame,
   std::string topic_name,
@@ -67,24 +67,26 @@ Costmap2DPublisher::Costmap2DPublisher(
   clock_ = node->get_clock();
   logger_ = node->get_logger();
 
+  auto custom_qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable();
+
   // TODO(bpwilcox): port onNewSubscription functionality for publisher
   costmap_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>(
     topic_name,
-    nav2::qos::LatchedPublisherQoS());
+    custom_qos);
   costmap_raw_pub_ = node->create_publisher<nav2_msgs::msg::Costmap>(
     topic_name + "_raw",
-    nav2::qos::LatchedPublisherQoS());
+    custom_qos);
   costmap_update_pub_ = node->create_publisher<map_msgs::msg::OccupancyGridUpdate>(
-    topic_name + "_updates", nav2::qos::LatchedPublisherQoS());
+    topic_name + "_updates", custom_qos);
   costmap_raw_update_pub_ = node->create_publisher<nav2_msgs::msg::CostmapUpdate>(
-    topic_name + "_raw_updates", nav2::qos::LatchedPublisherQoS());
+    topic_name + "_raw_updates", custom_qos);
 
   // Create a service that will use the callback function to handle requests.
   costmap_service_ = node->create_service<nav2_msgs::srv::GetCostmap>(
-    std::string("get_") + topic_name,
-    std::bind(
-      &Costmap2DPublisher::costmap_service_callback, this,
-      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+    "get_" + topic_name, std::bind(
+      &Costmap2DPublisher::costmap_service_callback,
+      this, std::placeholders::_1, std::placeholders::_2,
+      std::placeholders::_3));
 
   if (cost_translation_table_ == NULL) {
     cost_translation_table_ = new char[256];
@@ -109,7 +111,7 @@ Costmap2DPublisher::Costmap2DPublisher(
 
 Costmap2DPublisher::~Costmap2DPublisher() {}
 
-// TODO(bpwilcox): find equivalent/workaround to ros::SingleSubscriberPublisher
+// TODO(bpwilcox): find equivalent/workaround to ros::SingleSubscriberPublishr
 /*
 void Costmap2DPublisher::onNewSubscription(const ros::SingleSubscriberPublisher& pub)
 {
@@ -152,9 +154,9 @@ void Costmap2DPublisher::prepareGrid()
   grid_->data.resize(grid_->info.width * grid_->info.height);
 
   unsigned char * data = costmap_->getCharMap();
-  std::transform(
-    data, data + grid_->data.size(), grid_->data.begin(),
-    [](unsigned char c) {return cost_translation_table_[c];});
+  for (unsigned int i = 0; i < grid_->data.size(); i++) {
+    grid_->data[i] = cost_translation_table_[data[i]];
+  }
 }
 
 void Costmap2DPublisher::prepareCostmap()
@@ -197,16 +199,12 @@ std::unique_ptr<map_msgs::msg::OccupancyGridUpdate> Costmap2DPublisher::createGr
   update->width = xn_ - x0_;
   update->height = yn_ - y0_;
   update->data.resize(update->width * update->height);
-  const std::uint32_t map_width = costmap_->getSizeInCellsX();
-  unsigned char * costmap_data = costmap_->getCharMap();
+
   std::uint32_t i = 0;
   for (std::uint32_t y = y0_; y < yn_; y++) {
-    std::uint32_t row_start = y * map_width + x0_;
-    std::transform(
-      costmap_data + row_start, costmap_data + row_start + update->width,
-      update->data.begin() + i,
-      [](unsigned char c) {return cost_translation_table_[c];});
-    i += update->width;
+    for (std::uint32_t x = x0_; x < xn_; x++) {
+      update->data[i++] = cost_translation_table_[costmap_->getCost(x, y)];
+    }
   }
   return update;
 }
@@ -222,14 +220,12 @@ std::unique_ptr<nav2_msgs::msg::CostmapUpdate> Costmap2DPublisher::createCostmap
   msg->size_x = xn_ - x0_;
   msg->size_y = yn_ - y0_;
   msg->data.resize(msg->size_x * msg->size_y);
-  const std::uint32_t map_width = costmap_->getSizeInCellsX();
-  unsigned char * costmap_data = costmap_->getCharMap();
 
   std::uint32_t i = 0;
   for (std::uint32_t y = y0_; y < yn_; y++) {
-    std::uint32_t row_start = y * map_width + x0_;
-    std::copy_n(costmap_data + row_start, msg->size_x, msg->data.begin() + i);
-    i += msg->size_x;
+    for (std::uint32_t x = x0_; x < xn_; x++) {
+      msg->data[i++] = costmap_->getCost(x, y);
+    }
   }
   return msg;
 }

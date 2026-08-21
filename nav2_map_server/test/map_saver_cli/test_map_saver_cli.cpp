@@ -18,8 +18,6 @@
 #include <memory>
 #include <utility>
 
-#include "nav2_ros_common/qos_profiles.hpp"
-#include "nav2_ros_common/rate.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 
@@ -36,7 +34,7 @@ TEST(MapSaverCLI, CLITest)
 
   auto publisher = node->create_publisher<nav_msgs::msg::OccupancyGrid>(
     "/map",
-    nav2::qos::LatchedPublisherQoS());
+    rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
 
   auto msg = std::make_unique<nav_msgs::msg::OccupancyGrid>();
   msg->header.frame_id = "map";
@@ -58,7 +56,7 @@ TEST(MapSaverCLI, CLITest)
 
   publisher->publish(std::move(msg));
 
-  rclcpp::WallRate(1).sleep();
+  rclcpp::Rate(1).sleep();
 
   // succeed on real map
   RCLCPP_INFO(node->get_logger(), "Calling saver...");
@@ -71,7 +69,7 @@ TEST(MapSaverCLI, CLITest)
   auto return_code = system(command.c_str());
   EXPECT_EQ(return_code, 0);
 
-  rclcpp::WallRate(0.25).sleep();
+  rclcpp::Rate(0.25).sleep();
 
   RCLCPP_INFO(node->get_logger(), "Checking on file...");
 
@@ -94,11 +92,11 @@ TEST(MapSaverCLI, CLITest)
     std::string(
     "ros2 run nav2_map_server map_saver_cli "
     "-t map_failure --occ 100 --free 2 --mode trinary --fmt png -f ") + file_path +
-    std::string(" --ros-args --remap __node:=map_saver_test_node");
+    std::string("--ros-args __node:=map_saver_test_node");
   return_code = system(command.c_str());
-  EXPECT_EQ(return_code, 256);
+  EXPECT_EQ(return_code, 65280);
 
-  rclcpp::WallRate(0.25).sleep();
+  rclcpp::Rate(0.25).sleep();
 
   RCLCPP_INFO(node->get_logger(), "Checking on file...");
 
@@ -111,7 +109,7 @@ TEST(MapSaverCLI, CLITest)
   return_code = system(command.c_str());
   EXPECT_EQ(return_code, 0);
 
-  rclcpp::WallRate(0.5).sleep();
+  rclcpp::Rate(0.5).sleep();
 
   RCLCPP_INFO(node->get_logger(), "Testing invalid mode...");
   command =
@@ -120,7 +118,7 @@ TEST(MapSaverCLI, CLITest)
   return_code = system(command.c_str());
   EXPECT_EQ(return_code, 0);
 
-  rclcpp::WallRate(0.5).sleep();
+  rclcpp::Rate(0.5).sleep();
 
   RCLCPP_INFO(node->get_logger(), "Testing missing argument...");
   command =
@@ -129,7 +127,7 @@ TEST(MapSaverCLI, CLITest)
   return_code = system(command.c_str());
   EXPECT_EQ(return_code, 65280);
 
-  rclcpp::WallRate(0.5).sleep();
+  rclcpp::Rate(0.5).sleep();
 
   RCLCPP_INFO(node->get_logger(), "Testing wrong argument...");
   command =
@@ -138,13 +136,11 @@ TEST(MapSaverCLI, CLITest)
   return_code = system(command.c_str());
   EXPECT_EQ(return_code, 65280);
 
-  rclcpp::WallRate(0.5).sleep();
+  rclcpp::Rate(0.5).sleep();
 
   command =
     std::string(
-    "ros2 run nav2_map_server map_saver_cli --ros-args --remap __node:=map_saver_test_node");
+    "ros2 run nav2_map_server map_saver_cli --ros-args -r __node:=map_saver_test_node");
   return_code = system(command.c_str());
   EXPECT_EQ(return_code, 0);
-
-  rclcpp::shutdown();
 }

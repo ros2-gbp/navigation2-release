@@ -18,10 +18,10 @@
 #include <string>
 #include <vector>
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "nav2_core/progress_checker.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/pose2_d.hpp"
 
 namespace nav2_controller
 {
@@ -34,35 +34,10 @@ namespace nav2_controller
 class SimpleProgressChecker : public nav2_core::ProgressChecker
 {
 public:
-  /**
-   * @brief Construct a new Simple Progress Checker object
-   */
-  SimpleProgressChecker() = default;
-
-  /**
-   * @brief Destroy the Simple Progress Checker object
-   */
-  ~SimpleProgressChecker();
-
-  /**
-   * @brief Initialize the goal checker
-   * @param parent Weak pointer to the lifecycle node
-   * @param plugin_name Name of the plugin
-   */
   void initialize(
-    const nav2::LifecycleNode::WeakPtr & parent,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     const std::string & plugin_name) override;
-
-  /**
-   * @brief Checks if the robot has moved compare to previous
-   * @param current_pose Current pose of the robot
-   * @return true, if the robot has moved enough, false otherwise
-   */
   bool check(geometry_msgs::msg::PoseStamped & current_pose) override;
-
-  /**
-   * @brief Reset the progress checker state
-   */
   void reset() override;
 
 protected:
@@ -71,58 +46,36 @@ protected:
    * @param pose Current pose of the robot
    * @return true, if movement is greater than radius_, or false
    */
-  bool isRobotMovedEnough(const geometry_msgs::msg::Pose & pose);
+  bool isRobotMovedEnough(const geometry_msgs::msg::Pose2D & pose);
   /**
    * @brief Resets baseline pose with the current pose of the robot
    * @param pose Current pose of the robot
    */
-  void resetBaselinePose(const geometry_msgs::msg::Pose & pose);
+  void resetBaselinePose(const geometry_msgs::msg::Pose2D & pose);
 
-  /**
-   * @brief Calculates distance between two poses
-   * @param pose1 First pose
-   * @param pose2 Second pose
-   * @return Distance between the two poses
-   */
   static double pose_distance(
-    const geometry_msgs::msg::Pose &,
-    const geometry_msgs::msg::Pose &);
+    const geometry_msgs::msg::Pose2D &,
+    const geometry_msgs::msg::Pose2D &);
 
-  nav2::LifecycleNode::WeakPtr node_;
   rclcpp::Clock::SharedPtr clock_;
-  rclcpp::Logger logger_{rclcpp::get_logger("simple_progress_checker")};
 
   double radius_;
   rclcpp::Duration time_allowance_{0, 0};
 
-  geometry_msgs::msg::Pose baseline_pose_;
+  geometry_msgs::msg::Pose2D baseline_pose_;
   rclcpp::Time baseline_time_;
 
   bool baseline_pose_set_{false};
   // Dynamic parameters handler
-  std::mutex mutex_;
-  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
   std::string plugin_name_;
 
   /**
-   * @brief Validate incoming parameter updates before applying them.
-   * This callback is triggered when one or more parameters are about to be updated.
-   * It checks the validity of parameter values and rejects updates that would lead
-   * to invalid or inconsistent configurations
-   * @param parameters List of parameters that are being updated.
-   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
+   * @brief Callback executed when a paramter change is detected
+   * @param parameters list of changed parameters
    */
-  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
-    const std::vector<rclcpp::Parameter> & parameters);
-
-  /**
-   * @brief Apply parameter updates after validation
-   * This callback is executed when parameters have been successfully updated.
-   * It updates the internal configuration of the node with the new parameter values.
-   * @param parameters List of parameters that have been updated.
-   */
-  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
+  rcl_interfaces::msg::SetParametersResult
+  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
 };
 }  // namespace nav2_controller
 

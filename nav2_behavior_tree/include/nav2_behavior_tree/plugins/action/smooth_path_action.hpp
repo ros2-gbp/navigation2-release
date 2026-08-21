@@ -18,10 +18,10 @@
 
 #include <string>
 
+#include "behaviortree_cpp/json_export.h"
 #include "nav2_msgs/action/smooth_path.hpp"
-#include "nav_msgs/msg/path.hpp"
+#include "nav_msgs/msg/path.h"
 #include "nav2_behavior_tree/bt_action_node.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
@@ -34,7 +34,7 @@ namespace nav2_behavior_tree
  * <SmoothPath unsmoothed_path="{path}" smoothed_path="{path}" max_smoothing_duration="3.0"
  *             smoother_id="simple_smoother" check_for_collisions="false"
  *             smoothing_duration="{smoothing_duration_used}" was_completed="{smoothing_completed}"
- *             error_code_id="{smoothing_path_error_code}" error_msg="{smoothing_path_error_msg}"/>
+ *             error_code_id="{smoothing_path_error_code}"/>
  * @endcode
  */
 class SmoothPathAction : public nav2_behavior_tree::BtActionNode<nav2_msgs::action::SmoothPath>
@@ -97,6 +97,8 @@ public:
         BT::OutputPort<double>("smoothing_duration", "Time taken to smooth path"),
         BT::OutputPort<bool>(
           "was_completed", "True if smoothing was not interrupted by time limit"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The smooth path error code"),
       });
   }
 };

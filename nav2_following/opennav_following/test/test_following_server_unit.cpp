@@ -20,9 +20,10 @@
 #include "geometry_msgs/msg/twist.hpp"
 #include "opennav_docking_core/docking_exceptions.hpp"
 #include "opennav_following/following_server.hpp"
-#include "nav2_ros_common/node_thread.hpp"
-#include "tf2/utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "nav2_util/node_thread.hpp"
+#include "tf2/utils.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_broadcaster.h"
 
 // Testing unit functions in following server, smoke/system tests in python file
 
@@ -113,7 +114,7 @@ TEST(FollowingServerTests, ObjectLifecycle)
 TEST(FollowingServerTests, ErrorExceptions)
 {
   auto node = std::make_shared<FollowingServerShim>();
-  auto node_thread = nav2::NodeThread(node);
+  auto node_thread = nav2_util::NodeThread(node);
   auto node2 = std::make_shared<rclcpp::Node>("client_node");
 
   auto pub = node2->create_publisher<geometry_msgs::msg::PoseStamped>(
@@ -301,7 +302,7 @@ TEST(FollowingServerTests, GetFramePose)
   EXPECT_FALSE(node->getFramePose(pose, frame_test));
 
   // Set transform between my_frame and fixed_frame_test
-  auto tf_broadcaster = nav2::create_transform_broadcaster(node);
+  auto tf_broadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(node);
   geometry_msgs::msg::TransformStamped frame_to_fixed;
   frame_to_fixed.header.frame_id = "fixed_frame_test";
   frame_to_fixed.header.stamp = node->get_clock()->now();

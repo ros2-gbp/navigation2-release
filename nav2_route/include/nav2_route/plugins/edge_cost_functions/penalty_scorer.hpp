@@ -18,10 +18,9 @@
 #include <memory>
 #include <string>
 
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_route/interfaces/edge_cost_function.hpp"
-#include "nav2_ros_common/node_utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "nav2_util/node_utils.hpp"
 
 namespace nav2_route
 {
@@ -47,8 +46,8 @@ public:
    * @brief Configure
    */
   void configure(
-    const nav2::LifecycleNode::SharedPtr node,
-    const nav2::TransformBuffer::SharedPtr tf_buffer,
+    const nav2_util::LifecycleNode::SharedPtr node,
+    const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber,
     const std::string & name) override;
 

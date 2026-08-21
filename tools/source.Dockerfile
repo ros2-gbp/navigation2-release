@@ -49,7 +49,7 @@ WORKDIR $OVERLAY_WS/src
 COPY ./ ./ros-planning/navigation2
 RUN colcon list --names-only | cat >> /opt/packages.txt
 
-# remove skipped packages
+# remove skiped packages
 WORKDIR /opt
 RUN find ./ \
       -name "AMENT_IGNORE" -o \

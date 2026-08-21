@@ -20,7 +20,7 @@
 #include <string>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_ros/buffer.h"
 
 #include "behaviortree_cpp/decorator_node.h"
 #include "nav2_behavior_tree/bt_utils.hpp"
@@ -31,7 +31,6 @@ namespace nav2_behavior_tree
 /**
  * @brief A BT::DecoratorNode that ticks its child every time the robot
  * travels a specified distance
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
@@ -72,9 +71,9 @@ private:
    */
   BT::NodeStatus tick() override;
 
-  nav2::LifecycleNode::SharedPtr node_;
+  rclcpp::Node::SharedPtr node_;
 
-  nav2::TransformBuffer::SharedPtr tf_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
   double transform_tolerance_;
 
   geometry_msgs::msg::PoseStamped start_pose_;

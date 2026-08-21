@@ -28,14 +28,12 @@
 #include "nav2_core/planner_exceptions.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_costmap_2d/cost_values.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "nav2_theta_star_planner/theta_star.hpp"
-#include "nav2_theta_star_planner/parameter_handler.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 using rcl_interfaces::msg::ParameterType;
 
@@ -46,8 +44,8 @@ class ThetaStarPlanner : public nav2_core::GlobalPlanner
 {
 public:
   void configure(
-    const nav2::LifecycleNode::WeakPtr & parent,
-    std::string name, nav2::TransformBuffer::SharedPtr tf,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   void cleanup() override;
@@ -66,22 +64,23 @@ public:
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
-    const std::vector<geometry_msgs::msg::PoseStamped> & viapoints,
     std::function<bool()> cancel_checker) override;
 
 protected:
-  nav2::TransformBuffer::SharedPtr tf_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_{rclcpp::get_logger("ThetaStarPlanner")};
   std::string global_frame_, name_;
+  bool use_final_approach_orientation_;
 
   // parent node weak ptr
-  nav2::LifecycleNode::WeakPtr parent_node_;
+  rclcpp_lifecycle::LifecycleNode::WeakPtr parent_node_;
 
-  std::unique_ptr<ThetaStar> planner_;
+  std::unique_ptr<theta_star::ThetaStar> planner_;
 
-  Parameters * params_;
-  std::unique_ptr<nav2_theta_star_planner::ParameterHandler> param_handler_;
+  // Dynamic parameters handler
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+
 
   /**
    * @brief the function responsible for calling the algorithm and retrieving a path from it
@@ -99,6 +98,13 @@ protected:
   static nav_msgs::msg::Path linearInterpolation(
     const std::vector<coordsW> & raw_path,
     const double & dist_bw_points);
+
+  /**
+   * @brief Callback executed when a paramter change is detected
+   * @param parameters list of changed parameters
+   */
+  rcl_interfaces::msg::SetParametersResult
+  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
 };
 }   //  namespace nav2_theta_star_planner
 
