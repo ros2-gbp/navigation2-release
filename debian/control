@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav-2d-msgs
+Section: misc
+Priority: optional
+Maintainer: "David V. Lu!!" <david@metrorobots.com>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-ament-cmake, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-rosidl-default-generators, ros-lyrical-std-msgs, ros-lyrical-ros-workspace, ros-lyrical-rosidl-typesupport-fastrtps-c, ros-lyrical-rosidl-typesupport-fastrtps-cpp
+Homepage: https://index.ros.org/p/nav_2d_msgs/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav-2d-msgs
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-rosidl-default-runtime, ros-lyrical-std-msgs, ros-lyrical-ros-workspace
+Description: Basic message types for two dimensional navigation, extending from geometry_msgs::Pose.
