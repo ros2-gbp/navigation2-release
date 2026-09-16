@@ -1,0 +1,49 @@
+name: Lint
+on:
+  pull_request:
+
+jobs:
+  ament_lint_general:
+    name: ament_${{ matrix.linter }}
+    runs-on: ubuntu-latest
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-ros-rolling-ros-base-latest
+    strategy:
+      fail-fast: false
+      matrix:
+          linter: [xmllint, cpplint, uncrustify, pep257, flake8]
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ros-tooling/action-ros-lint@0.1.4
+      with:
+        linter: ${{ matrix.linter }}
+        distribution: rolling
+        package-name: "*"
+
+  pre-commit:
+    name: pre-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+      - uses: pre-commit/action@v3.0.1
+        env:
+          SKIP: >-
+            ament_lint_cmake,
+            ament_cpplint,
+            ament_uncrustify,
+            ament_xmllint,
+            ament_flake8,
+            ament_pep257
+
+  semgrep:
+    name: semgrep
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+      - name: Run Semgrep Scan
+        run: semgrep scan --config .semgrep.yml --text --max-lines-per-finding 1 --error
