@@ -1,0 +1,17 @@
+# OrderLayer for checking Costmap2D plugins API calling order
+add_library(order_layer SHARED order_layer.cpp)
+target_link_libraries(order_layer PUBLIC
+  nav2_costmap_2d_core
+)
+install(TARGETS
+  order_layer
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
+# Costmap2D plugins API calling order test
+nav2_add_gtest(plugin_api_order plugin_api_order.cpp)
+target_link_libraries(plugin_api_order
+  nav2_costmap_2d_core
+)
