@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-planner
+Section: misc
+Priority: optional
+Maintainer: "Steve Macenski" <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-gtest <!nocheck>, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-lifecycle-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-common, ros-lyrical-nav2-core, ros-lyrical-nav2-costmap-2d, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-pluginlib, ros-lyrical-rclcpp, ros-lyrical-rclcpp-components, ros-lyrical-rclcpp-lifecycle, ros-lyrical-tf2, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_planner/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-planner
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-lifecycle-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-core, ros-lyrical-nav2-costmap-2d, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-pluginlib, ros-lyrical-rclcpp, ros-lyrical-rclcpp-components, ros-lyrical-rclcpp-lifecycle, ros-lyrical-tf2, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Description: Nav2 planner server package
