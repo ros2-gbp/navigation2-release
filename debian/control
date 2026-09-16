@@ -1,0 +1,12 @@
+Source: ros-lyrical-opennav-following
+Section: misc
+Priority: optional
+Maintainer: "Alberto Tudela" <ajtudela@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-gtest <!nocheck>, ros-lyrical-ament-cmake-pytest <!nocheck>, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-angles, ros-lyrical-geometry-msgs, ros-lyrical-nav2-common, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-opennav-docking, ros-lyrical-opennav-docking-core, ros-lyrical-rclcpp, ros-lyrical-rclcpp-components, ros-lyrical-rclcpp-lifecycle, ros-lyrical-tf2, ros-lyrical-tf2-geometry-msgs, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/opennav_following/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-opennav-following
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-geometry-msgs, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-opennav-docking, ros-lyrical-opennav-docking-core, ros-lyrical-rclcpp, ros-lyrical-rclcpp-components, ros-lyrical-rclcpp-lifecycle, ros-lyrical-tf2, ros-lyrical-tf2-geometry-msgs, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Description: A Task Server for dynamic following object
