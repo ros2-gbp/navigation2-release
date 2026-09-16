@@ -182,14 +182,12 @@ nav2_core::PathSegment FeasiblePathHandler::findPlanSegment(
       return euclidean_distance(global_pose_, ps);
     });
 
-  // Make sure we always have at least 2 points on the transformed plan and that we don't prune
-  // the global plan below 2 points in order to have always enough point to interpolate the
-  // end of path direction
-  if (global_plan_up_to_constraint_.poses.begin() != closest_pose_upper_bound &&
-    global_plan_up_to_constraint_.poses.size() > 1 &&
-    closest_point == std::prev(closest_pose_upper_bound))
+  // Do not prune the global plan below 2 points, so there are enough points to interpolate the
+  // end-of-path direction.
+  if (global_plan_up_to_constraint_.poses.size() > 1 &&
+    closest_point == std::prev(global_plan_up_to_constraint_.poses.end()))
   {
-    closest_point = std::prev(std::prev(closest_pose_upper_bound));
+    closest_point = std::prev(closest_point);
   }
 
   auto pruned_plan_end =
@@ -212,6 +210,8 @@ nav_msgs::msg::Path FeasiblePathHandler::transformLocalPlan(
   // Find the furthest relevant pose on the path to consider within costmap
   // bounds
   // Transforming it to the costmap frame in the same loop
+  std::lock_guard<nav2_costmap_2d::Costmap2D::mutex_t> costmap_lock(
+    *(costmap_ros_->getCostmap()->getMutex()));
   for (auto global_plan_pose = closest_point; global_plan_pose != pruned_plan_end;
     ++global_plan_pose)
   {
