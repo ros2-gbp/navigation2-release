@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-rviz-plugins
+Section: misc
+Priority: optional
+Maintainer: "Michael Jeronimo" <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), qt6-base-dev, qt6-scxml-dev, ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-common, ros-lyrical-nav2-lifecycle-manager, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-route, ros-lyrical-nav2-util, ros-lyrical-pluginlib, ros-lyrical-rclcpp, ros-lyrical-rclcpp-action, ros-lyrical-rviz-common, ros-lyrical-rviz-default-plugins, ros-lyrical-rviz-ogre-vendor, ros-lyrical-rviz-rendering, ros-lyrical-std-msgs, ros-lyrical-tf2-geometry-msgs, ros-lyrical-visualization-msgs, ros-lyrical-yaml-cpp-vendor, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_rviz_plugins/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-rviz-plugins
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libqt6core6t64, libqt6gui6, libqt6statemachine6, libqt6widgets6, ros-lyrical-backward-ros, ros-lyrical-geometry-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-lifecycle-manager, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-route, ros-lyrical-nav2-util, ros-lyrical-pluginlib, ros-lyrical-rclcpp, ros-lyrical-rclcpp-action, ros-lyrical-rviz-common, ros-lyrical-rviz-default-plugins, ros-lyrical-rviz-ogre-vendor, ros-lyrical-rviz-rendering, ros-lyrical-std-msgs, ros-lyrical-tf2-geometry-msgs, ros-lyrical-visualization-msgs, ros-lyrical-yaml-cpp-vendor, ros-lyrical-ros-workspace
+Description: Navigation 2 plugins for rviz
