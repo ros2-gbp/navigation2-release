@@ -1,0 +1,174 @@
+// Copyright (c) 2018 Intel Corporation
+// Copyright (c) 2020 Sarthak Mittal
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef UTILS__TEST_TRANSFORM_HANDLER_HPP_
+#define UTILS__TEST_TRANSFORM_HANDLER_HPP_
+
+#include <memory>
+#include <string>
+#include <thread>
+#include <chrono>
+#include <algorithm>
+
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_action/rclcpp_action.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_ros_common/node_thread.hpp"
+#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "tf2_msgs/msg/tf_message.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+
+using namespace std::chrono_literals; // NOLINT
+using namespace std::chrono;  // NOLINT
+
+namespace nav2_behavior_tree
+{
+class TransformHandler
+{
+public:
+  explicit TransformHandler(nav2::LifecycleNode::SharedPtr & node)
+  : node_(node),
+    is_active_(false),
+    base_transform_(nullptr),
+    tf_broadcaster_(nullptr)
+  {
+    tf_buffer_ = nav2::create_transform_buffer(node_);
+    tf_listener_ = nav2::create_transform_listener(*tf_buffer_, node_);
+  }
+
+  virtual ~TransformHandler()
+  {
+    if (is_active_) {
+      deactivate();
+    }
+    tf_listener_.reset();
+    tf_buffer_.reset();
+  }
+
+  // Activate the tester before running tests
+  virtual void activate(std::chrono::milliseconds tf_broadcast_period = 100ms)
+  {
+    if (is_active_) {
+      throw std::runtime_error("Trying to activate while already active");
+    }
+    is_active_ = true;
+
+    // Launch a thread to process the messages for this node
+    spin_thread_ = std::make_unique<nav2::NodeThread>(node_->get_node_base_interface());
+
+    if (tf_broadcast_period.count() > 0) {
+      startRobotTransform(tf_broadcast_period);
+    }
+  }
+
+  virtual void deactivate()
+  {
+    if (!is_active_) {
+      throw std::runtime_error("Trying to deactivate while already inactive");
+    }
+    is_active_ = false;
+
+    if (transform_timer_) {
+      transform_timer_->cancel();
+      transform_timer_.reset();
+    }
+
+    spin_thread_.reset();
+    tf_broadcaster_.reset();
+  }
+
+  nav2::TransformBuffer::SharedPtr getBuffer() const
+  {
+    return tf_buffer_;
+  }
+
+  virtual void waitForTransform() const
+  {
+    if (is_active_) {
+      while (!tf_buffer_->canTransform("map", "base_link", rclcpp::Time(0))) {
+        std::this_thread::sleep_for(100ms);
+      }
+      RCLCPP_INFO(node_->get_logger(), "Transforms are available now!");
+    } else {
+      throw std::runtime_error("Trying to wait for transform while inactive!");
+    }
+  }
+
+  virtual void updateRobotPose(const geometry_msgs::msg::Pose & pose)
+  {
+    // Update base transform to publish
+    base_transform_->transform.translation.x = pose.position.x;
+    base_transform_->transform.translation.y = pose.position.y;
+    base_transform_->transform.translation.z = pose.position.z;
+    base_transform_->transform.rotation.x = pose.orientation.x;
+    base_transform_->transform.rotation.y = pose.orientation.y;
+    base_transform_->transform.rotation.z = pose.orientation.z;
+    base_transform_->transform.rotation.w = pose.orientation.w;
+    publishRobotTransform();
+  }
+
+  bool isActive() const {return is_active_;}
+
+protected:
+  void publishRobotTransform()
+  {
+    base_transform_->header.stamp = node_->now();
+    tf_broadcaster_->sendTransform(*base_transform_);
+  }
+
+  virtual void startRobotTransform(std::chrono::milliseconds tf_broadcast_period)
+  {
+    // Provide the robot pose transform
+    tf_broadcaster_ = nav2::create_transform_broadcaster(node_);
+
+    if (!base_transform_) {
+      base_transform_ = std::make_unique<geometry_msgs::msg::TransformStamped>();
+      base_transform_->header.frame_id = "map";
+      base_transform_->child_frame_id = "base_link";
+    }
+
+    // Set an initial pose
+    geometry_msgs::msg::Pose robot_pose;
+    robot_pose.position.x = 0;
+    robot_pose.position.y = 0;
+    robot_pose.orientation.w = 1;
+    updateRobotPose(robot_pose);
+
+    // Publish the transform periodically
+    transform_timer_ = node_->create_wall_timer(
+      tf_broadcast_period, std::bind(&TransformHandler::publishRobotTransform, this));
+  }
+
+  nav2::LifecycleNode::SharedPtr node_;
+
+  bool is_active_;
+
+  // A thread for spinning the ROS node
+  std::unique_ptr<nav2::NodeThread> spin_thread_;
+
+  // Subscriber
+
+  // The tester must provide the robot pose through a transform
+  std::unique_ptr<geometry_msgs::msg::TransformStamped> base_transform_;
+  nav2::TransformBroadcaster::SharedPtr tf_broadcaster_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
+  nav2::TransformListener::SharedPtr tf_listener_;
+  rclcpp::TimerBase::SharedPtr transform_timer_;
+};
+
+}  // namespace nav2_behavior_tree
+
+#endif  // UTILS__TEST_TRANSFORM_HANDLER_HPP_
