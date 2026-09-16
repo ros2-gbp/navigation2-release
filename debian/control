@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-behavior-tree
+Section: misc
+Priority: optional
+Maintainer: "Michael Jeronimo" <michael.jeronimo@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-action-msgs, ros-lyrical-ament-cmake, ros-lyrical-ament-cmake-gtest <!nocheck>, ros-lyrical-ament-cmake-ros <!nocheck>, ros-lyrical-ament-lint-auto <!nocheck>, ros-lyrical-ament-lint-common <!nocheck>, ros-lyrical-backward-ros, ros-lyrical-behaviortree-cpp, ros-lyrical-geometry-msgs, ros-lyrical-lifecycle-msgs <!nocheck>, ros-lyrical-nav-msgs, ros-lyrical-nav2-common, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-rclcpp, ros-lyrical-rclcpp-action, ros-lyrical-rclcpp-lifecycle, ros-lyrical-sensor-msgs, ros-lyrical-std-msgs, ros-lyrical-std-srvs, ros-lyrical-test-msgs <!nocheck>, ros-lyrical-tf2, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_behavior_tree/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-behavior-tree
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-action-msgs, ros-lyrical-backward-ros, ros-lyrical-behaviortree-cpp, ros-lyrical-geometry-msgs, ros-lyrical-nav-msgs, ros-lyrical-nav2-msgs, ros-lyrical-nav2-ros-common, ros-lyrical-nav2-util, ros-lyrical-rclcpp, ros-lyrical-rclcpp-action, ros-lyrical-rclcpp-lifecycle, ros-lyrical-sensor-msgs, ros-lyrical-std-msgs, ros-lyrical-std-srvs, ros-lyrical-tf2, ros-lyrical-tf2-ros, ros-lyrical-ros-workspace
+Description: Nav2 behavior tree wrappers, nodes, and utilities
