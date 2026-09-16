@@ -1,0 +1,12 @@
+Format: Bloom subset of https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: nav2_util
+
+Files: See file headers in repository for details
+Copyright: See package copyright in source code for details
+License: Apache-2.0
+ See repository for full license text
+
+Files: See file headers in repository for details
+Copyright: See package copyright in source code for details
+License: BSD-3-Clause
+ See repository for full license text
