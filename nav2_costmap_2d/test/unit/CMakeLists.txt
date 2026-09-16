@@ -47,6 +47,13 @@ target_link_libraries(binary_filter_test
   std_msgs::std_msgs
 )
 
+nav2_add_gtest(zone_parameter_filter_test zone_parameter_filter_test.cpp)
+target_link_libraries(zone_parameter_filter_test
+  filters
+  nav2_costmap_2d_core
+  std_msgs::std_msgs
+)
+
 nav2_add_gtest(copy_window_test copy_window_test.cpp)
 target_link_libraries(copy_window_test
   nav2_costmap_2d_core
@@ -83,8 +90,19 @@ target_link_libraries(obstacle_layer_test
   layers
 )
 
+nav2_add_gtest(static_layer_test static_layer_test.cpp)
+target_link_libraries(static_layer_test
+  nav2_costmap_2d_core
+  layers
+)
+
 nav2_add_gtest(asymmetric_inflation_layer_test asymmetric_inflation_layer_test.cpp)
 target_link_libraries(asymmetric_inflation_layer_test
   nav2_costmap_2d_core
   layers
+)
+
+nav2_add_gtest(costmap_publisher_test costmap_publisher_test.cpp)
+target_link_libraries(costmap_publisher_test
+  nav2_costmap_2d_core
 )
