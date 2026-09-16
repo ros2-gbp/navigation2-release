@@ -264,7 +264,6 @@ void DockingServer::dockRobot()
     }
 
     // Docking control loop: while not docked, run controller
-    rclcpp::Time dock_contact_time;
     while (rclcpp::ok()) {
       try {
         // Perform a 180º to face away from the dock if needed
@@ -285,23 +284,31 @@ void DockingServer::dockRobot()
             }
             result->success = true;
             result->num_retries = num_retries_;
-            stashDockData(goal->use_dock_id, dock, true);
             publishZeroVelocity();
             dock->plugin->stopDetectionProcess();
+            stashDockData(goal->use_dock_id, dock, true);
             docking_action_server_->succeeded_current(result);
             return;
           }
         }
 
         // Cancelled, preempted, or shutting down (recoverable errors throw DockingException)
-        stashDockData(goal->use_dock_id, dock, false);
         publishZeroVelocity();
         dock->plugin->stopDetectionProcess();
+        stashDockData(goal->use_dock_id, dock, false);
         docking_action_server_->terminate_all(result);
         return;
       } catch (opennav_docking_core::DockingException & e) {
         if (++num_retries_ > params_->max_retries) {
           RCLCPP_ERROR(get_logger(), "Failed to dock, all retries have been used");
+          if (params_->max_retries > 0) {
+            try {  // swallow new exceptions, so as to report original failure
+              resetApproach(staging_pose, dock_backward);
+            } catch (const std::exception & ex) {
+              RCLCPP_ERROR(
+                get_logger(), "Failed to return to staging pose: %s", ex.what());
+            }
+          }
           throw;
         }
         RCLCPP_WARN(get_logger(), "Docking failed, will retry: %s", e.what());
@@ -310,9 +317,9 @@ void DockingServer::dockRobot()
       // Reset to staging pose to try again
       if (!resetApproach(staging_pose, dock_backward)) {
         // Cancelled, preempted, or shutting down
-        stashDockData(goal->use_dock_id, dock, false);
         publishZeroVelocity();
         dock->plugin->stopDetectionProcess();
+        stashDockData(goal->use_dock_id, dock, false);
         docking_action_server_->terminate_all(result);
         return;
       }
@@ -356,11 +363,13 @@ void DockingServer::dockRobot()
     RCLCPP_ERROR(get_logger(), "%s", result->error_msg.c_str());
   }
 
-  // Store dock state for later undocking and delete temp dock, if applicable
-  stashDockData(goal->use_dock_id, dock, false);
   result->num_retries = num_retries_;
   publishZeroVelocity();
-  dock->plugin->stopDetectionProcess();
+  if (dock) {
+    dock->plugin->stopDetectionProcess();
+  }
+  // Store dock state for later undocking and delete temp dock, if applicable
+  stashDockData(goal->use_dock_id, dock, false);
   docking_action_server_->terminate_current(result);
 }
 
@@ -378,11 +387,17 @@ void DockingServer::stashDockData(bool use_dock_id, Dock * dock, bool successful
 
 Dock * DockingServer::generateGoalDock(std::shared_ptr<const DockRobot::Goal> goal)
 {
+  auto plugin = dock_db_->findDockPlugin(goal->dock_type);
+  if (!plugin) {
+    throw opennav_docking_core::DockNotValid(
+      "Dock type '" + goal->dock_type + "' has no valid plugin!");
+  }
+
   auto dock = new Dock();
   dock->frame = goal->dock_pose.header.frame_id;
   dock->pose = goal->dock_pose.pose;
   dock->type = goal->dock_type;
-  dock->plugin = dock_db_->findDockPlugin(dock->type);
+  dock->plugin = plugin;
   return dock;
 }
 
