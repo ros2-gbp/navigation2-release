@@ -17,72 +17,66 @@
 #include <memory>
 #include <limits>
 #include "nav2_bt_navigator/navigators/navigate_to_pose.hpp"
+#include "nav2_util/path_utils.hpp"
+#include "nav2_msgs/msg/tracking_feedback.hpp"
+#include "nav2_ros_common/node_utils.hpp"
 
 namespace nav2_bt_navigator
 {
 
 bool
 NavigateToPoseNavigator::configure(
-  rclcpp_lifecycle::LifecycleNode::WeakPtr parent_node,
+  nav2::LifecycleNode::WeakPtr parent_node,
   std::shared_ptr<nav2_util::OdomSmoother> odom_smoother)
 {
   start_time_ = rclcpp::Time(0);
   auto node = parent_node.lock();
 
-  if (!node->has_parameter("goal_blackboard_id")) {
-    node->declare_parameter("goal_blackboard_id", std::string("goal"));
-  }
+  goal_blackboard_id_ = node->declare_or_get_parameter(
+    getName() + ".goal_blackboard_id",
+    std::string("goal"));
+  path_blackboard_id_ = node->declare_or_get_parameter(
+    getName() + ".path_blackboard_id",
+    std::string("path"));
+  tracking_feedback_blackboard_id_ = node->declare_or_get_parameter(
+    getName() + ".tracking_feedback_blackboard_id",
+    std::string("tracking_feedback"));
 
-  goal_blackboard_id_ = node->get_parameter("goal_blackboard_id").as_string();
-
-  if (!node->has_parameter("path_blackboard_id")) {
-    node->declare_parameter("path_blackboard_id", std::string("path"));
-  }
-
-  path_blackboard_id_ = node->get_parameter("path_blackboard_id").as_string();
+  search_window_ = node->declare_or_get_parameter(getName() + "search_window", 2.0);
 
   // Odometry smoother object for getting current speed
   odom_smoother_ = odom_smoother;
 
-  self_client_ = rclcpp_action::create_client<ActionT>(node, getName());
+  self_client_ = node->create_action_client<ActionT>(getName());
 
   goal_sub_ = node->create_subscription<geometry_msgs::msg::PoseStamped>(
     "goal_pose",
-    rclcpp::SystemDefaultsQoS(),
     std::bind(&NavigateToPoseNavigator::onGoalPoseReceived, this, std::placeholders::_1));
 
-  if (!node->has_parameter(getName() + ".enable_groot_monitoring")) {
-    node->declare_parameter(getName() + ".enable_groot_monitoring", false);
-  }
-
-  if (!node->has_parameter(getName() + ".groot_server_port")) {
-    node->declare_parameter(getName() + ".groot_server_port", 1667);
-  }
+  bool enable_groot_monitoring =
+    node->declare_or_get_parameter(getName() + ".enable_groot_monitoring", false);
+  int groot_server_port =
+    node->declare_or_get_parameter(getName() + ".groot_server_port", 1669);
 
   bt_action_server_->setGrootMonitoring(
-      node->get_parameter(getName() + ".enable_groot_monitoring").as_bool(),
-      node->get_parameter(getName() + ".groot_server_port").as_int());
+    enable_groot_monitoring,
+    groot_server_port);
 
   return true;
 }
 
 std::string
 NavigateToPoseNavigator::getDefaultBTFilepath(
-  rclcpp_lifecycle::LifecycleNode::WeakPtr parent_node)
+  nav2::LifecycleNode::WeakPtr parent_node)
 {
-  std::string default_bt_xml_filename;
   auto node = parent_node.lock();
+  std::string pkg_share_dir =
+    nav2::get_package_share_directory("nav2_bt_navigator");
 
-  if (!node->has_parameter("default_nav_to_pose_bt_xml")) {
-    std::string pkg_share_dir =
-      ament_index_cpp::get_package_share_directory("nav2_bt_navigator");
-    node->declare_parameter<std::string>(
-      "default_nav_to_pose_bt_xml",
-      pkg_share_dir +
-      "/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml");
-  }
-
-  node->get_parameter("default_nav_to_pose_bt_xml", default_bt_xml_filename);
+  auto default_bt_xml_filename = node->declare_or_get_parameter(
+    "default_nav_to_pose_bt_xml",
+    pkg_share_dir +
+    "/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml");
 
   return default_bt_xml_filename;
 }
@@ -98,23 +92,28 @@ NavigateToPoseNavigator::cleanup()
 bool
 NavigateToPoseNavigator::goalReceived(ActionT::Goal::ConstSharedPtr goal)
 {
-  auto bt_xml_filename = goal->behavior_tree;
-
-  if (!bt_action_server_->loadBehaviorTree(bt_xml_filename)) {
-    RCLCPP_ERROR(
-      logger_, "BT file not found: %s. Navigation canceled.",
-      bt_xml_filename.c_str());
-    return false;
-  }
-
   return initializeGoalPose(goal);
 }
 
 void
 NavigateToPoseNavigator::goalCompleted(
-  typename ActionT::Result::SharedPtr /*result*/,
-  const nav2_behavior_tree::BtStatus /*final_bt_status*/)
+  typename ActionT::Result::SharedPtr result,
+  nav2_behavior_tree::BtStatus & /*final_bt_status*/)
 {
+  if (result->error_code == 0) {
+    if (bt_action_server_->populateInternalError(result)) {
+      RCLCPP_WARN(
+        logger_,
+        "NavigateToPoseNavigator::goalCompleted, internal error %d:%s.",
+        result->error_code,
+        result->error_msg.c_str());
+    }
+  } else {
+    RCLCPP_WARN(
+      logger_, "NavigateToPoseNavigator::goalCompleted error %d:%s.",
+      result->error_code,
+      result->error_msg.c_str());
+  }
 }
 
 void
@@ -136,33 +135,26 @@ NavigateToPoseNavigator::onLoop()
 
   auto blackboard = bt_action_server_->getBlackboard();
 
-  try {
-    // Get current path points
-    nav_msgs::msg::Path current_path;
-    if (!blackboard->get(path_blackboard_id_, current_path) || current_path.poses.size() == 0u) {
-      // If no path set yet or not meaningful, can't compute ETA or dist remaining yet.
-      throw std::exception();
+  // Get current path points
+  nav_msgs::msg::Path current_path;
+  auto res = blackboard->get(path_blackboard_id_, current_path);
+  if (res && current_path.poses.size() > 0u) {
+    // Reset start index if path or goal is updated
+    if (nav2_util::isPathUpdated(current_path, previous_path_) ||
+      nav2_util::isGoalUpdated(current_path, previous_path_) ||
+      previous_path_.poses.size() == 0u)
+    {
+      start_index_ = 0;
+      previous_path_ = current_path;
     }
-
     // Find the closest pose to current pose on global path
-    auto find_closest_pose_idx =
-      [&current_pose, &current_path]() {
-        size_t closest_pose_idx = 0;
-        double curr_min_dist = std::numeric_limits<double>::max();
-        for (size_t curr_idx = 0; curr_idx < current_path.poses.size(); ++curr_idx) {
-          double curr_dist = nav2_util::geometry_utils::euclidean_distance(
-            current_pose, current_path.poses[curr_idx]);
-          if (curr_dist < curr_min_dist) {
-            curr_min_dist = curr_dist;
-            closest_pose_idx = curr_idx;
-          }
-        }
-        return closest_pose_idx;
-      };
+    const auto path_search_result = nav2_util::distance_from_path(
+      current_path, current_pose.pose, start_index_, search_window_);
 
     // Calculate distance on the path
+    start_index_ = path_search_result.closest_segment_index;
     double distance_remaining =
-      nav2_util::geometry_utils::calculate_path_length(current_path, find_closest_pose_idx());
+      nav2_util::geometry_utils::calculate_path_length(current_path, start_index_);
 
     // Default value for time remaining
     rclcpp::Duration estimated_time_remaining = rclcpp::Duration::from_seconds(0.0);
@@ -180,15 +172,19 @@ NavigateToPoseNavigator::onLoop()
 
     feedback_msg->distance_remaining = distance_remaining;
     feedback_msg->estimated_time_remaining = estimated_time_remaining;
-  } catch (...) {
-    // Ignore
   }
 
   int recovery_count = 0;
-  [[maybe_unused]] auto res = blackboard->get("number_recoveries", recovery_count);
+  res = blackboard->get("number_recoveries", recovery_count);
   feedback_msg->number_of_recoveries = recovery_count;
   feedback_msg->current_pose = current_pose;
   feedback_msg->navigation_time = clock_->now() - start_time_;
+  nav2_msgs::msg::TrackingFeedback tracking_feedback;
+  res = blackboard->get(
+    tracking_feedback_blackboard_id_,
+    tracking_feedback);
+  feedback_msg->position_tracking_error = tracking_feedback.position_tracking_error;
+  feedback_msg->heading_tracking_error = tracking_feedback.heading_tracking_error;
 
   bt_action_server_->publishFeedback(feedback_msg);
 }
@@ -198,9 +194,9 @@ NavigateToPoseNavigator::onPreempt(ActionT::Goal::ConstSharedPtr goal)
 {
   RCLCPP_INFO(logger_, "Received goal preemption request");
 
-  if (goal->behavior_tree == bt_action_server_->getCurrentBTFilename() ||
+  if (goal->behavior_tree == bt_action_server_->getCurrentBTFilenameOrID() ||
     (goal->behavior_tree.empty() &&
-    bt_action_server_->getCurrentBTFilename() == bt_action_server_->getDefaultBTFilename()))
+    bt_action_server_->getCurrentBTFilenameOrID() == bt_action_server_->getDefaultBTFilenameOrID()))
   {
     // if pending goal requests the same BT as the current goal, accept the pending goal
     // if pending goal has an empty behavior_tree field, it requests the default BT file
@@ -233,7 +229,9 @@ NavigateToPoseNavigator::initializeGoalPose(ActionT::Goal::ConstSharedPtr goal)
       feedback_utils_.global_frame, feedback_utils_.robot_frame,
       feedback_utils_.transform_tolerance))
   {
-    RCLCPP_ERROR(logger_, "Initial robot pose is not available.");
+    bt_action_server_->setInternalError(
+      ActionT::Result::TF_ERROR,
+      "Initial robot pose is not available.");
     return false;
   }
 
@@ -242,10 +240,13 @@ NavigateToPoseNavigator::initializeGoalPose(ActionT::Goal::ConstSharedPtr goal)
       goal->pose, goal_pose, *feedback_utils_.tf, feedback_utils_.global_frame,
       feedback_utils_.transform_tolerance))
   {
-    RCLCPP_ERROR(
-      logger_,
-      "Failed to transform a goal pose provided with frame_id '%s' to the global frame '%s'.",
-      goal->pose.header.frame_id.c_str(), feedback_utils_.global_frame.c_str());
+    bt_action_server_->setInternalError(
+      ActionT::Result::TF_ERROR,
+      "Failed to transform a goal pose provided with frame_id '" +
+      goal->pose.header.frame_id +
+      "' to the global frame '" +
+      feedback_utils_.global_frame +
+      "'.");
     return false;
   }
 
@@ -258,15 +259,18 @@ NavigateToPoseNavigator::initializeGoalPose(ActionT::Goal::ConstSharedPtr goal)
   start_time_ = clock_->now();
   auto blackboard = bt_action_server_->getBlackboard();
   blackboard->set("number_recoveries", 0);  // NOLINT
+  previous_path_ = nav_msgs::msg::Path();
 
-  // Update the goal pose on the blackboard
+  // Update the goal pose and path on the blackboard
   blackboard->set(goal_blackboard_id_, goal_pose);
+  blackboard->set(path_blackboard_id_, nav_msgs::msg::Path());
 
   return true;
 }
 
 void
-NavigateToPoseNavigator::onGoalPoseReceived(const geometry_msgs::msg::PoseStamped::SharedPtr pose)
+NavigateToPoseNavigator::onGoalPoseReceived(
+  const geometry_msgs::msg::PoseStamped::ConstSharedPtr & pose)
 {
   ActionT::Goal goal;
   goal.pose = *pose;

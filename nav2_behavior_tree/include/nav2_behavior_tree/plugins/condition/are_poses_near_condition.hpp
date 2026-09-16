@@ -18,12 +18,9 @@
 #include <string>
 #include <memory>
 
-#include "rclcpp/rclcpp.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
-#include "tf2_ros/buffer.h"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "behaviortree_cpp/condition_node.h"
-#include "nav2_util/robot_utils.hpp"
-#include "nav2_util/node_utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 #include "nav2_behavior_tree/bt_utils.hpp"
 
 namespace nav2_behavior_tree
@@ -49,8 +46,6 @@ public:
   ArePosesNearCondition(
     const std::string & condition_name,
     const BT::NodeConfiguration & conf);
-
-  ArePosesNearCondition() = delete;
 
   /**
    * @brief A destructor for nav2_behavior_tree::ArePosesNearCondition
@@ -88,9 +83,9 @@ public:
     };
   }
 
-protected:
-  rclcpp::Node::SharedPtr node_;
-  std::shared_ptr<tf2_ros::Buffer> tf_;
+private:
+  nav2::LifecycleNode::SharedPtr node_;
+  nav2::TransformBuffer::SharedPtr tf_;
   double transform_tolerance_;
   std::string global_frame_;
 };

@@ -53,7 +53,7 @@ public:
    * @param odom_smoother Object to get current smoothed robot's speed
    */
   bool configure(
-    rclcpp_lifecycle::LifecycleNode::WeakPtr node,
+    nav2::LifecycleNode::WeakPtr node,
     std::shared_ptr<nav2_util::OdomSmoother> odom_smoother) override;
 
   /**
@@ -66,7 +66,7 @@ public:
    * from rviz
    * @param pose Pose received via atopic
    */
-  void onGoalPoseReceived(const geometry_msgs::msg::PoseStamped::SharedPtr pose);
+  void onGoalPoseReceived(const geometry_msgs::msg::PoseStamped::ConstSharedPtr & pose);
 
   /**
    * @brief Get action name for this navigator
@@ -79,7 +79,7 @@ public:
    * @param node WeakPtr to the lifecycle node
    * @return string Filepath to default XML
    */
-  std::string getDefaultBTFilepath(rclcpp_lifecycle::LifecycleNode::WeakPtr node) override;
+  std::string getDefaultBTFilepath(nav2::LifecycleNode::WeakPtr node) override;
 
 protected:
   /**
@@ -111,7 +111,7 @@ protected:
    */
   void goalCompleted(
     typename ActionT::Result::SharedPtr result,
-    const nav2_behavior_tree::BtStatus final_bt_status) override;
+    nav2_behavior_tree::BtStatus & final_bt_status) override;
 
   /**
    * @brief Goal pose initialization on the blackboard
@@ -122,14 +122,18 @@ protected:
 
   rclcpp::Time start_time_;
 
-  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_sub_;
-  rclcpp_action::Client<ActionT>::SharedPtr self_client_;
+  nav2::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_sub_;
+  nav2::ActionClient<ActionT>::SharedPtr self_client_;
 
   std::string goal_blackboard_id_;
   std::string path_blackboard_id_;
+  std::string tracking_feedback_blackboard_id_;
 
   // Odometry smoother object
   std::shared_ptr<nav2_util::OdomSmoother> odom_smoother_;
+  size_t start_index_ = 0;
+  nav_msgs::msg::Path previous_path_;
+  double search_window_;
 };
 
 }  // namespace nav2_bt_navigator

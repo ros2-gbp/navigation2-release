@@ -20,19 +20,13 @@ from pathlib import Path
 import sys
 
 from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription
-from launch import LaunchService
-from launch.actions import (
-    AppendEnvironmentVariable,
-    ExecuteProcess,
-    IncludeLaunchDescription,
-    SetEnvironmentVariable,
-)
+from launch import LaunchDescription, LaunchService
+from launch.actions import (AppendEnvironmentVariable, ExecuteProcess, IncludeLaunchDescription,
+                            SetEnvironmentVariable)
 from launch.launch_context import LaunchContext
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_testing.legacy import LaunchTestService
-
 from nav2_common.launch import RewrittenYaml
 
 
@@ -52,7 +46,7 @@ def generate_launch_description():
     bt_navigator_xml = os.path.join(
         get_package_share_directory('nav2_bt_navigator'),
         'behavior_trees',
-        os.getenv('BT_NAVIGATOR_XML'),
+        os.getenv('BT_NAVIGATOR_XML', ''),
     )
 
     # Use local param file
@@ -71,10 +65,10 @@ def generate_launch_description():
         param_substitutions.update({'enable_groot_monitoring': 'True'})
 
     param_substitutions.update(
-        {'planner_server.ros__parameters.GridBased.plugin': os.getenv('PLANNER')}
+        {'planner_server.ros__parameters.GridBased.plugin': os.getenv('PLANNER', '')}
     )
     param_substitutions.update(
-        {'controller_server.ros__parameters.FollowPath.plugin': os.getenv('CONTROLLER')}
+        {'controller_server.ros__parameters.FollowPath.plugin': os.getenv('CONTROLLER', '')}
     )
 
     configured_params = RewrittenYaml(
@@ -131,7 +125,6 @@ def generate_launch_description():
                 ),
                 launch_arguments={
                     'namespace': '',
-                    'use_namespace': 'False',
                     'map': map_yaml_file,
                     'use_sim_time': 'True',
                     'params_file': new_yaml,
@@ -149,7 +142,7 @@ def main(argv=sys.argv[1:]):
 
     test1_action = ExecuteProcess(
         cmd=[
-            os.path.join(os.getenv('TEST_DIR'), os.getenv('TESTER')),
+            os.path.join(os.getenv('TEST_DIR', ''), os.getenv('TESTER', '')),
             '-r',
             '-200000.0',
             '-200000.0',

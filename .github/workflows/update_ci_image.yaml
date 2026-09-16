@@ -8,7 +8,9 @@ on:
   push:
     branches:
       - main
+      - lyrical
       - jazzy
+      - humble
     paths:
       - '**/package.xml'
       - '**/*.repos'
@@ -28,7 +30,7 @@ jobs:
         if: github.event_name == 'push'
         run: |
           echo "trigger=true" >> $GITHUB_OUTPUT
-          echo "no_cache=false" >> $GITHUB_OUTPUT
+          echo "no_cache=true" >> $GITHUB_OUTPUT
   check_ci_image:
     name: Check CI Image
     if: github.event_name == 'schedule'
@@ -64,11 +66,11 @@ jobs:
       - check_ci_image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -100,7 +102,7 @@ jobs:
       - name: Build and push ${{ github.ref_name }}
         if: steps.config.outputs.trigger == 'true'
         id: docker_build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           pull: true

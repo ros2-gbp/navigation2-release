@@ -90,7 +90,8 @@ class FootprintCollisionChecker:
 
         return max(float(self.lineCost(xstart, x1, ystart, y1)), footprint_cost)
 
-    def lineCost(self, x0, x1, y0, y1, step_size=0.5):
+    def lineCost(self, x0: float, x1: float,
+                 y0: float, y1: float, step_size: float = 0.5):
         """
         Iterate over all the points along a line and check for collision.
 
@@ -113,9 +114,9 @@ class FootprintCollisionChecker:
         line_iterator = LineIterator(x0, y0, x1, y1, step_size)
 
         while line_iterator.isValid():
-            point_cost = self.pointCost(
+            point_cost = float(self.pointCost(
                 int(line_iterator.getX()), int(line_iterator.getY())
-            )
+            ))
 
             if point_cost == LETHAL_OBSTACLE:
                 return point_cost
@@ -186,7 +187,8 @@ class FootprintCollisionChecker:
         self.costmap_ = costmap
         return None
 
-    def footprintCostAtPose(self, x: float, y: float, theta: float, footprint: Polygon):
+    def footprintCostAtPose(self, x: float, y: float,
+                            theta: float, footprint: Polygon):
         """
         Get the cost of a footprint at a specific Pose in map coordinates.
 

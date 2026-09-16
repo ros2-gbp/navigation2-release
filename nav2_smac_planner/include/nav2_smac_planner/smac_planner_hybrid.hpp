@@ -30,25 +30,32 @@
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose_array.hpp"
-#include "nav2_util/lifecycle_node.hpp"
-#include "nav2_util/node_utils.hpp"
-#include "tf2/utils.h"
+#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_ros_common/node_utils.hpp"
+#include "tf2/utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_smac_planner
 {
 
-class SmacPlannerHybrid : public nav2_core::GlobalPlanner
+/**
+ * @class nav2_smac_planner::SmacPlannerHybridT
+ * @brief A templated hybrid-A* planner that allows custom node types
+ * @tparam NodeT The node type to use (default: NodeHybrid)
+ */
+template<typename NodeT = NodeHybrid>
+class SmacPlannerHybridT : public nav2_core::GlobalPlanner
 {
 public:
   /**
    * @brief constructor
    */
-  SmacPlannerHybrid();
+  SmacPlannerHybridT();
 
   /**
    * @brief destructor
    */
-  ~SmacPlannerHybrid();
+  ~SmacPlannerHybridT();
 
   /**
    * @brief Configuring plugin
@@ -58,8 +65,8 @@ public:
    * @param costmap_ros Costmap2DROS object
    */
   void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
+    const nav2::LifecycleNode::WeakPtr & parent,
+    std::string name, nav2::TransformBuffer::SharedPtr tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   /**
@@ -87,17 +94,30 @@ public:
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
+    const std::vector<geometry_msgs::msg::PoseStamped> & viapoints,
     std::function<bool()> cancel_checker)  override;
 
 protected:
   /**
-   * @brief Callback executed when a paramter change is detected
-   * @param parameters list of changed parameters
+   * @brief Validate incoming parameter updates before applying them.
+   * This callback is triggered when one or more parameters are about to be updated.
+   * It checks the validity of parameter values and rejects updates that would lead
+   * to invalid or inconsistent configurations
+   * @param parameters List of parameters that are being updated.
+   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
    */
-  rcl_interfaces::msg::SetParametersResult
-  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
+    const std::vector<rclcpp::Parameter> & parameters);
 
-  std::unique_ptr<AStarAlgorithm<NodeHybrid>> _a_star;
+  /**
+   * @brief Apply parameter updates after validation
+   * This callback is executed when parameters have been successfully updated.
+   * It updates the internal configuration of the node with the new parameter values.
+   * @param parameters List of parameters that have been updated.
+   */
+  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
+
+  std::unique_ptr<AStarAlgorithm<NodeT>> _a_star;
   GridCollisionChecker _collision_checker;
   std::unique_ptr<Smoother> _smoother;
   rclcpp::Clock::SharedPtr _clock;
@@ -123,22 +143,30 @@ protected:
   bool _debug_visualizations;
   std::string _motion_model_for_search;
   MotionModel _motion_model;
-  rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>::SharedPtr _raw_plan_publisher;
-  rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+  GoalHeadingMode _goal_heading_mode;
+  int _coarse_search_resolution;
+  nav2::Publisher<nav_msgs::msg::Path>::SharedPtr _raw_plan_publisher;
+  nav2::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
     _planned_footprints_publisher;
-  rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>::SharedPtr
+  nav2::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
     _smoothed_footprints_publisher;
-  rclcpp_lifecycle::LifecyclePublisher<geometry_msgs::msg::PoseArray>::SharedPtr
+  nav2::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr
     _expansions_publisher;
   std::mutex _mutex;
-  rclcpp_lifecycle::LifecycleNode::WeakPtr _node;
+  nav2::LifecycleNode::WeakPtr _node;
 
   // Dynamic parameters handler
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _dyn_params_handler;
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr _post_set_params_handler;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr _on_set_params_handler;
   std::shared_ptr<rclcpp::ParameterEventHandler> _remote_param_subscriber;
   std::shared_ptr<rclcpp::ParameterCallbackHandle> _remote_resolution_handler;
 };
 
+// Backward-compatible type alias
+using SmacPlannerHybrid = SmacPlannerHybridT<NodeHybrid>;
+
 }  // namespace nav2_smac_planner
+
+#include "nav2_smac_planner/smac_planner_hybrid_impl.hpp"  // NOLINT
 
 #endif  // NAV2_SMAC_PLANNER__SMAC_PLANNER_HYBRID_HPP_

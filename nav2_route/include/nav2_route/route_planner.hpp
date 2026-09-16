@@ -22,14 +22,13 @@
 #include <mutex>
 #include <algorithm>
 
-#include "tf2_ros/buffer.h"
-#include "tf2_ros/transform_listener.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 #include "nav2_route/types.hpp"
 #include "nav2_route/utils.hpp"
 #include "nav2_route/edge_scorer.hpp"
 #include "nav2_core/route_exceptions.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_route
 {
@@ -57,8 +56,8 @@ public:
    * @param costmap_subscriber Costmap subscriber to use for blocked nodes
    */
   void configure(
-    nav2_util::LifecycleNode::SharedPtr node,
-    const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
+    nav2::LifecycleNode::SharedPtr node,
+    const nav2::TransformBuffer::SharedPtr tf_buffer,
     const std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber);
 
   /**
@@ -155,7 +154,7 @@ protected:
   unsigned int goal_id_{0};
   NodeQueue queue_;
   std::unique_ptr<EdgeScorer> edge_scorer_;
-  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  nav2::TransformBuffer::SharedPtr tf_buffer_;
 };
 
 }  // namespace nav2_route

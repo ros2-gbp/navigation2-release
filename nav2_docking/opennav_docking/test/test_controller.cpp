@@ -20,20 +20,11 @@
 #include "opennav_docking/controller.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_util/node_utils.hpp"
-#include "tf2_ros/buffer.h"
-#include "ament_index_cpp/get_package_share_directory.hpp"
+#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 // Testing the controller at high level; the nav2_graceful_controller
 // Where the control law derives has over 98% test coverage
-
-class RosLockGuard
-{
-public:
-  RosLockGuard() {rclcpp::init(0, nullptr);}
-  ~RosLockGuard() {rclcpp::shutdown();}
-};
-RosLockGuard g_rclcpp;
 
 namespace opennav_docking
 {
@@ -42,7 +33,7 @@ class ControllerFixture : public opennav_docking::Controller
 {
 public:
   ControllerFixture(
-    const rclcpp_lifecycle::LifecycleNode::SharedPtr & node, std::shared_ptr<tf2_ros::Buffer> tf,
+    const nav2::LifecycleNode::SharedPtr & node, nav2::TransformBuffer::SharedPtr tf,
     std::string fixed_frame, std::string base_frame)
   : Controller(node, tf, fixed_frame, base_frame)
   {
@@ -63,7 +54,7 @@ public:
   }
 };
 
-class TestCollisionChecker : public nav2_util::LifecycleNode
+class TestCollisionChecker : public nav2::LifecycleNode
 {
 public:
   explicit TestCollisionChecker(std::string name)
@@ -77,7 +68,7 @@ public:
     costmap_pub_.reset();
   }
 
-  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State & /*state*/)
+  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State & /*state*/)
   {
     RCLCPP_INFO(this->get_logger(), "Configuring");
 
@@ -85,25 +76,27 @@ public:
 
     footprint_pub_ = create_publisher<geometry_msgs::msg::PolygonStamped>(
       "test_footprint", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
+    footprint_pub_->on_activate();
     costmap_pub_ = std::make_shared<nav2_costmap_2d::Costmap2DPublisher>(
       shared_from_this(), costmap_.get(), "test_base_frame", "test_costmap", true);
+    costmap_pub_->on_activate();
 
-    return nav2_util::CallbackReturn::SUCCESS;
+    return nav2::CallbackReturn::SUCCESS;
   }
 
-  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State & /*state*/)
+  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State & /*state*/)
   {
     RCLCPP_INFO(this->get_logger(), "Activating");
     costmap_pub_->on_activate();
-    return nav2_util::CallbackReturn::SUCCESS;
+    return nav2::CallbackReturn::SUCCESS;
   }
 
-  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & /*state*/)
+  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   {
     RCLCPP_INFO(this->get_logger(), "Deactivating");
     costmap_pub_->on_deactivate();
     costmap_.reset();
-    return nav2_util::CallbackReturn::SUCCESS;
+    return nav2::CallbackReturn::SUCCESS;
   }
 
   void publishFootprint(
@@ -191,18 +184,19 @@ public:
 private:
   std::shared_ptr<nav2_costmap_2d::Costmap2D> costmap_;
 
-  rclcpp::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr footprint_pub_;
+  nav2::Publisher<geometry_msgs::msg::PolygonStamped>::SharedPtr
+    footprint_pub_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DPublisher> costmap_pub_;
 };
 
 TEST(ControllerTests, ObjectLifecycle)
 {
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto tf = nav2::create_transform_buffer(node);
   tf->setUsingDedicatedThread(true);  // One-thread broadcasting-listening model
 
   // Skip collision detection
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.use_collision_detection", rclcpp::ParameterValue(false));
 
   auto controller = std::make_unique<opennav_docking::Controller>(
@@ -216,7 +210,7 @@ TEST(ControllerTests, ObjectLifecycle)
 }
 
 TEST(ControllerTests, DynamicParameters) {
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
   auto controller = std::make_unique<opennav_docking::Controller>(
     node, nullptr, "test_base_frame", "test_base_frame");
 
@@ -235,9 +229,12 @@ TEST(ControllerTests, DynamicParameters) {
       rclcpp::Parameter("controller.v_linear_max", 6.0),
       rclcpp::Parameter("controller.v_angular_max", 7.0),
       rclcpp::Parameter("controller.slowdown_radius", 8.0),
+      rclcpp::Parameter("controller.deceleration_max", 14.0),
       rclcpp::Parameter("controller.projection_time", 9.0),
       rclcpp::Parameter("controller.simulation_time_step", 10.0),
-      rclcpp::Parameter("controller.dock_collision_threshold", 11.0)});
+      rclcpp::Parameter("controller.dock_collision_threshold", 11.0),
+      rclcpp::Parameter("controller.rotate_to_heading_angular_vel", 12.0),
+      rclcpp::Parameter("controller.rotate_to_heading_max_angular_accel", 13.0)});
 
   // Spin
   rclcpp::spin_until_future_complete(node->get_node_base_interface(), results);
@@ -251,15 +248,25 @@ TEST(ControllerTests, DynamicParameters) {
   EXPECT_EQ(node->get_parameter("controller.v_linear_max").as_double(), 6.0);
   EXPECT_EQ(node->get_parameter("controller.v_angular_max").as_double(), 7.0);
   EXPECT_EQ(node->get_parameter("controller.slowdown_radius").as_double(), 8.0);
+  EXPECT_EQ(node->get_parameter("controller.deceleration_max").as_double(), 14.0);
   EXPECT_EQ(node->get_parameter("controller.projection_time").as_double(), 9.0);
   EXPECT_EQ(node->get_parameter("controller.simulation_time_step").as_double(), 10.0);
   EXPECT_EQ(node->get_parameter("controller.dock_collision_threshold").as_double(), 11.0);
+  EXPECT_EQ(node->get_parameter("controller.rotate_to_heading_angular_vel").as_double(), 12.0);
+  EXPECT_EQ(
+    node->get_parameter("controller.rotate_to_heading_max_angular_accel").as_double(), 13.0);
+
+  // Test setting invalid parameters
+  results = params->set_parameters_atomically(
+    {rclcpp::Parameter("controller.k_phi", -1.0)});
+  rclcpp::spin_until_future_complete(node->get_node_base_interface(), results);
+  EXPECT_EQ(node->get_parameter("controller.k_phi").as_double(), 1.0);
 }
 
 TEST(ControllerTests, TFException)
 {
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto tf = nav2::create_transform_buffer(node);
   tf->setUsingDedicatedThread(true);  // One-thread broadcasting-listening model
 
   auto controller = std::make_unique<opennav_docking::ControllerFixture>(
@@ -272,25 +279,26 @@ TEST(ControllerTests, TFException)
 
 TEST(ControllerTests, CollisionCheckerDockForward) {
   auto collision_tester = std::make_shared<TestCollisionChecker>("collision_test");
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto tf = nav2::create_transform_buffer(node);
   tf->setUsingDedicatedThread(true);  // One-thread broadcasting-listening model
 
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.footprint_topic", rclcpp::ParameterValue("test_footprint"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.costmap_topic", rclcpp::ParameterValue("test_costmap_raw"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.projection_time", rclcpp::ParameterValue(10.0));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.simulation_time_step", rclcpp::ParameterValue(0.1));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.dock_collision_threshold", rclcpp::ParameterValue(0.3));
 
   auto controller = std::make_unique<opennav_docking::ControllerFixture>(
     node, tf, "test_base_frame", "test_base_frame");
   collision_tester->configure();
   collision_tester->activate();
+  auto executor_thread = std::make_unique<nav2::NodeThread>(node->get_node_base_interface());
 
   // Set the pose of the dock at 1.75m in front of the robot
   auto dock_pose = collision_tester->setPose(1.75, 0.0, 0.0);
@@ -302,7 +310,7 @@ TEST(ControllerTests, CollisionCheckerDockForward) {
   // Publish an empty costmap
   // It should not hit anything in an empty costmap
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(dock_pose, true, false));
 
   // Set a dock in the costmap of 0.2x1.5m at 2m in front of the robot
@@ -310,7 +318,7 @@ TEST(ControllerTests, CollisionCheckerDockForward) {
   // But it does not hit because the collision tolerance is 0.3m
   collision_tester->setRectangle(0.2, 1.5, 2.0, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(dock_pose, true, false));
 
   // Set an object between the robot and the dock
@@ -318,7 +326,7 @@ TEST(ControllerTests, CollisionCheckerDockForward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 0.2, 1.0, -0.1, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(dock_pose, true, false));
 
   // Set the collision tolerance to 0 to ensure all obstacles in the path are detected
@@ -329,7 +337,7 @@ TEST(ControllerTests, CollisionCheckerDockForward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 1.5, 2.0, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(dock_pose, true, false));
 
   collision_tester->deactivate();
@@ -337,25 +345,26 @@ TEST(ControllerTests, CollisionCheckerDockForward) {
 
 TEST(ControllerTests, CollisionCheckerDockBackward) {
   auto collision_tester = std::make_shared<TestCollisionChecker>("collision_test");
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto tf = nav2::create_transform_buffer(node);
   tf->setUsingDedicatedThread(true);  // One-thread broadcasting-listening model
 
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.footprint_topic", rclcpp::ParameterValue("test_footprint"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.costmap_topic", rclcpp::ParameterValue("test_costmap_raw"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.projection_time", rclcpp::ParameterValue(10.0));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.simulation_time_step", rclcpp::ParameterValue(0.1));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.dock_collision_threshold", rclcpp::ParameterValue(0.3));
 
   auto controller = std::make_unique<opennav_docking::ControllerFixture>(
     node, tf, "test_base_frame", "test_base_frame");
   collision_tester->configure();
   collision_tester->activate();
+  auto executor_thread = std::make_unique<nav2::NodeThread>(node->get_node_base_interface());
 
   // Set the pose of the dock at 1.75m behind the robot
   auto dock_pose = collision_tester->setPose(-1.75, 0.0, 0.0);
@@ -367,7 +376,7 @@ TEST(ControllerTests, CollisionCheckerDockBackward) {
   // Publish an empty costmap
   // It should not hit anything in an empty costmap
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(dock_pose, true, true));
 
   // Set a dock in the costmap of 0.2x1.5m at 2m behind the robot
@@ -375,7 +384,7 @@ TEST(ControllerTests, CollisionCheckerDockBackward) {
   // But it does not hit because the collision tolerance is 0.3m
   collision_tester->setRectangle(0.2, 1.5, -2.1, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(dock_pose, true, true));
 
   // Set an object between the robot and the dock
@@ -383,7 +392,7 @@ TEST(ControllerTests, CollisionCheckerDockBackward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 0.2, -1.0, 0.0, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(dock_pose, true, true));
 
   // Set the collision tolerance to 0 to ensure all obstacles in the path are detected
@@ -394,7 +403,7 @@ TEST(ControllerTests, CollisionCheckerDockBackward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 1.5, -2.1, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(dock_pose, true, true));
 
   collision_tester->deactivate();
@@ -402,25 +411,26 @@ TEST(ControllerTests, CollisionCheckerDockBackward) {
 
 TEST(ControllerTests, CollisionCheckerUndockBackward) {
   auto collision_tester = std::make_shared<TestCollisionChecker>("collision_test");
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto tf = nav2::create_transform_buffer(node);
   tf->setUsingDedicatedThread(true);  // One-thread broadcasting-listening model
 
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.footprint_topic", rclcpp::ParameterValue("test_footprint"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.costmap_topic", rclcpp::ParameterValue("test_costmap_raw"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.projection_time", rclcpp::ParameterValue(10.0));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.simulation_time_step", rclcpp::ParameterValue(0.1));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.dock_collision_threshold", rclcpp::ParameterValue(0.3));
 
   auto controller = std::make_unique<opennav_docking::ControllerFixture>(
     node, tf, "test_base_frame", "test_base_frame");
   collision_tester->configure();
   collision_tester->activate();
+  auto executor_thread = std::make_unique<nav2::NodeThread>(node->get_node_base_interface());
 
   // Set the staging pose at 1.75m behind the robot
   auto staging_pose = collision_tester->setPose(-1.75, 0.0, 0.0);
@@ -432,7 +442,7 @@ TEST(ControllerTests, CollisionCheckerUndockBackward) {
   // Publish an empty costmap
   // It should not hit anything in an empty costmap
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(staging_pose, false, true));
 
   // Set a dock in the costmap of 0.2x1.5m in front of the robot. The robot is docked
@@ -440,7 +450,7 @@ TEST(ControllerTests, CollisionCheckerUndockBackward) {
   // But it does not hit because the collision tolerance is 0.3m
   collision_tester->setRectangle(0.2, 1.5, 0.25, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(staging_pose, false, true));
 
   // Set an object beyond the staging pose
@@ -448,7 +458,7 @@ TEST(ControllerTests, CollisionCheckerUndockBackward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 0.2, -1.75 - 0.5, -0.1, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(staging_pose, false, true));
 
   // Set an object between the robot and the staging pose
@@ -456,7 +466,7 @@ TEST(ControllerTests, CollisionCheckerUndockBackward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 0.2, -1.0, -0.1, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(staging_pose, false, true));
 
   // Set the collision tolerance to 0 to ensure all obstacles in the path are detected
@@ -467,7 +477,7 @@ TEST(ControllerTests, CollisionCheckerUndockBackward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 1.5, 0.25, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(staging_pose, false, true));
 
   collision_tester->deactivate();
@@ -475,25 +485,26 @@ TEST(ControllerTests, CollisionCheckerUndockBackward) {
 
 TEST(ControllerTests, CollisionCheckerUndockForward) {
   auto collision_tester = std::make_shared<TestCollisionChecker>("collision_test");
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
-  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
+  auto tf = nav2::create_transform_buffer(node);
   tf->setUsingDedicatedThread(true);  // One-thread broadcasting-listening model
 
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.footprint_topic", rclcpp::ParameterValue("test_footprint"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.costmap_topic", rclcpp::ParameterValue("test_costmap_raw"));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.projection_time", rclcpp::ParameterValue(10.0));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.simulation_time_step", rclcpp::ParameterValue(0.1));
-  nav2_util::declare_parameter_if_not_declared(
+  nav2::declare_parameter_if_not_declared(
     node, "controller.dock_collision_threshold", rclcpp::ParameterValue(0.3));
 
   auto controller = std::make_unique<opennav_docking::ControllerFixture>(
     node, tf, "test_base_frame", "test_base_frame");
   collision_tester->configure();
   collision_tester->activate();
+  auto executor_thread = std::make_unique<nav2::NodeThread>(node->get_node_base_interface());
 
   // Set the staging pose at 1.75m in the front of the robot
   auto staging_pose = collision_tester->setPose(1.75, 0.0, 0.0);
@@ -505,14 +516,14 @@ TEST(ControllerTests, CollisionCheckerUndockForward) {
   // Publish an empty costmap
   // It should not hit anything in an empty costmap
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(staging_pose, false, false));
 
   // Set a dock in the costmap of 0.2x1.5m at 0.5m behind the robot. The robot is docked
   // It should not hit anything because the robot is docked and the trajectory is backward
   collision_tester->setRectangle(0.2, 1.5, -0.35, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_TRUE(controller->isTrajectoryCollisionFree(staging_pose, false, false));
 
   // Set an object beyond the staging pose
@@ -520,7 +531,7 @@ TEST(ControllerTests, CollisionCheckerUndockForward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 0.3, 1.75 + 0.5, 0.0, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(staging_pose, false, false));
 
   // Set an object between the robot and the staging pose
@@ -528,7 +539,7 @@ TEST(ControllerTests, CollisionCheckerUndockForward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 0.2, 1.0, 0.0, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(staging_pose, false, false));
 
   // Set the collision tolerance to 0 to ensure all obstacles in the path are detected
@@ -539,11 +550,91 @@ TEST(ControllerTests, CollisionCheckerUndockForward) {
   collision_tester->clearCostmap();
   collision_tester->setRectangle(0.2, 1.5, -0.35, -0.75, nav2_costmap_2d::LETHAL_OBSTACLE);
   collision_tester->publishCostmap();
-  rclcpp::spin_some(node->get_node_base_interface());
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   EXPECT_FALSE(controller->isTrajectoryCollisionFree(staging_pose, false, false));
 
   collision_tester->deactivate();
 }
 
+TEST(ControllerTests, RotateToHeading) {
+  auto node = std::make_shared<nav2::LifecycleNode>("test");
+
+  float rotate_to_heading_angular_vel = 1.0;
+  float rotate_to_heading_max_angular_accel = 3.2;
+  nav2::declare_parameter_if_not_declared(
+    node, "controller.rotate_to_heading_angular_vel",
+    rclcpp::ParameterValue(rotate_to_heading_angular_vel));
+  nav2::declare_parameter_if_not_declared(
+    node, "controller.rotate_to_heading_max_angular_accel",
+    rclcpp::ParameterValue(rotate_to_heading_max_angular_accel));
+
+  auto controller = std::make_unique<opennav_docking::Controller>(
+    node, nullptr, "test_base_frame", "test_base_frame");
+
+  geometry_msgs::msg::Twist current_velocity;
+  double angular_distance_to_heading;
+  double dt = 0.1;
+
+  // Case 1: Positive angular distance, within feasible range
+  angular_distance_to_heading = 0.5;
+  current_velocity.angular.z = 0.1;
+  auto cmd_vel =
+    controller->computeRotateToHeadingCommand(angular_distance_to_heading, current_velocity, dt);
+  EXPECT_DOUBLE_EQ(cmd_vel.linear.x, 0.0);
+  EXPECT_GE(cmd_vel.angular.z, 0.0);
+  EXPECT_LE(cmd_vel.angular.z, rotate_to_heading_angular_vel);
+
+  // Case 2: Negative angular distance, within feasible range
+  angular_distance_to_heading = -0.5;
+  current_velocity.angular.z = -0.1;
+  cmd_vel =
+    controller->computeRotateToHeadingCommand(angular_distance_to_heading, current_velocity, dt);
+  EXPECT_DOUBLE_EQ(cmd_vel.linear.x, 0.0);
+  EXPECT_LE(cmd_vel.angular.z, 0.0);
+  EXPECT_GE(cmd_vel.angular.z, -rotate_to_heading_angular_vel);
+
+  // Case 3: Positive angular distance, exceeding max feasible speed
+  angular_distance_to_heading = 1.0;
+  current_velocity.angular.z = 0.5;
+  cmd_vel =
+    controller->computeRotateToHeadingCommand(angular_distance_to_heading, current_velocity, dt);
+  EXPECT_DOUBLE_EQ(cmd_vel.linear.x, 0.0);
+  EXPECT_DOUBLE_EQ(
+    cmd_vel.angular.z,
+    current_velocity.angular.z + rotate_to_heading_max_angular_accel * dt);
+
+  // Case 4: Negative angular distance, exceeding max feasible speed
+  angular_distance_to_heading = -1.0;
+  current_velocity.angular.z = -0.5;
+  cmd_vel =
+    controller->computeRotateToHeadingCommand(angular_distance_to_heading, current_velocity, dt);
+  EXPECT_DOUBLE_EQ(cmd_vel.linear.x, 0.0);
+  EXPECT_DOUBLE_EQ(
+    cmd_vel.angular.z,
+    current_velocity.angular.z - rotate_to_heading_max_angular_accel * dt);
+
+  // Case 5: Zero angular distance
+  angular_distance_to_heading = 0.0;
+  current_velocity.angular.z = 0.0;
+  cmd_vel =
+    controller->computeRotateToHeadingCommand(angular_distance_to_heading, current_velocity, dt);
+  EXPECT_DOUBLE_EQ(cmd_vel.linear.x, 0.0);
+  EXPECT_DOUBLE_EQ(cmd_vel.angular.z, 0.0);
+
+  controller.reset();
+}
 
 }  // namespace opennav_docking
+
+int main(int argc, char ** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
+}

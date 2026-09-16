@@ -26,35 +26,53 @@ IsBatteryChargingCondition::IsBatteryChargingCondition(
   battery_topic_("/battery_status"),
   is_battery_charging_(false)
 {
-  getInput("battery_topic", battery_topic_);
-  auto node = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
-  callback_group_ = node->create_callback_group(
-    rclcpp::CallbackGroupType::MutuallyExclusive,
-    false);
-  callback_group_executor_.add_callback_group(callback_group_, node->get_node_base_interface());
+  initialize();
+  bt_loop_duration_ =
+    config().blackboard->template get<std::chrono::milliseconds>("bt_loop_duration");
+}
 
-  rclcpp::SubscriptionOptions sub_option;
-  sub_option.callback_group = callback_group_;
-  battery_sub_ = node->create_subscription<sensor_msgs::msg::BatteryState>(
-    battery_topic_,
-    rclcpp::SystemDefaultsQoS(),
-    std::bind(&IsBatteryChargingCondition::batteryCallback, this, std::placeholders::_1),
-    sub_option);
+void IsBatteryChargingCondition::initialize()
+{
+  createROSInterfaces();
+}
 
-  // Spin multiple times due to rclcpp regression in Jazzy requiring a 'warm up' spin
-  callback_group_executor_.spin_some(std::chrono::nanoseconds(1));
+void IsBatteryChargingCondition::createROSInterfaces()
+{
+  std::string battery_topic_new;
+  getInput("battery_topic", battery_topic_new);
+
+  // Only create a new subscriber if the topic has changed or subscriber is empty
+  if (battery_topic_new != battery_topic_ || !battery_sub_) {
+    battery_topic_ = battery_topic_new;
+    auto node = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
+    callback_group_ = node->create_callback_group(
+      rclcpp::CallbackGroupType::MutuallyExclusive,
+      false);
+    callback_group_executor_.add_callback_group(callback_group_, node->get_node_base_interface());
+
+    battery_sub_ = node->create_subscription<sensor_msgs::msg::BatteryState>(
+      battery_topic_,
+      std::bind(&IsBatteryChargingCondition::batteryCallback, this, std::placeholders::_1),
+      nav2::qos::StandardTopicQoS(),
+      callback_group_);
+  }
 }
 
 BT::NodeStatus IsBatteryChargingCondition::tick()
 {
-  callback_group_executor_.spin_some();
+  if (!BT::isStatusActive(status())) {
+    initialize();
+  }
+
+  callback_group_executor_.spin_all(bt_loop_duration_);
   if (is_battery_charging_) {
     return BT::NodeStatus::SUCCESS;
   }
   return BT::NodeStatus::FAILURE;
 }
 
-void IsBatteryChargingCondition::batteryCallback(sensor_msgs::msg::BatteryState::SharedPtr msg)
+void IsBatteryChargingCondition::batteryCallback(
+  const sensor_msgs::msg::BatteryState::ConstSharedPtr & msg)
 {
   is_battery_charging_ =
     (msg->power_supply_status == sensor_msgs::msg::BatteryState::POWER_SUPPLY_STATUS_CHARGING);

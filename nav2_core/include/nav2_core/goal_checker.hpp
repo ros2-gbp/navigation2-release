@@ -38,10 +38,10 @@
 #include <memory>
 #include <string>
 
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "geometry_msgs/msg/pose.hpp"
 #include "geometry_msgs/msg/twist.hpp"
+#include "nav_msgs/msg/path.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 
@@ -70,7 +70,7 @@ public:
    * @param parent Node pointer for grabbing parameters
    */
   virtual void initialize(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+    const nav2::LifecycleNode::WeakPtr & parent,
     const std::string & plugin_name,
     const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) = 0;
 
@@ -81,11 +81,14 @@ public:
    * @param query_pose The pose to check
    * @param goal_pose The pose to check against
    * @param velocity The robot's current velocity
+   * @param transformed_global_plan The global plan after being processed by the path handler
    * @return True if goal is reached
    */
   virtual bool isGoalReached(
-    const geometry_msgs::msg::Pose & query_pose, const geometry_msgs::msg::Pose & goal_pose,
-    const geometry_msgs::msg::Twist & velocity) = 0;
+    const geometry_msgs::msg::Pose & query_pose,
+    const geometry_msgs::msg::Pose & goal_pose,
+    const geometry_msgs::msg::Twist & velocity,
+    const nav_msgs::msg::Path & transformed_global_plan) = 0;
 
   /**
    * @brief Get the maximum possible tolerances used for goal checking in the major types.
@@ -95,11 +98,29 @@ public:
    * that each independent field could be assuming the other has no error (e.x. X and Y).
    * @param pose_tolerance The tolerance used for checking in Pose fields
    * @param vel_tolerance The tolerance used for checking velocity fields
+   * @param path_length_tolerance The tolerance used for checking the path length
    * @return True if the tolerances are valid to use
    */
   virtual bool getTolerances(
     geometry_msgs::msg::Pose & pose_tolerance,
-    geometry_msgs::msg::Twist & vel_tolerance) = 0;
+    geometry_msgs::msg::Twist & vel_tolerance,
+    double & path_length_tolerance) = 0;
+
+  /**
+   * @brief Check if XY goal position has been reached (without considering yaw)
+   * This is useful for controllers that want to rotate to goal heading while
+   * keeping zero linear velocity but preserving angular velocity capability.
+   * @param query_pose The pose to check
+   * @param goal_pose The pose to check against
+   * @param velocity The robot's current velocity
+   * @param transformed_global_plan The global plan after being processed by the path handler
+   * @return True if XY goal is reached (position within tolerance, yaw ignored)
+   */
+  virtual bool isGoalXYReached(
+    const geometry_msgs::msg::Pose & query_pose,
+    const geometry_msgs::msg::Pose & goal_pose,
+    const geometry_msgs::msg::Twist & velocity,
+    const nav_msgs::msg::Path & transformed_global_plan) = 0;
 };
 
 }  // namespace nav2_core

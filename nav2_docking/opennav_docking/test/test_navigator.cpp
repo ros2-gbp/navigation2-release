@@ -16,19 +16,10 @@
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
-#include "nav2_util/simple_action_server.hpp"
+#include "nav2_ros_common/simple_action_server.hpp"
 #include "opennav_docking/navigator.hpp"
-#include "ament_index_cpp/get_package_share_directory.hpp"
 
 // Test navigator
-
-class RosLockGuard
-{
-public:
-  RosLockGuard() {rclcpp::init(0, nullptr);}
-  ~RosLockGuard() {rclcpp::shutdown();}
-};
-RosLockGuard g_rclcpp;
 
 namespace opennav_docking
 {
@@ -37,7 +28,7 @@ class DummyNavigationServer : rclcpp::Node
 {
 public:
   using ActionT = nav2_msgs::action::NavigateToPose;
-  using ActionServer = nav2_util::SimpleActionServer<ActionT>;
+  using ActionServer = nav2::SimpleActionServer<ActionT>;
 
   DummyNavigationServer()
   : Node("dummy_navigator")
@@ -47,8 +38,9 @@ public:
       get_node_clock_interface(),
       get_node_logging_interface(),
       get_node_waitables_interface(),
+      get_node_parameters_interface(),
       "navigate_to_pose", std::bind(&DummyNavigationServer::executeCallback, this),
-      nullptr, std::chrono::milliseconds(500), true);
+      nullptr, nullptr, std::chrono::milliseconds(500), true);
 
     action_server_->activate();
   }
@@ -91,7 +83,7 @@ protected:
 
 TEST(NavigatorTests, TestNavigatorReconfigure)
 {
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test_node");
+  auto node = std::make_shared<nav2::LifecycleNode>("test_node");
   auto navigator = std::make_unique<Navigator>(node);
   node->configure();
   node->activate();
@@ -114,7 +106,7 @@ TEST(NavigatorTests, TestNavigatorReconfigure)
 TEST(NavigatorTests, TestNavigator)
 {
   auto dummy_navigator_node = std::make_shared<DummyNavigationServer>();
-  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test_node");
+  auto node = std::make_shared<nav2::LifecycleNode>("test_node");
   auto navigator = std::make_unique<Navigator>(node);
   navigator->activate();
 
@@ -124,32 +116,37 @@ TEST(NavigatorTests, TestNavigator)
   // Should succeed, action server set to succeed
   dummy_navigator_node->setReturn(true);
   EXPECT_NO_THROW(
-    navigator->goToPose(geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
+    navigator->goToPose(
+      geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
       is_preempted_false));
 
   // Should fail, timeout exceeded
   EXPECT_THROW(
-    navigator->goToPose(geometry_msgs::msg::PoseStamped(), rclcpp::Duration(0.0, 0.0),
+    navigator->goToPose(
+      geometry_msgs::msg::PoseStamped(), rclcpp::Duration(0.0, 0.0),
       is_preempted_false),
     opennav_docking_core::FailedToStage);
 
   // Should fail, action server set to succeed
   dummy_navigator_node->setReturn(false);
   EXPECT_THROW(
-    navigator->goToPose(geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
+    navigator->goToPose(
+      geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
       is_preempted_false),
     opennav_docking_core::FailedToStage);
 
   // First should fail, recursion should succeed
   dummy_navigator_node->setToggle();
   EXPECT_NO_THROW(
-    navigator->goToPose(geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
+    navigator->goToPose(
+      geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
       is_preempted_false));
 
   // Should fail, preempted
   dummy_navigator_node->setReturn(true);
   EXPECT_THROW(
-    navigator->goToPose(geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
+    navigator->goToPose(
+      geometry_msgs::msg::PoseStamped(), rclcpp::Duration(10.0, 10.0),
       is_preempted_true),
     opennav_docking_core::FailedToStage);
 
@@ -159,3 +156,16 @@ TEST(NavigatorTests, TestNavigator)
 }
 
 }  // namespace opennav_docking
+
+int main(int argc, char ** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
+}

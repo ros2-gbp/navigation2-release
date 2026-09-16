@@ -34,7 +34,7 @@ TimeExpiredCondition::TimeExpiredCondition(
 void TimeExpiredCondition::initialize()
 {
   getInput("seconds", period_);
-  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
+  node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
   start_ = node_->now();
 }
 
@@ -42,14 +42,11 @@ BT::NodeStatus TimeExpiredCondition::tick()
 {
   if (!BT::isStatusActive(status())) {
     initialize();
-  }
-
-  if (!BT::isStatusActive(status())) {
     start_ = node_->now();
     return BT::NodeStatus::FAILURE;
   }
 
-  // Determine how long its been since we've started this iteration
+  // Determine how long it's been since we've started this iteration
   auto elapsed = node_->now() - start_;
 
   // Now, get that in seconds

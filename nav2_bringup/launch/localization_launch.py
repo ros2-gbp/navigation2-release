@@ -15,43 +15,43 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory
-
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
-from launch.actions import SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, GroupAction, SetEnvironmentVariable
 from launch.conditions import IfCondition
-from launch.substitutions import EqualsSubstitution
-from launch.substitutions import LaunchConfiguration, PythonExpression
-from launch.substitutions import NotEqualsSubstitution
-from launch_ros.actions import LoadComposableNodes, SetParameter
-from launch_ros.actions import Node
+from launch.substitutions import (AndSubstitution, EqualsSubstitution, LaunchConfiguration,
+                                  NotEqualsSubstitution, PythonExpression)
+from launch_ros.actions import LoadComposableNodes, Node, PushROSNamespace, SetParameter
 from launch_ros.descriptions import ComposableNode, ParameterFile
-from nav2_common.launch import RewrittenYaml
+from nav2_common.launch import LaunchConfigAsBool, RewrittenYaml
 
 
-def generate_launch_description():
+def get_lifecycle_nodes(context):
+    lifecycle_nodes = []
+    if LaunchConfigAsBool('serve_static_map').perform(context) == 'True':
+        lifecycle_nodes.append('map_server')
+    if LaunchConfigAsBool('use_localization').perform(context) == 'True':
+        lifecycle_nodes.append('amcl')
+    return tuple(lifecycle_nodes)
+
+
+def generate_launch_description() -> LaunchDescription:
     # Get the launch directory
     bringup_dir = get_package_share_directory('nav2_bringup')
 
     namespace = LaunchConfiguration('namespace')
     map_yaml_file = LaunchConfiguration('map')
-    use_sim_time = LaunchConfiguration('use_sim_time')
-    autostart = LaunchConfiguration('autostart')
+    use_sim_time = LaunchConfigAsBool('use_sim_time')
+    use_localization = LaunchConfigAsBool('use_localization')
+    serve_static_map = LaunchConfigAsBool('serve_static_map')
     params_file = LaunchConfiguration('params_file')
-    use_composition = LaunchConfiguration('use_composition')
+    use_composition = LaunchConfigAsBool('use_composition')
+    use_intra_process_comms = LaunchConfigAsBool('use_intra_process_comms')
     container_name = LaunchConfiguration('container_name')
     container_name_full = (namespace, '/', container_name)
-    use_respawn = LaunchConfiguration('use_respawn')
+    use_respawn = LaunchConfigAsBool('use_respawn')
     log_level = LaunchConfiguration('log_level')
 
-    lifecycle_nodes = ['map_server', 'amcl']
-
     # Map fully qualified names to relative ones so the node's namespace can be prepended.
-    # In case of the transforms (tf), currently, there doesn't seem to be a better alternative
-    # https://github.com/ros/geometry2/issues/32
-    # https://github.com/ros/robot_state_publisher/pull/30
-    # TODO(orduno) Substitute with `PushNodeRemapping`
-    #              https://github.com/ros2/launch_ros/issues/56
     remappings = [('/tf', 'tf'), ('/tf_static', 'tf_static')]
 
     configured_params = ParameterFile(
@@ -82,16 +82,22 @@ def generate_launch_description():
         description='Use simulation (Gazebo) clock if true',
     )
 
+    declare_use_localization_cmd = DeclareLaunchArgument(
+        'use_localization',
+        default_value='True',
+        description='Whether to launch localization',
+    )
+
+    declare_serve_static_map_cmd = DeclareLaunchArgument(
+        'serve_static_map',
+        default_value=use_localization,
+        description='Whether to serve the static map',
+    )
+
     declare_params_file_cmd = DeclareLaunchArgument(
         'params_file',
         default_value=os.path.join(bringup_dir, 'params', 'nav2_params.yaml'),
         description='Full path to the ROS2 parameters file to use for all launched nodes',
-    )
-
-    declare_autostart_cmd = DeclareLaunchArgument(
-        'autostart',
-        default_value='true',
-        description='Automatically startup the nav2 stack',
     )
 
     declare_use_composition_cmd = DeclareLaunchArgument(
@@ -100,10 +106,16 @@ def generate_launch_description():
         description='Use composed bringup if True',
     )
 
+    declare_use_intra_process_comms_cmd = DeclareLaunchArgument(
+        'use_intra_process_comms',
+        default_value='False',
+        description='Use intra process communications if True',
+    )
+
     declare_container_name_cmd = DeclareLaunchArgument(
         'container_name',
         default_value='nav2_container',
-        description='the name of conatiner that nodes will load in if use composition',
+        description='the name of container that nodes will load in if use composition',
     )
 
     declare_use_respawn_cmd = DeclareLaunchArgument(
@@ -119,10 +131,14 @@ def generate_launch_description():
     load_nodes = GroupAction(
         condition=IfCondition(PythonExpression(['not ', use_composition])),
         actions=[
+            PushROSNamespace(namespace),
             SetParameter('use_sim_time', use_sim_time),
             Node(
                 condition=IfCondition(
-                    EqualsSubstitution(LaunchConfiguration('map'), '')
+                    AndSubstitution(
+                        serve_static_map,
+                        EqualsSubstitution(LaunchConfiguration('map'), ''),
+                    )
                 ),
                 package='nav2_map_server',
                 executable='map_server',
@@ -136,7 +152,10 @@ def generate_launch_description():
             ),
             Node(
                 condition=IfCondition(
-                    NotEqualsSubstitution(LaunchConfiguration('map'), '')
+                    AndSubstitution(
+                        serve_static_map,
+                        NotEqualsSubstitution(LaunchConfiguration('map'), ''),
+                    )
                 ),
                 package='nav2_map_server',
                 executable='map_server',
@@ -149,6 +168,7 @@ def generate_launch_description():
                 remappings=remappings,
             ),
             Node(
+                condition=IfCondition(use_localization),
                 package='nav2_amcl',
                 executable='amcl',
                 name='amcl',
@@ -158,14 +178,6 @@ def generate_launch_description():
                 parameters=[configured_params],
                 arguments=['--ros-args', '--log-level', log_level],
                 remappings=remappings,
-            ),
-            Node(
-                package='nav2_lifecycle_manager',
-                executable='lifecycle_manager',
-                name='lifecycle_manager_localization',
-                output='screen',
-                arguments=['--ros-args', '--log-level', log_level],
-                parameters=[{'autostart': autostart}, {'node_names': lifecycle_nodes}],
             ),
         ],
     )
@@ -177,11 +189,15 @@ def generate_launch_description():
     load_composable_nodes = GroupAction(
         condition=IfCondition(use_composition),
         actions=[
+            PushROSNamespace(namespace),
             SetParameter('use_sim_time', use_sim_time),
             LoadComposableNodes(
                 target_container=container_name_full,
                 condition=IfCondition(
-                    EqualsSubstitution(LaunchConfiguration('map'), '')
+                    AndSubstitution(
+                        serve_static_map,
+                        EqualsSubstitution(LaunchConfiguration('map'), ''),
+                    )
                 ),
                 composable_node_descriptions=[
                     ComposableNode(
@@ -190,13 +206,17 @@ def generate_launch_description():
                         name='map_server',
                         parameters=[configured_params],
                         remappings=remappings,
+                        extra_arguments=[{'use_intra_process_comms': use_intra_process_comms}],
                     ),
                 ],
             ),
             LoadComposableNodes(
                 target_container=container_name_full,
                 condition=IfCondition(
-                    NotEqualsSubstitution(LaunchConfiguration('map'), '')
+                    AndSubstitution(
+                        serve_static_map,
+                        NotEqualsSubstitution(LaunchConfiguration('map'), ''),
+                    )
                 ),
                 composable_node_descriptions=[
                     ComposableNode(
@@ -208,10 +228,12 @@ def generate_launch_description():
                             {'yaml_filename': map_yaml_file},
                         ],
                         remappings=remappings,
+                        extra_arguments=[{'use_intra_process_comms': use_intra_process_comms}],
                     ),
                 ],
             ),
             LoadComposableNodes(
+                condition=IfCondition(use_localization),
                 target_container=container_name_full,
                 composable_node_descriptions=[
                     ComposableNode(
@@ -220,14 +242,7 @@ def generate_launch_description():
                         name='amcl',
                         parameters=[configured_params],
                         remappings=remappings,
-                    ),
-                    ComposableNode(
-                        package='nav2_lifecycle_manager',
-                        plugin='nav2_lifecycle_manager::LifecycleManager',
-                        name='lifecycle_manager_localization',
-                        parameters=[
-                            {'autostart': autostart, 'node_names': lifecycle_nodes}
-                        ],
+                        extra_arguments=[{'use_intra_process_comms': use_intra_process_comms}],
                     ),
                 ],
             ),
@@ -244,9 +259,11 @@ def generate_launch_description():
     ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_map_yaml_cmd)
     ld.add_action(declare_use_sim_time_cmd)
+    ld.add_action(declare_use_localization_cmd)
+    ld.add_action(declare_serve_static_map_cmd)
     ld.add_action(declare_params_file_cmd)
-    ld.add_action(declare_autostart_cmd)
     ld.add_action(declare_use_composition_cmd)
+    ld.add_action(declare_use_intra_process_comms_cmd)
     ld.add_action(declare_container_name_cmd)
     ld.add_action(declare_use_respawn_cmd)
     ld.add_action(declare_log_level_cmd)

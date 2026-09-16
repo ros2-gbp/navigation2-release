@@ -24,6 +24,7 @@
 #include <iomanip>
 
 #include "wait_behavior_tester.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 using namespace std::chrono_literals;
 using namespace std::chrono;  // NOLINT
@@ -35,10 +36,13 @@ WaitBehaviorTester::WaitBehaviorTester()
 : is_active_(false),
   initial_pose_received_(false)
 {
-  node_ = rclcpp::Node::make_shared("wait_behavior_test");
+  node_ = rclcpp::Node::make_shared(
+    "wait_behavior_test",
+    rclcpp::NodeOptions().parameter_overrides(
+      {rclcpp::Parameter("use_sim_time", true)}));
 
-  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
-  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+  tf_buffer_ = nav2::create_transform_buffer(node_);
+  tf_listener_ = nav2::create_transform_listener(*tf_buffer_);
 
   client_ptr_ = rclcpp_action::create_client<Wait>(
     node_->get_node_base_interface(),
@@ -68,12 +72,13 @@ void WaitBehaviorTester::activate()
     throw std::runtime_error("Trying to activate while already active");
     return;
   }
-
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(node_);
   while (!initial_pose_received_) {
     RCLCPP_WARN(node_->get_logger(), "Initial pose not received");
     sendInitialPose();
     std::this_thread::sleep_for(100ms);
-    rclcpp::spin_some(node_);
+    executor.spin_some();
   }
 
   // Wait for lifecycle_manager_navigation to activate behavior_server
@@ -272,7 +277,7 @@ void WaitBehaviorTester::sendInitialPose()
 }
 
 void WaitBehaviorTester::amclPoseCallback(
-  const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr)
+  const geometry_msgs::msg::PoseWithCovarianceStamped::ConstSharedPtr)
 {
   initial_pose_received_ = true;
 }

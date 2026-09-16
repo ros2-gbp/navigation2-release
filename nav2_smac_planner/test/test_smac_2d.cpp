@@ -27,24 +27,16 @@
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/smac_planner_2d.hpp"
 #include "nav2_smac_planner/smac_planner_hybrid.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "rclcpp/rclcpp.hpp"
-
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
 
 // SMAC smoke tests for plugin-level issues rather than algorithms
 // (covered by more extensively testing in other files)
 // System tests in nav2_system_tests will actually plan with this work
 
 TEST(SmacTest, test_smac_2d) {
-  rclcpp_lifecycle::LifecycleNode::SharedPtr node2D =
-    std::make_shared<rclcpp_lifecycle::LifecycleNode>("Smac2DTest");
+  nav2::LifecycleNode::SharedPtr node2D =
+    std::make_shared<nav2::LifecycleNode>("Smac2DTest");
 
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
     std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
@@ -57,11 +49,14 @@ TEST(SmacTest, test_smac_2d) {
   node2D->declare_parameter("test.downsampling_factor", 2);
   node2D->set_parameter(rclcpp::Parameter("test.downsampling_factor", 2));
 
+  node2D->configure();
+  node2D->activate();
+
   auto dummy_cancel_checker = []() {
       return false;
     };
 
-  geometry_msgs::msg::PoseStamped start, goal;
+  geometry_msgs::msg::PoseStamped start, goal, viapoint;
   start.pose.position.x = 0.0;
   start.pose.position.y = 0.0;
   start.pose.orientation.w = 1.0;
@@ -69,11 +64,16 @@ TEST(SmacTest, test_smac_2d) {
   goal.pose.position.x = 7.0;
   goal.pose.position.y = 0.0;
   goal.pose.orientation.w = 1.0;
+  // viapoint = start;
+  goal.pose.position.x = 3.5;
+  goal.pose.position.y = 0.0;
+  goal.pose.orientation.w = 1.0;
+  std::vector<geometry_msgs::msg::PoseStamped> viapoints{viapoint};
   auto planner_2d = std::make_unique<nav2_smac_planner::SmacPlanner2D>();
   planner_2d->configure(node2D, "test", nullptr, costmap_ros);
   planner_2d->activate();
   try {
-    planner_2d->createPlan(start, goal, dummy_cancel_checker);
+    planner_2d->createPlan(start, goal, viapoints, dummy_cancel_checker);
   } catch (...) {
   }
 
@@ -81,7 +81,7 @@ TEST(SmacTest, test_smac_2d) {
   goal.pose.position.x = 0.01;
   goal.pose.position.y = 0.01;
 
-  nav_msgs::msg::Path plan = planner_2d->createPlan(start, goal, dummy_cancel_checker);
+  nav_msgs::msg::Path plan = planner_2d->createPlan(start, goal, viapoints, dummy_cancel_checker);
   EXPECT_EQ(plan.poses.size(), 1);  // single point path
 
   planner_2d->deactivate();
@@ -89,17 +89,22 @@ TEST(SmacTest, test_smac_2d) {
 
   planner_2d.reset();
   costmap_ros->on_cleanup(rclcpp_lifecycle::State());
+  node2D->deactivate();
+  node2D->cleanup();
   node2D.reset();
   costmap_ros.reset();
 }
 
 TEST(SmacTest, test_smac_2d_reconfigure) {
-  rclcpp_lifecycle::LifecycleNode::SharedPtr node2D =
-    std::make_shared<rclcpp_lifecycle::LifecycleNode>("Smac2DTest");
+  nav2::LifecycleNode::SharedPtr node2D =
+    std::make_shared<nav2::LifecycleNode>("Smac2DTest");
 
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros =
     std::make_shared<nav2_costmap_2d::Costmap2DROS>("global_costmap");
   costmap_ros->on_configure(rclcpp_lifecycle::State());
+
+  node2D->configure();
+  node2D->activate();
 
   auto planner_2d = std::make_unique<nav2_smac_planner::SmacPlanner2D>();
   planner_2d->configure(node2D, "test", nullptr, costmap_ros);
@@ -144,9 +149,41 @@ TEST(SmacTest, test_smac_2d_reconfigure) {
     100);
 
   results = rec_param->set_parameters_atomically(
+    {rclcpp::Parameter("test.max_planning_time", -10.0)});
+  rclcpp::spin_until_future_complete(
+    node2D->get_node_base_interface(),
+    results);
+  // Invalid value should not change the previous value
+  EXPECT_EQ(node2D->get_parameter("test.max_planning_time").as_double(), 2.0);
+
+  results = rec_param->set_parameters_atomically(
     {rclcpp::Parameter("test.downsample_costmap", true)});
 
   rclcpp::spin_until_future_complete(
     node2D->get_node_base_interface(),
     results);
+
+  EXPECT_EQ(node2D->get_parameter("test.downsample_costmap").as_bool(), true);
+
+  results = rec_param->set_parameters_atomically(
+    {rclcpp::Parameter("test.downsampling_factor", 0)});
+
+  rclcpp::spin_until_future_complete(
+    node2D->get_node_base_interface(),
+    results);
+
+  EXPECT_EQ(node2D->get_parameter("test.downsampling_factor").as_int(), 2);
+}
+
+int main(int argc, char ** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

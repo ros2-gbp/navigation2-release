@@ -43,11 +43,10 @@
 #include <vector>
 
 #include "map_msgs/msg/occupancy_grid_update.hpp"
-#include "message_filters/subscriber.h"
+#include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/costmap_layer.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
-#include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/footprint.hpp"
 
 namespace nav2_costmap_2d
@@ -141,7 +140,7 @@ protected:
    * map along with its size will determine what parts of the costmap's
    * static map are overwritten.
    */
-  void incomingMap(const nav_msgs::msg::OccupancyGrid::SharedPtr new_map);
+  void incomingMap(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr & new_map);
   /**
    * @brief Callback to update the costmap's map from the map_server (or SLAM)
    * with an update in a particular area of the map
@@ -164,14 +163,27 @@ protected:
   bool isEqual(double a, double b, double epsilon);
 
   /**
-   * @brief Callback executed when a parameter change is detected
-   * @param event ParameterEvent message
+   * @brief Validate incoming parameter updates before applying them.
+   * This callback is triggered when one or more parameters are about to be updated.
+   * It checks the validity of parameter values and rejects updates that would lead
+   * to invalid or inconsistent configurations
+   * @param parameters List of parameters that are being updated.
+   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
    */
-  rcl_interfaces::msg::SetParametersResult
-  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
+  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
+    const std::vector<rclcpp::Parameter> & parameters);
+
+  /**
+   * @brief Apply parameter updates after validation
+   * This callback is executed when parameters have been successfully updated.
+   * It updates the internal configuration of the node with the new parameter values.
+   * @param parameters List of parameters that have been updated.
+   */
+  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
 
   std::vector<geometry_msgs::msg::Point> transformed_footprint_;
   bool footprint_clearing_enabled_;
+  bool restore_cleared_footprint_;
   /**
    * @brief Clear costmap layer info below the robot's footprint
    */
@@ -191,8 +203,8 @@ protected:
   unsigned int width_{0};
   unsigned int height_{0};
 
-  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_sub_;
-  rclcpp::Subscription<map_msgs::msg::OccupancyGridUpdate>::SharedPtr map_update_sub_;
+  nav2::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_sub_;
+  nav2::Subscription<map_msgs::msg::OccupancyGridUpdate>::SharedPtr map_update_sub_;
 
   // Parameters
   std::string map_topic_;
@@ -201,14 +213,16 @@ protected:
   bool track_unknown_space_;
   bool use_maximum_;
   unsigned char lethal_threshold_;
+  unsigned char inscribed_obstacle_cost_value_;
   unsigned char unknown_cost_value_;
   bool trinary_costmap_;
   bool map_received_{false};
   bool map_received_in_update_bounds_{false};
   tf2::Duration transform_tolerance_;
-  nav_msgs::msg::OccupancyGrid::SharedPtr map_buffer_;
+  nav_msgs::msg::OccupancyGrid::ConstSharedPtr map_buffer_;
   // Dynamic parameters handler
-  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+  rclcpp::node_interfaces::PostSetParametersCallbackHandle::SharedPtr post_set_params_handler_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handler_;
 };
 
 }  // namespace nav2_costmap_2d

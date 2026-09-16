@@ -30,6 +30,8 @@
  */
 
 #include "nav2_map_server/map_io.hpp"
+#include "nav2_ros_common/validate_messages.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #ifndef _WIN32
 #include <libgen.h>
@@ -48,8 +50,9 @@
 #include "nav2_util/geometry_utils.hpp"
 
 #include "yaml-cpp/yaml.h"
-#include "tf2/LinearMath/Matrix3x3.h"
-#include "tf2/LinearMath/Quaternion.h"
+
+#include "tf2/LinearMath/Matrix3x3.hpp"
+#include "tf2/LinearMath/Quaternion.hpp"
 #include "nav2_util/occ_grid_values.hpp"
 
 #ifdef _WIN32
@@ -90,7 +93,7 @@ char * dirname(char * path)
     /* This assignment is ill-designed but the XPG specs require to
        return a string containing "." in any case no directory part is
        found and so a static and constant string is required.  */
-    path = reinterpret_cast<char *>(dot);
+    path = const_cast<char *>(dot);
   }
 
   return path;
@@ -500,7 +503,7 @@ void checkSaveParameters(SaveParameters & save_parameters)
  * @brief Tries to write map data into a file
  * @param map Occupancy grid data
  * @param save_parameters Map saving parameters
- * @throw std::expection in case of problem
+ * @throw std::exception in case of problem
  */
 void tryWriteMapToFile(
   const nav_msgs::msg::OccupancyGrid & map,
@@ -597,8 +600,9 @@ void tryWriteMapToFile(
     e << YAML::BeginMap;
     e << YAML::Key << "image" << YAML::Value << image_name;
     e << YAML::Key << "mode" << YAML::Value << map_mode_to_string(save_parameters.mode);
-    e << YAML::Key << "resolution" << YAML::Value << to_string_with_precision(map.info.resolution,
-        3);
+    e << YAML::Key << "resolution" << YAML::Value << to_string_with_precision(
+      map.info.resolution,
+      3);
     e << YAML::Key << "origin" << YAML::Flow << YAML::BeginSeq <<
       to_string_with_precision(map.info.origin.position.x, 3) <<
       to_string_with_precision(map.info.origin.position.y, 3) << yaw << YAML::EndSeq;
@@ -634,6 +638,13 @@ bool saveMapToFile(
   const nav_msgs::msg::OccupancyGrid & map,
   const SaveParameters & save_parameters)
 {
+  if (!nav2::validateMsg(map)) {
+    RCLCPP_ERROR_STREAM(
+      rclcpp::get_logger("map_io"),
+      "Failed to write map for reason: invalid OccupancyGrid message");
+    return false;
+  }
+
   // Local copy of SaveParameters that might be modified by checkSaveParameters()
   SaveParameters save_parameters_loc = save_parameters;
 

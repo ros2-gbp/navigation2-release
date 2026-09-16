@@ -18,7 +18,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "opennav_docking/pose_filter.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "tf2/utils.h"
+#include "tf2/utils.hpp"
 
 // Testing the pose filter
 
@@ -43,7 +43,7 @@ TEST(PoseFilterTests, FilterTests)
   // Update filter
   geometry_msgs::msg::PoseStamped pose = filter.update(meas1);
 
-  // Header frame_id is inconsistent, so pose = measurment
+  // Header frame_id is inconsistent, so pose = measurement
   EXPECT_NEAR(pose.pose.position.x, 1.0, 0.0001);
   EXPECT_NEAR(pose.pose.position.y, 3.0, 0.0001);
   EXPECT_NEAR(pose.pose.position.z, 5.0, 0.0001);
@@ -57,7 +57,7 @@ TEST(PoseFilterTests, FilterTests)
   meas2.pose.position.z = 6.0;
   double yaw = 0.5, pitch = 0.0, roll = 0.0;
   tf2::Quaternion quat;
-  quat.setEuler(pitch, roll, yaw);
+  quat.setRPY(roll, pitch, yaw);
   meas2.pose.orientation = tf2::toMsg(quat);
 
   // Update filter, check expectations

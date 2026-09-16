@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "opennav_docking_core/charging_dock.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 
 namespace opennav_docking_core
@@ -44,8 +45,8 @@ public:
    * @param  tf A pointer to a TF buffer
    */
   virtual void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-    const std::string & name, std::shared_ptr<tf2_ros::Buffer> tf) = 0;
+    const nav2::LifecycleNode::WeakPtr & parent,
+    const std::string & name, nav2::TransformBuffer::SharedPtr tf) = 0;
 
   /**
    * @brief Method to cleanup resources used on shutdown.
@@ -58,7 +59,7 @@ public:
   virtual void activate() = 0;
 
   /**
-   * @brief Method to deactive Behavior and any threads involved in execution.
+   * @brief Method to deactivate Behavior and any threads involved in execution.
    */
   virtual void deactivate() = 0;
 
@@ -124,6 +125,16 @@ public:
   {
     throw std::runtime_error("This dock is not a charging dock!");
   }
+
+  /**
+   * @brief Start any detection pipelines required for pose refinement.
+   */
+  virtual bool startDetectionProcess() = 0;
+
+  /**
+   * @brief Stop any detection pipelines running for pose refinement.
+   */
+  virtual bool stopDetectionProcess() = 0;
 
   /**
    * @brief Gets if this is a charging-typed dock

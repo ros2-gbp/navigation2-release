@@ -16,13 +16,14 @@
 #include <string>
 
 #include "nav2_route/plugins/edge_cost_functions/goal_orientation_scorer.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_route
 {
 
 void GoalOrientationScorer::configure(
-  const nav2_util::LifecycleNode::SharedPtr node,
-  const std::shared_ptr<tf2_ros::Buffer>/* tf_buffer */,
+  const nav2::LifecycleNode::SharedPtr node,
+  const nav2::TransformBuffer::SharedPtr/* tf_buffer */,
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>/* costmap_subscriber */,
   const std::string & name)
 {
@@ -30,20 +31,12 @@ void GoalOrientationScorer::configure(
   name_ = name;
   logger_ = node->get_logger();
 
-  nav2_util::declare_parameter_if_not_declared(
-    node, getName() + ".orientation_tolerance", rclcpp::ParameterValue(M_PI / 2.0));
-
-  nav2_util::declare_parameter_if_not_declared(
-    node, getName() + ".orientation_weight", rclcpp::ParameterValue(1.0));
-
-  nav2_util::declare_parameter_if_not_declared(
-    node, getName() + ".use_orientation_threshold", rclcpp::ParameterValue(false));
-
-  orientation_tolerance_ = node->get_parameter(getName() + ".orientation_tolerance").as_double();
-  orientation_weight_ =
-    static_cast<float>(node->get_parameter(getName() + ".orientation_weight").as_double());
-  use_orientation_threshold_ =
-    node->get_parameter(getName() + ".use_orientation_threshold").as_bool();
+  orientation_tolerance_ = node->declare_or_get_parameter(
+    getName() + ".orientation_tolerance", M_PI / 2.0);
+  orientation_weight_ = static_cast<float>(
+    node->declare_or_get_parameter(getName() + ".orientation_weight", 1.0));
+  use_orientation_threshold_ = node->declare_or_get_parameter(
+    getName() + ".use_orientation_threshold", false);
 }
 
 bool GoalOrientationScorer::score(

@@ -17,28 +17,19 @@
 
 #include "base_footprint_publisher.hpp"
 #include "gtest/gtest.h"
-#include "tf2/exceptions.h"
-
-class RclCppFixture
-{
-public:
-  RclCppFixture() {rclcpp::init(0, nullptr);}
-  ~RclCppFixture() {rclcpp::shutdown();}
-};
-RclCppFixture g_rclcppfixture;
+#include "tf2/exceptions.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 TEST(TestBaseFootprintPublisher, TestBaseFootprintPublisher)
 {
   auto node = std::make_shared<nav2_util::BaseFootprintPublisher>();
-  rclcpp::spin_some(node->get_node_base_interface());
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(node->get_node_base_interface());
+  executor.spin_some();
 
-  auto tf_broadcaster = std::make_shared<tf2_ros::TransformBroadcaster>(node);
-  auto buffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
-  auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
-    node->get_node_base_interface(),
-    node->get_node_timers_interface());
-  buffer->setCreateTimerInterface(timer_interface);
-  auto listener = std::make_shared<tf2_ros::TransformListener>(*buffer, true);
+  auto tf_broadcaster = nav2::create_transform_broadcaster(node);
+  auto buffer = nav2::create_transform_buffer(node);
+  auto listener = nav2::create_transform_listener(*buffer, node);
 
   std::string base_link = "base_link";
   std::string base_footprint = "base_footprint";
@@ -49,7 +40,7 @@ TEST(TestBaseFootprintPublisher, TestBaseFootprintPublisher)
   transform.header.frame_id = "test1_1";
   transform.child_frame_id = "test1";
   tf_broadcaster->sendTransform(transform);
-  rclcpp::spin_some(node->get_node_base_interface());
+  executor.spin_some();
   EXPECT_THROW(
     buffer->lookupTransform(base_link, base_footprint, tf2::TimePointZero),
     tf2::TransformException);
@@ -64,9 +55,22 @@ TEST(TestBaseFootprintPublisher, TestBaseFootprintPublisher)
   tf_broadcaster->sendTransform(transform);
   rclcpp::Rate r(1.0);
   r.sleep();
-  rclcpp::spin_some(node->get_node_base_interface());
+  executor.spin_some();
   auto t = buffer->lookupTransform(base_link, base_footprint, tf2::TimePointZero);
   EXPECT_EQ(t.transform.translation.x, 1.0);
   EXPECT_EQ(t.transform.translation.y, 1.0);
   EXPECT_EQ(t.transform.translation.z, 0.0);
+}
+
+int main(int argc, char ** argv)
+{
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

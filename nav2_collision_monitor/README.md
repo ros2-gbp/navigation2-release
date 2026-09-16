@@ -36,7 +36,7 @@ The zones around the robot can take the following shapes:
 * Arbitrary user-defined polygon relative to the robot base frame, which can be static in a configuration file or dynamically changing via a topic interface.
 * Robot footprint polygon, which is used in the approach behavior model only. Will use the static user-defined polygon or the footprint topic to allow it to be dynamically adjusted over time.
 * Circle: is made for the best performance and could be used in the cases where the zone or robot footprint could be approximated by round shape.
-* VelocityPolygon: allow switching of polygons based on the command velocity. When the velocity is covered by multiple sub polygons, the first sub polygon in the `velocity_polygons` list will be used. This is useful for robots to set different safety zones based on their velocity (e.g. a robot that has a larger safety zone when moving at 1.0 m/s than when moving at 0.5 m/s). 
+* VelocityPolygon: allow switching of polygons based on the command velocity. When the velocity is covered by multiple sub polygons, the first sub polygon in the `velocity_polygons` list will be used. This is useful for robots to set different safety zones based on their velocity (e.g. a robot that has a larger safety zone when moving at 1.0 m/s than when moving at 0.5 m/s).
 
 
 The data may be obtained from different data sources:
@@ -44,6 +44,22 @@ The data may be obtained from different data sources:
 * Laser scanners (`sensor_msgs::msg::LaserScan` messages)
 * PointClouds (`sensor_msgs::msg::PointCloud2` messages)
 * IR/Sonars (`sensor_msgs::msg::Range` messages)
+* Costmap (`nav2_msgs::msg::Costmap` messages)
+
+> **⚠️ when using CostmapSource**
+> Collision Monitor normally **bypasses the costmap** to minimize reaction latency using fresh sensor data.
+> Use at your own caution or when using external costmap sources from derived sources.
+
+
+#### Exclusion Zones
+
+Any data source can optionally define one or more **exclusion zones**. An exclusion zone is a region that **removes (masks out) that source's points which fall inside it**, before the action/detection polygons are evaluated. Unlike the polygons above, an exclusion zone does **not** trigger a behavior. It is a per-source pre-filter, and works for both the Collision Monitor and the Collision Detector.
+
+A typical use case is ignoring known structure the robot deliberately approaches, such as a charging dock or a conveyor: the returns from that structure would otherwise trip the stop/slowdown zones.
+Another common use case is self-filtering: masking out returns from parts of the robot itself (e.g. arms, mast, bumpers, or trailers) that fall within a sensor's field of view, which would otherwise be mistaken for obstacles. Anchoring the zone to the relevant robot frame keeps the mask aligned with that structure as it moves.
+
+A zone can be a polygon or a circle anchored to an arbitrary `frame_id` (e.g. `dock_link`), so it tracks that frame as the robot moves, with an optional height band for 3D sources. Two safety-relevant behaviors are worth noting: the filter is **fail-safe** (if the zone transform is unavailable, no points are removed, so protection is never silently lost), and each zone **inherits its source's `base_shift_correction` policy** so the mask and the points are always transformed under the same assumptions.
+
 
 ### Design
 
@@ -60,6 +76,13 @@ The following diagram is showing the high-level design of Collision Monitor modu
 ### Configuration
 
 Detailed configuration parameters, their description and how to setup a Collision Monitor could be found at its [Configuration Guide](https://docs.nav2.org/configuration/packages/configuring-collision-monitor.html) and [Using Collision Monitor tutorial](https://docs.nav2.org/tutorials/docs/using_collision_monitor.html) pages.
+
+
+For `stop`, `slowdown`, and `limit` polygons, temporal debounce can be tuned with:
+- `trigger_consecutive_points`: number of consecutive cycles required to trigger.
+- `release_consecutive_points`: number of consecutive cycles required to release.
+
+A value of `1/1` behaves like the historical behavior (single-cycle trigger/release). In practice, values larger than `1` are recommended to reduce sensor noise flicker while keeping response times reasonable.
 
 
 ### Metrics

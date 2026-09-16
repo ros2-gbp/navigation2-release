@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <string>
@@ -22,7 +23,9 @@
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
 #include "nav_msgs/msg/path.hpp"
-#include "tf2_ros/create_timer_ros.h"
+#include "rclcpp/rclcpp.hpp"
+#include "tf2/LinearMath/Quaternion.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 #include "nav2_behavior_tree/plugins/action/truncate_path_local_action.hpp"
 
@@ -35,7 +38,7 @@ TruncatePathLocal::TruncatePathLocal(
 : BT::ActionNodeBase(name, conf)
 {
   tf_buffer_ =
-    config().blackboard->template get<std::shared_ptr<tf2_ros::Buffer>>(
+    config().blackboard->template get<nav2::TransformBuffer::SharedPtr>(
     "tf_buffer");
 }
 
@@ -54,6 +57,9 @@ inline BT::NodeStatus TruncatePathLocal::tick()
   getInput("max_robot_pose_search_dist", max_robot_pose_search_dist);
 
   bool path_pruning = std::isfinite(max_robot_pose_search_dist);
+  if (distance_forward < 0.0) {
+    distance_forward = std::numeric_limits<double>::max();
+  }
   nav_msgs::msg::Path new_path;
   getInput("input_path", new_path);
   if (!path_pruning || new_path != path_) {
@@ -109,11 +115,13 @@ inline bool TruncatePathLocal::getRobotPose(
   std::string path_frame_id, geometry_msgs::msg::PoseStamped & pose)
 {
   if (!getInput("pose", pose)) {
-    std::string robot_frame;
-    if (!getInput("robot_frame", robot_frame)) {
+    auto node = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
+    std::string robot_frame = BT::deconflictPortAndParamFrame<std::string>(
+      node, "robot_base_frame", this);
+    if (robot_frame.empty()) {
       RCLCPP_ERROR(
-        config().blackboard->get<rclcpp::Node::SharedPtr>("node")->get_logger(),
-        "Neither pose nor robot_frame specified for %s", name().c_str());
+        node->get_logger(),
+        "Neither pose nor robot_base_frame specified for %s", name().c_str());
       return false;
     }
     double transform_tolerance;
@@ -122,7 +130,7 @@ inline bool TruncatePathLocal::getRobotPose(
         pose, *tf_buffer_, path_frame_id, robot_frame, transform_tolerance))
     {
       RCLCPP_WARN(
-        config().blackboard->get<rclcpp::Node::SharedPtr>("node")->get_logger(),
+        node->get_logger(),
         "Failed to lookup current robot pose for %s", name().c_str());
       return false;
     }

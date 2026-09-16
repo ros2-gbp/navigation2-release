@@ -25,10 +25,14 @@ TEST(CostmapPluginsTester, checkPluginAPIOrder)
     std::make_shared<nav2_costmap_2d::Costmap2DROS>("costmap_ros");
 
   // Workaround to avoid setting base_link->map transform
+  costmap_ros->declare_parameter("robot_base_frame", "map");
   costmap_ros->set_parameter(rclcpp::Parameter("robot_base_frame", "map"));
   // Specifying order verification plugin in the parameters
   std::vector<std::string> plugins_str;
   plugins_str.push_back("order_layer");
+  costmap_ros->declare_parameter(
+    "plugins",
+    rclcpp::ParameterValue(plugins_str));
   costmap_ros->set_parameter(rclcpp::Parameter("plugins", plugins_str));
   costmap_ros->declare_parameter(
     "order_layer.plugin",
@@ -47,7 +51,13 @@ TEST(CostmapPluginsTester, checkPluginAPIOrder)
 
 int main(int argc, char ** argv)
 {
-  rclcpp::init(argc, argv);
-  testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  ::testing::InitGoogleTest(&argc, argv);
+
+  rclcpp::init(0, nullptr);
+
+  int result = RUN_ALL_TESTS();
+
+  rclcpp::shutdown();
+
+  return result;
 }

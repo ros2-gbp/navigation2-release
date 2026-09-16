@@ -15,6 +15,7 @@
 
 #include <cmath>
 #include "nav2_mppi_controller/critics/cost_critic.hpp"
+#include "nav2_costmap_2d/inflation_layer_interface.hpp"
 #include "nav2_core/controller_exceptions.hpp"
 
 namespace mppi::critics
@@ -22,6 +23,7 @@ namespace mppi::critics
 
 void CostCritic::initialize()
 {
+  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
   auto getParam = parameters_handler_->getParamGetter(name_);
   getParam(consider_footprint_, "consider_footprint", false);
   getParam(power_, "cost_power", 1);
@@ -37,10 +39,11 @@ void CostCritic::initialize()
   weight_ /= 254.0f;
 
   // Normalize weight when parameter is changed dynamically as well
-  auto weightDynamicCb = [&](const rclcpp::Parameter & weight) {
+  auto weightDynamicCb = [&](
+    const rclcpp::Parameter & weight) {
       weight_ = weight.as_double() / 254.0f;
     };
-  parameters_handler_->addDynamicParamCallback(name_ + ".cost_weight", weightDynamicCb);
+  parameters_handler_->addParamCallback(name_ + ".cost_weight", weightDynamicCb);
 
   collision_checker_.setCostmap(costmap_);
   possible_collision_cost_ = findCircumscribedCost(costmap_ros_);
@@ -57,17 +60,17 @@ void CostCritic::initialize()
 
   if (costmap_ros_->getUseRadius() == consider_footprint_) {
     RCLCPP_WARN(
-    logger_,
-    "Inconsistent configuration in collision checking. Please verify the robot's shape settings "
-    "in both the costmap and the cost critic.");
+      logger_,
+      "Inconsistent configuration in collision checking. Please verify the robot's shape settings "
+      "in both the costmap and the cost critic.");
     if (costmap_ros_->getUseRadius()) {
       throw nav2_core::ControllerException(
-      "Considering footprint in collision checking but no robot footprint provided in the "
-      "costmap.");
+              "Considering footprint in CostCritic but no robot footprint provided in the "
+              "costmap (robot radius used instead). Disable considering footprint.");
     }
   }
 
-  if(near_collision_cost_ > 253) {
+  if (near_collision_cost_ > 253) {
     RCLCPP_WARN(logger_, "Near collision cost is set higher than INSCRIBED_INFLATED_OBSTACLE");
   }
 
@@ -90,7 +93,7 @@ float CostCritic::findCircumscribedCost(
   }
 
   // check if the costmap has an inflation layer
-  const auto inflation_layer = nav2_costmap_2d::InflationLayer::getInflationLayer(
+  const auto inflation_layer = nav2_costmap_2d::InflationLayerInterface::getInflationLayer(
     costmap,
     inflation_layer_name_);
   if (inflation_layer != nullptr) {
@@ -127,8 +130,6 @@ float CostCritic::findCircumscribedCost(
 
 void CostCritic::score(CriticData & data)
 {
-  using xt::evaluation_strategy::immediate;
-  using xt::placeholders::_;
   if (!enabled_) {
     return;
   }
@@ -149,28 +150,40 @@ void CostCritic::score(CriticData & data)
 
   // If near the goal, don't apply the preferential term since the goal is near obstacles
   bool near_goal = false;
-  if (utils::withinPositionGoalTolerance(near_goal_distance_, data.state.pose.pose, data.goal)) {
+  if (data.state.local_path_length < near_goal_distance_) {
     near_goal = true;
   }
 
-  auto && repulsive_cost = xt::xtensor<float, 1>::from_shape({data.costs.shape(0)});
+  Eigen::ArrayXf repulsive_cost(data.costs.rows());
+  repulsive_cost.setZero();
   bool all_trajectories_collide = true;
 
-  const size_t traj_len = floor(data.trajectories.x.shape(1) / trajectory_point_step_);
-  const auto traj_x =
-    xt::view(data.trajectories.x, xt::all(), xt::range(0, _, trajectory_point_step_));
-  const auto traj_y =
-    xt::view(data.trajectories.y, xt::all(), xt::range(0, _, trajectory_point_step_));
-  const auto traj_yaw = xt::view(
-    data.trajectories.yaws, xt::all(), xt::range(0, _, trajectory_point_step_));
+  auto & collisions = data.trajectories_in_collision;
+  const bool track_collisions = !collisions.empty();
 
-  for (size_t i = 0; i < data.trajectories.x.shape(0); ++i) {
+  int strided_traj_cols = floor((data.trajectories.x.cols() - 1) / trajectory_point_step_) + 1;
+  int strided_traj_rows = data.trajectories.x.rows();
+  int outer_stride = strided_traj_rows * trajectory_point_step_;
+
+  const auto traj_x = Eigen::Map<const Eigen::ArrayXXf, 0,
+      Eigen::Stride<-1, -1>>(
+    data.trajectories.x.data(), strided_traj_rows, strided_traj_cols,
+    Eigen::Stride<-1, -1>(outer_stride, 1));
+  const auto traj_y = Eigen::Map<const Eigen::ArrayXXf, 0,
+      Eigen::Stride<-1, -1>>(
+    data.trajectories.y.data(), strided_traj_rows, strided_traj_cols,
+    Eigen::Stride<-1, -1>(outer_stride, 1));
+  const auto traj_yaw = Eigen::Map<const Eigen::ArrayXXf, 0,
+      Eigen::Stride<-1, -1>>(
+    data.trajectories.yaws.data(), strided_traj_rows, strided_traj_cols,
+    Eigen::Stride<-1, -1>(outer_stride, 1));
+
+  for (int i = 0; i < strided_traj_rows; ++i) {
     bool trajectory_collide = false;
     float pose_cost = 0.0f;
-    float & traj_cost = repulsive_cost[i];
-    traj_cost = 0.0f;
+    float & traj_cost = repulsive_cost(i);
 
-    for (size_t j = 0; j < traj_len; j++) {
+    for (int j = 0; j < strided_traj_cols; j++) {
       float Tx = traj_x(i, j);
       float Ty = traj_y(i, j);
       unsigned int x_i = 0u, y_i = 0u;
@@ -190,6 +203,7 @@ void CostCritic::score(CriticData & data)
       if (inCollision(pose_cost, Tx, Ty, traj_yaw(i, j))) {
         traj_cost = collision_cost_;
         trajectory_collide = true;
+        if (track_collisions) {collisions[i] = true;}
         break;
       }
 
@@ -203,16 +217,14 @@ void CostCritic::score(CriticData & data)
       }
     }
 
-    if (!trajectory_collide) {
-      all_trajectories_collide = false;
-    }
+    all_trajectories_collide &= trajectory_collide;
   }
 
   if (power_ > 1u) {
-    data.costs += xt::pow(
-      (std::move(repulsive_cost) * (weight_ / static_cast<float>(traj_len))), power_);
+    data.costs += (repulsive_cost *
+      (weight_ / static_cast<float>(strided_traj_cols))).pow(power_);
   } else {
-    data.costs += std::move(repulsive_cost) * (weight_ / static_cast<float>(traj_len));
+    data.costs += repulsive_cost * (weight_ / static_cast<float>(strided_traj_cols));
   }
 
   data.fail_flag = all_trajectories_collide;

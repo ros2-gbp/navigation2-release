@@ -20,7 +20,7 @@
 #include "nav2_core/route_exceptions.hpp"
 #include "nav2_route/interfaces/graph_file_saver.hpp"
 #include "nav2_route/plugins/graph_file_loaders/geojson_graph_file_loader.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 
 #ifndef NAV2_ROUTE__PLUGINS__GRAPH_FILE_SAVERS__GEOJSON_GRAPH_FILE_SAVER_HPP_
 #define NAV2_ROUTE__PLUGINS__GRAPH_FILE_SAVERS__GEOJSON_GRAPH_FILE_SAVER_HPP_
@@ -52,7 +52,7 @@ public:
    * @param parent pointer to user's node
    */
   void configure(
-    const nav2_util::LifecycleNode::SharedPtr node) override;
+    const nav2::LifecycleNode::SharedPtr node) override;
 
   /**
    * @brief Saves the graph to a geojson file

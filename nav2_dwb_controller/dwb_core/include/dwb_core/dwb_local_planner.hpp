@@ -44,12 +44,13 @@
 #include "dwb_core/publisher.hpp"
 #include "dwb_core/trajectory_critic.hpp"
 #include "dwb_core/trajectory_generator.hpp"
-#include "nav_2d_msgs/msg/pose2_d_stamped.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_2d_msgs/msg/twist2_d_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "pluginlib/class_list_macros.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace dwb_core
 {
@@ -67,8 +68,8 @@ public:
   DWBLocalPlanner();
 
   void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
+    const nav2::LifecycleNode::WeakPtr & parent,
+    std::string name, nav2::TransformBuffer::SharedPtr tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   virtual ~DWBLocalPlanner() {}
@@ -89,10 +90,10 @@ public:
   void cleanup() override;
 
   /**
-   * @brief nav2_core setPlan - Sets the global plan
-   * @param path The global plan
+   * @brief nav2_core newPathReceived - Receives a new plan from the Planner Server
+   * @param raw_global_path The global plan from the Planner Server
    */
-  void setPlan(const nav_msgs::msg::Path & path) override;
+  void newPathReceived(const nav_msgs::msg::Path & raw_global_path) override;
 
   /**
    * @brief nav2_core computeVelocityCommands - calculates the best command given the current pose and velocity
@@ -105,12 +106,16 @@ public:
    * @param pose Current robot pose
    * @param velocity Current robot velocity
    * @param goal_checker   Ptr to the goal checker for this task in case useful in computing commands
+   * @param transformed_global_plan The global plan after being processed by the path handler
+   * @param global_goal The last pose of the global plan
    * @return The best command for the robot to drive
    */
   geometry_msgs::msg::TwistStamped computeVelocityCommands(
     const geometry_msgs::msg::PoseStamped & pose,
     const geometry_msgs::msg::Twist & velocity,
-    nav2_core::GoalChecker * /*goal_checker*/) override;
+    nav2_core::GoalChecker * /*goal_checker*/,
+    const nav_msgs::msg::Path & transformed_global_plan,
+    const geometry_msgs::msg::PoseStamped & global_goal) override;
 
   /**
    * @brief Score a given command. Can be used for testing.
@@ -137,12 +142,16 @@ public:
    * @param pose      Current robot pose
    * @param velocity  Current robot velocity
    * @param results   Output param, if not NULL, will be filled in with full evaluation results
+   * @param transformed_global_plan The global plan after being processed by the path handler
+   * @param global_goal The last pose of the global plan
    * @return          Best command
    */
   virtual nav_2d_msgs::msg::Twist2DStamped computeVelocityCommands(
-    const nav_2d_msgs::msg::Pose2DStamped & pose,
+    const geometry_msgs::msg::PoseStamped & pose,
     const nav_2d_msgs::msg::Twist2D & velocity,
-    std::shared_ptr<dwb_msgs::msg::LocalPlanEvaluation> & results);
+    std::shared_ptr<dwb_msgs::msg::LocalPlanEvaluation> & results,
+    const nav_msgs::msg::Path & transformed_global_plan,
+    const geometry_msgs::msg::PoseStamped & global_goal);
 
   /**
    * @brief Limits the maximum linear speed of the robot.
@@ -160,48 +169,14 @@ public:
 
 protected:
   /**
-   * @brief Helper method for two common operations for the operating on the global_plan
-   *
-   * Transforms the global plan (stored in global_plan_) relative to the pose and saves it in
-   * transformed_plan and possibly publishes it. Then it takes the last pose and transforms it
-   * to match the local costmap's frame
-   */
-  void prepareGlobalPlan(
-    const nav_2d_msgs::msg::Pose2DStamped & pose, nav_2d_msgs::msg::Path2D & transformed_plan,
-    nav_2d_msgs::msg::Pose2DStamped & goal_pose, bool publish_plan = true);
-
-  /**
    * @brief Iterate through all the twists and find the best one
    */
   virtual dwb_msgs::msg::TrajectoryScore coreScoringAlgorithm(
-    const geometry_msgs::msg::Pose2D & pose,
+    const geometry_msgs::msg::Pose & pose,
     const nav_2d_msgs::msg::Twist2D velocity,
     std::shared_ptr<dwb_msgs::msg::LocalPlanEvaluation> & results);
 
-  /**
-   * @brief Transforms global plan into same frame as pose, clips far away poses and possibly prunes passed poses
-   *
-   * Three key operations
-   * 1) Transforms global plan into frame of the given pose
-   * 2) Only returns poses that are near the robot, i.e. whether they are likely on the local costmap
-   * 3) If prune_plan_ is true, it will remove all points that we've already passed from both the transformed plan
-   *     and the saved global_plan_. Technically, it iterates to a pose on the path that is within prune_distance_
-   *     of the robot and erases all poses before that.
-   *
-   * Additionally, shorten_transformed_plan_ determines whether we will pass the full plan all
-   * the way to the nav goal on to the critics or just a subset of the plan near the robot.
-   * True means pass just a subset. This gives DWB less discretion to decide how it gets to the
-   * nav goal. Instead it is encouraged to try to get on to the path generated by the global planner.
-   */
-  virtual nav_2d_msgs::msg::Path2D transformGlobalPlan(
-    const nav_2d_msgs::msg::Pose2DStamped & pose);
-  nav_2d_msgs::msg::Path2D global_plan_;  ///< Saved Global Plan
-  bool prune_plan_;
-  double prune_distance_;
   bool debug_trajectory_details_;
-  rclcpp::Duration transform_tolerance_{0, 0};
-  bool shorten_transformed_plan_;
-  double forward_prune_distance_;
 
   /**
    * @brief try to resolve a possibly shortened critic name with the default namespaces and the suffix "Critic"
@@ -217,11 +192,11 @@ protected:
    */
   virtual void loadCritics();
 
-  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
+  nav2::LifecycleNode::WeakPtr node_;
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Logger logger_{rclcpp::get_logger("DWBLocalPlanner")};
 
-  std::shared_ptr<tf2_ros::Buffer> tf_;
+  nav2::TransformBuffer::SharedPtr tf_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
 
   std::unique_ptr<DWBPublisher> pub_;

@@ -43,6 +43,7 @@
 #include <vector>
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_util/occ_grid_values.hpp"
+#include "nav2_util/raytrace_line_2d.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -206,7 +207,7 @@ bool Costmap2D::copyWindow(
 
 Costmap2D & Costmap2D::operator=(const Costmap2D & map)
 {
-  // check for self assignement
+  // check for self assignment
   if (this == &map) {
     return *this;
   }
@@ -277,6 +278,12 @@ void Costmap2D::setCost(unsigned int mx, unsigned int my, unsigned char cost)
 }
 
 void Costmap2D::mapToWorld(unsigned int mx, unsigned int my, double & wx, double & wy) const
+{
+  wx = origin_x_ + (mx + 0.5) * resolution_;
+  wy = origin_y_ + (my + 0.5) * resolution_;
+}
+
+void Costmap2D::mapToWorldNoBounds(int mx, int my, double & wx, double & wy) const
 {
   wx = origin_x_ + (mx + 0.5) * resolution_;
   wy = origin_y_ + (my + 0.5) * resolution_;
@@ -400,28 +407,53 @@ bool Costmap2D::setConvexPolygonCost(
   const std::vector<geometry_msgs::msg::Point> & polygon,
   unsigned char cost_value)
 {
+  std::vector<MapLocation> polygon_map_region;
+  polygon_map_region.reserve(100);
+  if (!getMapRegionOccupiedByPolygon(polygon, polygon_map_region)) {
+    return false;
+  }
+
+  // set the cost of those cells
+  setMapRegionOccupiedByPolygon(polygon_map_region, cost_value);
+  return true;
+}
+
+void Costmap2D::setMapRegionOccupiedByPolygon(
+  const std::vector<MapLocation> & polygon_map_region,
+  unsigned char new_cost_value)
+{
+  for (const auto & cell : polygon_map_region) {
+    setCost(cell.x, cell.y, new_cost_value);
+  }
+}
+
+void Costmap2D::restoreMapRegionOccupiedByPolygon(
+  const std::vector<MapLocation> & polygon_map_region)
+{
+  for (const auto & cell : polygon_map_region) {
+    setCost(cell.x, cell.y, cell.cost);
+  }
+}
+
+bool Costmap2D::getMapRegionOccupiedByPolygon(
+  const std::vector<geometry_msgs::msg::Point> & polygon,
+  std::vector<MapLocation> & polygon_map_region)
+{
   // we assume the polygon is given in the global_frame...
   // we need to transform it to map coordinates
   std::vector<MapLocation> map_polygon;
-  for (unsigned int i = 0; i < polygon.size(); ++i) {
+  for (const auto & cell : polygon) {
     MapLocation loc;
-    if (!worldToMap(polygon[i].x, polygon[i].y, loc.x, loc.y)) {
+    if (!worldToMap(cell.x, cell.y, loc.x, loc.y)) {
       // ("Polygon lies outside map bounds, so we can't fill it");
       return false;
     }
     map_polygon.push_back(loc);
   }
 
-  std::vector<MapLocation> polygon_cells;
-
   // get the cells that fill the polygon
-  convexFillCells(map_polygon, polygon_cells);
+  convexFillCells(map_polygon, polygon_map_region);
 
-  // set the cost of those cells
-  for (unsigned int i = 0; i < polygon_cells.size(); ++i) {
-    unsigned int index = getIndex(polygon_cells[i].x, polygon_cells[i].y);
-    costmap_[index] = cost_value;
-  }
   return true;
 }
 
@@ -431,14 +463,15 @@ void Costmap2D::polygonOutlineCells(
 {
   PolygonOutlineCells cell_gatherer(*this, costmap_, polygon_cells);
   for (unsigned int i = 0; i < polygon.size() - 1; ++i) {
-    raytraceLine(cell_gatherer, polygon[i].x, polygon[i].y, polygon[i + 1].x, polygon[i + 1].y);
+    nav2_util::raytraceLine(
+      cell_gatherer, polygon[i].x, polygon[i].y, polygon[i + 1].x, polygon[i + 1].y, size_x_);
   }
   if (!polygon.empty()) {
     unsigned int last_index = polygon.size() - 1;
     // we also need to close the polygon by going from the last point to the first
-    raytraceLine(
+    nav2_util::raytraceLine(
       cell_gatherer, polygon[last_index].x, polygon[last_index].y, polygon[0].x,
-      polygon[0].y);
+      polygon[0].y, size_x_);
   }
 }
 
@@ -506,6 +539,7 @@ void Costmap2D::convexFillCells(
     for (unsigned int y = min_pt.y; y <= max_pt.y; ++y) {
       pt.x = x;
       pt.y = y;
+      pt.cost = getCost(x, y);
       polygon_cells.push_back(pt);
     }
   }
@@ -523,12 +557,12 @@ unsigned int Costmap2D::getSizeInCellsY() const
 
 double Costmap2D::getSizeInMetersX() const
 {
-  return (size_x_ - 1 + 0.5) * resolution_;
+  return size_x_ * resolution_;
 }
 
 double Costmap2D::getSizeInMetersY() const
 {
-  return (size_y_ - 1 + 0.5) * resolution_;
+  return size_y_ * resolution_;
 }
 
 double Costmap2D::getOriginX() const

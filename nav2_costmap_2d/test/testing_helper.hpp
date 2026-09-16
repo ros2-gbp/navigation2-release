@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
@@ -27,8 +28,10 @@
 #include "nav2_costmap_2d/range_sensor_layer.hpp"
 #include "nav2_costmap_2d/obstacle_layer.hpp"
 #include "nav2_costmap_2d/inflation_layer.hpp"
+#include "nav2_costmap_2d/legacy_inflation_layer.hpp"
 #include "nav2_costmap_2d/plugin_container_layer.hpp"
-#include "nav2_util/lifecycle_node.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 const double MAX_Z(1.0);
 
@@ -72,7 +75,7 @@ unsigned int countValues(
 
 void addStaticLayer(
   nav2_costmap_2d::LayeredCostmap & layers,
-  tf2_ros::Buffer & tf, nav2_util::LifecycleNode::SharedPtr node,
+  nav2::TransformBuffer & tf, nav2::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::StaticLayer> & slayer,
   rclcpp::CallbackGroup::SharedPtr callback_group = nullptr)
 {
@@ -83,7 +86,7 @@ void addStaticLayer(
 
 void addObstacleLayer(
   nav2_costmap_2d::LayeredCostmap & layers,
-  tf2_ros::Buffer & tf, nav2_util::LifecycleNode::SharedPtr node,
+  nav2::TransformBuffer & tf, nav2::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::ObstacleLayer> & olayer,
   rclcpp::CallbackGroup::SharedPtr callback_group = nullptr)
 {
@@ -94,7 +97,7 @@ void addObstacleLayer(
 
 void addRangeLayer(
   nav2_costmap_2d::LayeredCostmap & layers,
-  tf2_ros::Buffer & tf, nav2_util::LifecycleNode::SharedPtr node,
+  nav2::TransformBuffer & tf, nav2::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::RangeSensorLayer> & rlayer,
   rclcpp::CallbackGroup::SharedPtr callback_group = nullptr)
 {
@@ -127,14 +130,15 @@ void addObservation(
   p.y = oy;
   p.z = oz;
 
-  nav2_costmap_2d::Observation obs(p, cloud, obstacle_max_range, obstacle_min_range,
+  nav2_costmap_2d::Observation obs(std::move(p), std::move(cloud), obstacle_max_range,
+    obstacle_min_range,
     raytrace_max_range, raytrace_min_range);
-  olayer->addStaticObservation(obs, marking, clearing);
+  olayer->addStaticObservation(std::move(obs), marking, clearing);
 }
 
 void addInflationLayer(
   nav2_costmap_2d::LayeredCostmap & layers,
-  tf2_ros::Buffer & tf, nav2_util::LifecycleNode::SharedPtr node,
+  nav2::TransformBuffer & tf, nav2::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::InflationLayer> & ilayer,
   rclcpp::CallbackGroup::SharedPtr callback_group = nullptr)
 {
@@ -144,9 +148,21 @@ void addInflationLayer(
   layers.addPlugin(ipointer);
 }
 
+void addLegacyInflationLayer(
+  nav2_costmap_2d::LayeredCostmap & layers,
+  nav2::TransformBuffer & tf, nav2::LifecycleNode::SharedPtr node,
+  std::shared_ptr<nav2_costmap_2d::LegacyInflationLayer> & ilayer,
+  rclcpp::CallbackGroup::SharedPtr callback_group = nullptr)
+{
+  ilayer = std::make_shared<nav2_costmap_2d::LegacyInflationLayer>();
+  ilayer->initialize(&layers, "inflation", &tf, node, callback_group);
+  std::shared_ptr<nav2_costmap_2d::Layer> ipointer(ilayer);
+  layers.addPlugin(ipointer);
+}
+
 void addPluginContainerLayer(
   nav2_costmap_2d::LayeredCostmap & layers,
-  tf2_ros::Buffer & tf, nav2_util::LifecycleNode::SharedPtr node,
+  nav2::TransformBuffer & tf, nav2::LifecycleNode::SharedPtr node,
   std::shared_ptr<nav2_costmap_2d::PluginContainerLayer> & pclayer,
   std::string name,
   rclcpp::CallbackGroup::SharedPtr callback_group = nullptr)

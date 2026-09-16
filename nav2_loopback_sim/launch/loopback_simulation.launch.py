@@ -15,15 +15,23 @@
 import os
 
 from ament_index_python.packages import get_package_share_directory
-
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import LifecycleNode
+from launch_ros.descriptions import ParameterFile
+from nav2_common.launch import RewrittenYaml
 
 
-def generate_launch_description():
+def generate_launch_description() -> LaunchDescription:
     bringup_dir = get_package_share_directory('nav2_bringup')
+    namespace = LaunchConfiguration('namespace')
+    declare_namespace_cmd = DeclareLaunchArgument(
+        'namespace',
+        default_value='',
+        description='Top-level namespace',
+    )
+
     params_file = LaunchConfiguration('params_file')
     declare_params_file_cmd = DeclareLaunchArgument(
         'params_file',
@@ -37,15 +45,34 @@ def generate_launch_description():
         default_value='base_scan',
     )
 
-    loopback_sim_cmd = Node(
+    remappings = [('/tf', 'tf'), ('/tf_static', 'tf_static')]
+
+    configured_params = ParameterFile(
+        RewrittenYaml(
+            source_file=params_file,
+            root_key=namespace,
+            param_rewrites={},
+            convert_types=True,
+        ),
+        allow_substs=True,
+    )
+
+    loopback_sim_cmd = LifecycleNode(
         package='nav2_loopback_sim',
         executable='loopback_simulator',
         name='loopback_simulator',
+        namespace=namespace,
         output='screen',
-        parameters=[params_file, {'scan_frame_id': scan_frame_id}],
+        autostart=True,
+        parameters=[
+            configured_params,
+            {'scan_frame_id': scan_frame_id, 'use_sim_time': True},
+        ],
+        remappings=remappings,
     )
 
     ld = LaunchDescription()
+    ld.add_action(declare_namespace_cmd)
     ld.add_action(declare_scan_frame_id_cmd)
     ld.add_action(declare_params_file_cmd)
     ld.add_action(loopback_sim_cmd)

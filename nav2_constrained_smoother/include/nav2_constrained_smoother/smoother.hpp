@@ -142,10 +142,10 @@ private:
     std::vector<bool> & optimized)
   {
     // Create costmap grid
-    costmap_grid_ = std::make_shared<ceres::Grid2D<u_char>>(
+    costmap_grid_ = std::make_shared<ceres::Grid2D<unsigned char>>(
       costmap->getCharMap(), 0, costmap->getSizeInCellsY(), 0, costmap->getSizeInCellsX());
-    auto costmap_interpolator = std::make_shared<ceres::BiCubicInterpolator<ceres::Grid2D<u_char>>>(
-      *costmap_grid_);
+    auto costmap_interpolator =
+      std::make_shared<ceres::BiCubicInterpolator<ceres::Grid2D<unsigned char>>>(*costmap_grid_);
 
     // Create residual blocks
     const double cusp_half_length = params.cusp_zone_length / 2;
@@ -197,12 +197,12 @@ private:
         for (int i_cusp = potential_cusp_funcs.size() - 1; i_cusp >= 0; i_cusp--) {
           auto & f = potential_cusp_funcs[i_cusp];
           double new_weight =
-            params.cusp_costmap_weight * (1.0 - len_to_cusp / cusp_half_length) +
-            params.costmap_weight * len_to_cusp / cusp_half_length;
-          if (std::abs(new_weight - params.cusp_costmap_weight) <
-            std::abs(f.second->getCostmapWeight() - params.cusp_costmap_weight))
+            params.cusp_costmap_weight_sqrt * (1.0 - len_to_cusp / cusp_half_length) +
+            params.costmap_weight_sqrt * len_to_cusp / cusp_half_length;
+          if (std::abs(new_weight - params.cusp_costmap_weight_sqrt) <
+            std::abs(f.second->getCostmapWeightSqrt() - params.cusp_costmap_weight_sqrt))
           {
-            f.second->setCostmapWeight(new_weight);
+            f.second->setCostmapWeightSqrt(new_weight);
           }
           len_to_cusp += f.first;
         }
@@ -214,11 +214,11 @@ private:
       // add cost function
       optimized[i] = true;
       if (prelast_i != -1) {
-        double costmap_weight = params.costmap_weight;
+        double costmap_weight_sqrt = params.costmap_weight_sqrt;
         if (len_since_cusp <= cusp_half_length) {
-          costmap_weight =
-            params.cusp_costmap_weight * (1.0 - len_since_cusp / cusp_half_length) +
-            params.costmap_weight * len_since_cusp / cusp_half_length;
+          costmap_weight_sqrt =
+            params.cusp_costmap_weight_sqrt * (1.0 - len_since_cusp / cusp_half_length) +
+            params.costmap_weight_sqrt * len_since_cusp / cusp_half_length;
         }
         SmootherCostFunction * cost_function = new SmootherCostFunction(
           path[last_i].template block<2, 1>(
@@ -229,7 +229,7 @@ private:
           costmap,
           costmap_interpolator,
           params,
-          costmap_weight
+          costmap_weight_sqrt
         );
         problem.AddResidualBlock(
           cost_function->AutoDiff(), loss_function,
@@ -394,7 +394,7 @@ private:
 
   bool debug_;
   ceres::Solver::Options options_;
-  std::shared_ptr<ceres::Grid2D<u_char>> costmap_grid_;
+  std::shared_ptr<ceres::Grid2D<unsigned char>> costmap_grid_;
 };
 
 }  // namespace nav2_constrained_smoother

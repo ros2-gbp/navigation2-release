@@ -14,12 +14,13 @@
 // limitations under the License.
 
 #include "angles/angles.h"
+#include "nav2_ros_common/rate.hpp"
 #include "opennav_docking_core/docking_exceptions.hpp"
 #include "opennav_following/following_server.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "tf2/utils.h"
+#include "tf2/utils.hpp"
 
 using namespace std::chrono_literals;
 using rcl_interfaces::msg::ParameterType;
@@ -29,12 +30,12 @@ namespace opennav_following
 {
 
 FollowingServer::FollowingServer(const rclcpp::NodeOptions & options)
-: nav2_util::LifecycleNode("following_server", "", options)
+: nav2::LifecycleNode("following_server", "", options)
 {
   RCLCPP_INFO(get_logger(), "Creating %s", get_name());
 }
 
-nav2_util::CallbackReturn
+nav2::CallbackReturn
 FollowingServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Configuring %s", get_name());
@@ -43,29 +44,23 @@ FollowingServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
     node, get_logger());
   params_ = param_handler_->getParams();
 
-  vel_publisher_ = std::make_unique<nav2_util::TwistPublisher>(node, "cmd_vel", 1);
-  tf2_buffer_ = std::make_shared<tf2_ros::Buffer>(node->get_clock());
+  vel_publisher_ = std::make_unique<nav2_util::TwistPublisher>(node, "cmd_vel");
+  tf2_buffer_ = nav2::create_transform_buffer(node);
 
-  // Create odom subscriber
+  // Create odom subscriber for backward blind docking
   odom_sub_ = std::make_unique<nav2_util::OdomSmoother>(node, params_->odom_duration,
     params_->odom_topic);
 
   // Create the action server for dynamic following
-  double action_server_result_timeout = 10.0;
-  nav2_util::declare_parameter_if_not_declared(
-    node, "action_server_result_timeout", rclcpp::ParameterValue(10.0));
-  get_parameter("action_server_result_timeout", action_server_result_timeout);
-  rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
-  server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
-
-  following_action_server_ = std::make_unique<FollowingActionServer>(
-    node, "follow_object",
+  following_action_server_ = node->create_action_server<FollowObject>(
+    "follow_object",
     std::bind(&FollowingServer::followObject, this),
-    nullptr, std::chrono::milliseconds(500),
-    true, server_options);
+    nullptr, nullptr, std::chrono::milliseconds(500),
+    true);
 
   // Create the controller
   // Note: Collision detection is not supported in following server so we force it off
+  // and warn if the user has it enabled (from launch file or parameter file)
   controller_ =
     std::make_unique<opennav_docking::Controller>(node, tf2_buffer_, params_->fixed_frame,
       params_->base_frame);
@@ -75,7 +70,7 @@ FollowingServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
       get_logger(),
       "Collision detection is not supported in the following server. Please disable "
       "the controller.use_collision_detection parameter.");
-    return nav2_util::CallbackReturn::FAILURE;
+    return nav2::CallbackReturn::FAILURE;
   }
 
   // Setup filter
@@ -84,21 +79,21 @@ FollowingServer::on_configure(const rclcpp_lifecycle::State & /*state*/)
 
   // And publish the filtered pose
   filtered_dynamic_pose_pub_ =
-    create_publisher<geometry_msgs::msg::PoseStamped>("filtered_dynamic_pose", 1);
+    create_publisher<geometry_msgs::msg::PoseStamped>("filtered_dynamic_pose");
 
   // Initialize static object detection variables
   static_timer_initialized_ = false;
   static_object_start_time_ = rclcpp::Time(0);
 
-  return nav2_util::CallbackReturn::SUCCESS;
+  return nav2::CallbackReturn::SUCCESS;
 }
 
-nav2_util::CallbackReturn
+nav2::CallbackReturn
 FollowingServer::on_activate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Activating %s", get_name());
 
-  tf2_listener_ = std::make_unique<tf2_ros::TransformListener>(*tf2_buffer_, this, true);
+  tf2_listener_ = nav2::create_transform_listener(*tf2_buffer_, this, true);
   vel_publisher_->on_activate();
   filtered_dynamic_pose_pub_->on_activate();
   following_action_server_->activate();
@@ -107,10 +102,10 @@ FollowingServer::on_activate(const rclcpp_lifecycle::State & /*state*/)
   // Create bond connection
   createBond();
 
-  return nav2_util::CallbackReturn::SUCCESS;
+  return nav2::CallbackReturn::SUCCESS;
 }
 
-nav2_util::CallbackReturn
+nav2::CallbackReturn
 FollowingServer::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Deactivating %s", get_name());
@@ -125,10 +120,10 @@ FollowingServer::on_deactivate(const rclcpp_lifecycle::State & /*state*/)
   // Destroy bond connection
   destroyBond();
 
-  return nav2_util::CallbackReturn::SUCCESS;
+  return nav2::CallbackReturn::SUCCESS;
 }
 
-nav2_util::CallbackReturn
+nav2::CallbackReturn
 FollowingServer::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
 {
   RCLCPP_INFO(get_logger(), "Cleaning up %s", get_name());
@@ -138,20 +133,21 @@ FollowingServer::on_cleanup(const rclcpp_lifecycle::State & /*state*/)
   vel_publisher_.reset();
   filtered_dynamic_pose_pub_.reset();
   odom_sub_.reset();
-  return nav2_util::CallbackReturn::SUCCESS;
+  dynamic_pose_sub_.reset();
+  return nav2::CallbackReturn::SUCCESS;
 }
 
-nav2_util::CallbackReturn
+nav2::CallbackReturn
 FollowingServer::on_shutdown(const rclcpp_lifecycle::State &)
 {
   RCLCPP_INFO(get_logger(), "Shutting down %s", get_name());
-  return nav2_util::CallbackReturn::SUCCESS;
+  return nav2::CallbackReturn::SUCCESS;
 }
 
 template<typename ActionT>
 void FollowingServer::getPreemptedGoalIfRequested(
   typename std::shared_ptr<const typename ActionT::Goal> goal,
-  const std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server)
+  const typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server)
 {
   if (action_server->is_preempt_requested()) {
     goal = action_server->accept_pending_goal();
@@ -160,7 +156,7 @@ void FollowingServer::getPreemptedGoalIfRequested(
 
 template<typename ActionT>
 bool FollowingServer::checkAndWarnIfCancelled(
-  std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server,
+  typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server,
   const std::string & name)
 {
   if (action_server->is_cancel_requested()) {
@@ -172,7 +168,7 @@ bool FollowingServer::checkAndWarnIfCancelled(
 
 template<typename ActionT>
 bool FollowingServer::checkAndWarnIfPreempted(
-  std::unique_ptr<nav2_util::SimpleActionServer<ActionT>> & action_server,
+  typename nav2::SimpleActionServer<ActionT>::SharedPtr & action_server,
   const std::string & name)
 {
   if (action_server->is_preempt_requested()) {
@@ -184,9 +180,9 @@ bool FollowingServer::checkAndWarnIfPreempted(
 
 void FollowingServer::followObject()
 {
-  std::lock_guard<std::mutex> lock_reinit(param_handler_->getMutex());
+  std::unique_lock<std::mutex> lock_reinit(param_handler_->getMutex());
   action_start_time_ = this->now();
-  rclcpp::Rate loop_rate(params_->controller_frequency);
+  nav2::Rate loop_rate(this, params_->controller_frequency);
 
   auto goal = following_action_server_->get_current_goal();
   auto result = std::make_shared<FollowObject::Result>();
@@ -221,14 +217,15 @@ void FollowingServer::followObject()
         following_action_server_->terminate_all(result);
         return;
       } else {
-        param_handler_->getMutex().unlock();
+        lock_reinit.unlock();
         RCLCPP_INFO(get_logger(), "Subscribing to pose topic: %s", pose_topic.c_str());
         dynamic_pose_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
-          pose_topic, rclcpp::QoS(1),
-          [this](const geometry_msgs::msg::PoseStamped::SharedPtr pose) {
+          pose_topic,
+          [this](const geometry_msgs::msg::PoseStamped::ConstSharedPtr & pose) {
             detected_dynamic_pose_ = *pose;
-          });
-        param_handler_->getMutex().lock();
+          },
+          nav2::qos::StandardTopicQoS(1));  // Only want the most recent pose
+        lock_reinit.lock();
       }
     } else {
       RCLCPP_INFO(get_logger(), "Following frame: %s instead of pose", target_frame.c_str());
@@ -277,11 +274,12 @@ void FollowingServer::followObject()
               result->num_retries = num_retries_;
               publishZeroVelocity();
               following_action_server_->succeeded_current(result);
+              dynamic_pose_sub_.reset();
               return;
             }
           }
         } else {
-          // Cancelled, preempted, or shutting down
+          // Cancelled, preempted, or shutting down (recoverable errors throw DockingException)
           static_timer_initialized_ = false;
           result->total_elapsed_time = this->now() - action_start_time_;
           publishZeroVelocity();
@@ -346,7 +344,7 @@ bool FollowingServer::approachObject(
 {
   rclcpp::Rate loop_rate(params_->controller_frequency);
   while (rclcpp::ok()) {
-    // Update the iteration start time
+    // Update the iteration start time, used for get robot position, transformation and control
     iteration_start_time_ = this->now();
 
     publishFollowingFeedback(FollowObject::Feedback::CONTROLLING);
@@ -369,6 +367,9 @@ bool FollowingServer::approachObject(
     }
 
     // The control law can get jittery when close to the end when atan2's can explode.
+    // Thus, we reduce the desired distance by a small amount so that the robot never
+    // gets to the end of the spiral before its at the desired distance to stop the
+    // following procedure.
     const double backward_projection = 0.25;
     const double effective_distance = params_->desired_distance - backward_projection;
     target_pose = getPoseAtDistance(object_pose, effective_distance);
@@ -437,7 +438,7 @@ bool FollowingServer::rotateToObject(
 
     // Rotate towards target_angle while checking for detection
     while (rclcpp::ok()) {
-      // Update the iteration start time
+      // Update the iteration start time, used for get robot position, transformation and control
       iteration_start_time_ = this->now();
 
       publishFollowingFeedback(FollowObject::Feedback::RETRY);
@@ -477,7 +478,7 @@ bool FollowingServer::rotateToObject(
       }
 
       geometry_msgs::msg::Twist current_vel;
-      current_vel.angular.z = odom_sub_->getTwist().angular.z;
+      current_vel.angular.z = odom_sub_->getRawTwist().angular.z;
 
       auto command = std::make_unique<geometry_msgs::msg::TwistStamped>();
       command->header = robot_pose.header;
@@ -524,7 +525,7 @@ bool FollowingServer::getRefinedPose(geometry_msgs::msg::PoseStamped & pose)
   if (detected.header.stamp == builtin_interfaces::msg::Time{}) {
     auto start = this->now();
     auto timeout = rclcpp::Duration::from_seconds(params_->detection_timeout);
-    rclcpp::Rate wait_rate(params_->controller_frequency);
+    nav2::Rate wait_rate(this, params_->controller_frequency);
     while (this->now() - start < timeout) {
       // Check if a new detection arrived
       if (detected_dynamic_pose_.header.stamp != builtin_interfaces::msg::Time{}) {
@@ -558,7 +559,10 @@ bool FollowingServer::getRefinedPose(geometry_msgs::msg::PoseStamped & pose)
     }
   }
 
-  // Skip the target orientation by pointing in the direction from robot to object
+  // The control law can oscillate if the orientation in the perception
+  // is not set correctly or has a lot of noise.
+  // Then, we skip the target orientation by pointing it
+  // in the same orientation than the vector from the robot to the object.
   if (params_->skip_orientation) {
     geometry_msgs::msg::PoseStamped robot_pose;
     if (!nav2_util::getCurrentPose(
@@ -648,6 +652,9 @@ geometry_msgs::msg::PoseStamped FollowingServer::getPoseAtDistance(
   double dx = pose.pose.position.x - robot_pose.pose.position.x;
   double dy = pose.pose.position.y - robot_pose.pose.position.y;
   const double dist = std::hypot(dx, dy);
+  if (dist < 1e-6) {
+    return pose;
+  }
   geometry_msgs::msg::PoseStamped forward_pose = pose;
   forward_pose.pose.position.x -= distance * (dx / dist);
   forward_pose.pose.position.y -= distance * (dy / dist);
@@ -678,4 +685,6 @@ bool FollowingServer::isGoalReached(const geometry_msgs::msg::PoseStamped & goal
 #include "rclcpp_components/register_node_macro.hpp"
 
 // Register the component with class_loader.
+// This acts as a sort of entry point, allowing the component to be discoverable when its library
+// is being loaded into a running process.
 RCLCPP_COMPONENTS_REGISTER_NODE(opennav_following::FollowingServer)

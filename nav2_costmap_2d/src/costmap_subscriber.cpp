@@ -21,59 +21,21 @@
 namespace nav2_costmap_2d
 {
 
-constexpr int costmapUpdateQueueDepth = 10;
-
-CostmapSubscriber::CostmapSubscriber(
-  const nav2_util::LifecycleNode::WeakPtr & parent,
-  const std::string & topic_name)
-: topic_name_(topic_name)
-{
-  auto node = parent.lock();
-  logger_ = node->get_logger();
-  costmap_sub_ = node->create_subscription<nav2_msgs::msg::Costmap>(
-    topic_name_,
-    rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-    std::bind(&CostmapSubscriber::costmapCallback, this, std::placeholders::_1));
-  costmap_update_sub_ = node->create_subscription<nav2_msgs::msg::CostmapUpdate>(
-    topic_name_ + "_updates",
-    rclcpp::QoS(rclcpp::KeepLast(costmapUpdateQueueDepth)).transient_local().reliable(),
-    std::bind(&CostmapSubscriber::costmapUpdateCallback, this, std::placeholders::_1));
-}
-
-CostmapSubscriber::CostmapSubscriber(
-  const rclcpp::Node::WeakPtr & parent,
-  const std::string & topic_name)
-: topic_name_(topic_name)
-{
-  auto node = parent.lock();
-  logger_ = node->get_logger();
-  costmap_sub_ = node->create_subscription<nav2_msgs::msg::Costmap>(
-    topic_name_,
-    rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
-    std::bind(&CostmapSubscriber::costmapCallback, this, std::placeholders::_1));
-  costmap_update_sub_ = node->create_subscription<nav2_msgs::msg::CostmapUpdate>(
-    topic_name_ + "_updates",
-    rclcpp::QoS(rclcpp::KeepLast(costmapUpdateQueueDepth)).transient_local().reliable(),
-    std::bind(&CostmapSubscriber::costmapUpdateCallback, this, std::placeholders::_1));
-}
-
 std::shared_ptr<Costmap2D> CostmapSubscriber::getCostmap()
 {
   if (!isCostmapReceived()) {
     throw std::runtime_error("Costmap is not available");
   }
-  if (costmap_msg_) {
-    processCurrentCostmapMsg();
-  }
+  processCurrentCostmapMsg();
   return costmap_;
 }
 
-void CostmapSubscriber::costmapCallback(const nav2_msgs::msg::Costmap::SharedPtr msg)
+void CostmapSubscriber::costmapCallback(const nav2_msgs::msg::Costmap::ConstSharedPtr & msg)
 {
-  {
-    std::lock_guard<std::mutex> lock(costmap_msg_mutex_);
-    costmap_msg_ = msg;
-  }
+  std::lock_guard<std::recursive_mutex> lock(costmap_msg_mutex_);
+  costmap_msg_ = msg;
+  frame_id_ = costmap_msg_->header.frame_id;
+
   if (!isCostmapReceived()) {
     costmap_ = std::make_shared<Costmap2D>(
       msg->metadata.size_x, msg->metadata.size_y,
@@ -85,12 +47,10 @@ void CostmapSubscriber::costmapCallback(const nav2_msgs::msg::Costmap::SharedPtr
 }
 
 void CostmapSubscriber::costmapUpdateCallback(
-  const nav2_msgs::msg::CostmapUpdate::SharedPtr update_msg)
+  const nav2_msgs::msg::CostmapUpdate::ConstSharedPtr & update_msg)
 {
   if (isCostmapReceived()) {
-    if (costmap_msg_) {
-      processCurrentCostmapMsg();
-    }
+    processCurrentCostmapMsg();
 
     std::lock_guard<Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
 
@@ -124,6 +84,9 @@ void CostmapSubscriber::costmapUpdateCallback(
 void CostmapSubscriber::processCurrentCostmapMsg()
 {
   std::scoped_lock lock(*(costmap_->getMutex()), costmap_msg_mutex_);
+  if (!costmap_msg_) {
+    return;
+  }
   if (haveCostmapParametersChanged()) {
     costmap_->resizeMap(
       costmap_msg_->metadata.size_x, costmap_msg_->metadata.size_y,

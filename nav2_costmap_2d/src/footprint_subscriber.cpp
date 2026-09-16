@@ -17,58 +17,26 @@
 #include <memory>
 
 #include "nav2_costmap_2d/footprint_subscriber.hpp"
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpedantic"
-#include "tf2/utils.h"
-#pragma GCC diagnostic pop
+#include "tf2/utils.hpp"
 
 namespace nav2_costmap_2d
 {
-
-FootprintSubscriber::FootprintSubscriber(
-  const nav2_util::LifecycleNode::WeakPtr & parent,
-  const std::string & topic_name,
-  tf2_ros::Buffer & tf,
-  std::string robot_base_frame,
-  double transform_tolerance)
-: tf_(tf),
-  robot_base_frame_(robot_base_frame),
-  transform_tolerance_(transform_tolerance)
-{
-  auto node = parent.lock();
-  footprint_sub_ = node->create_subscription<geometry_msgs::msg::PolygonStamped>(
-    topic_name, rclcpp::SystemDefaultsQoS(),
-    std::bind(&FootprintSubscriber::footprint_callback, this, std::placeholders::_1));
-}
-
-FootprintSubscriber::FootprintSubscriber(
-  const rclcpp::Node::WeakPtr & parent,
-  const std::string & topic_name,
-  tf2_ros::Buffer & tf,
-  std::string robot_base_frame,
-  double transform_tolerance)
-: tf_(tf),
-  robot_base_frame_(robot_base_frame),
-  transform_tolerance_(transform_tolerance)
-{
-  auto node = parent.lock();
-  footprint_sub_ = node->create_subscription<geometry_msgs::msg::PolygonStamped>(
-    topic_name, rclcpp::SystemDefaultsQoS(),
-    std::bind(&FootprintSubscriber::footprint_callback, this, std::placeholders::_1));
-}
 
 bool
 FootprintSubscriber::getFootprintRaw(
   std::vector<geometry_msgs::msg::Point> & footprint,
   std_msgs::msg::Header & footprint_header)
 {
-  if (!footprint_received_) {
+  if (!footprint_received_.load()) {
     return false;
   }
 
-  auto current_footprint = std::atomic_load(&footprint_);
-  footprint = toPointVector(
-    std::make_shared<geometry_msgs::msg::Polygon>(current_footprint->polygon));
+  auto current_footprint = footprint_.load();
+  if (!current_footprint) {
+    return false;
+  }
+
+  footprint = toPointVector(current_footprint->polygon);
   footprint_header = current_footprint->header;
 
   return true;
@@ -106,11 +74,12 @@ FootprintSubscriber::getFootprintInRobotFrame(
 }
 
 void
-FootprintSubscriber::footprint_callback(const geometry_msgs::msg::PolygonStamped::SharedPtr msg)
+FootprintSubscriber::footprint_callback(
+  const geometry_msgs::msg::PolygonStamped::ConstSharedPtr & msg)
 {
-  std::atomic_store(&footprint_, msg);
-  if (!footprint_received_) {
-    footprint_received_ = true;
+  footprint_.store(msg);
+  if (!footprint_received_.load()) {
+    footprint_received_.store(true);
   }
 }
 

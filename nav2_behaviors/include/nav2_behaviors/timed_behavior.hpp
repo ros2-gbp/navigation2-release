@@ -26,16 +26,16 @@
 #include <utility>
 
 #include "rclcpp/rclcpp.hpp"
-#include "tf2_ros/transform_listener.h"
-#include "tf2_ros/create_timer_ros.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 #include "geometry_msgs/msg/twist.hpp"
 #include "nav2_util/robot_utils.hpp"
 #include "nav2_util/twist_publisher.hpp"
-#include "nav2_util/simple_action_server.hpp"
+#include "nav2_ros_common/simple_action_server.hpp"
+#include "nav2_ros_common/rate.hpp"
 #include "nav2_core/behavior.hpp"
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpedantic"
-#include "tf2/utils.h"
+#include "tf2/utils.hpp"
 #pragma GCC diagnostic pop
 
 
@@ -53,6 +53,7 @@ struct ResultStatus
 {
   Status status;
   uint16_t error_code{0};
+  std::string error_msg;
 };
 
 using namespace std::chrono_literals;  //NOLINT
@@ -65,7 +66,7 @@ template<typename ActionT>
 class TimedBehavior : public nav2_core::Behavior
 {
 public:
-  using ActionServer = nav2_util::SimpleActionServer<ActionT>;
+  using ActionServer = nav2::SimpleActionServer<ActionT>;
 
   /**
    * @brief A TimedBehavior constructor
@@ -112,8 +113,8 @@ public:
 
   // configure the server on lifecycle setup
   void configure(
-    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
-    const std::string & name, std::shared_ptr<tf2_ros::Buffer> tf,
+    const nav2::LifecycleNode::WeakPtr & parent,
+    const std::string & name, nav2::TransformBuffer::SharedPtr tf,
     std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> local_collision_checker,
     std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> global_collision_checker)
   override
@@ -134,24 +135,15 @@ public:
     node->get_parameter("robot_base_frame", robot_base_frame_);
     node->get_parameter("transform_tolerance", transform_tolerance_);
 
-    if (!node->has_parameter("action_server_result_timeout")) {
-      node->declare_parameter("action_server_result_timeout", 10.0);
-    }
-
-    double action_server_result_timeout;
-    node->get_parameter("action_server_result_timeout", action_server_result_timeout);
-    rcl_action_server_options_t server_options = rcl_action_server_get_default_options();
-    server_options.result_timeout.nanoseconds = RCL_S_TO_NS(action_server_result_timeout);
-
-    action_server_ = std::make_shared<ActionServer>(
-      node, behavior_name_,
-      std::bind(&TimedBehavior::execute, this), nullptr, std::chrono::milliseconds(
-        500), false, server_options);
+    action_server_ = node->create_action_server<ActionT>(
+      behavior_name_,
+      std::bind(&TimedBehavior::execute, this), nullptr, nullptr, std::chrono::milliseconds(
+        500), false);
 
     local_collision_checker_ = local_collision_checker;
     global_collision_checker_ = global_collision_checker;
 
-    vel_pub_ = std::make_unique<nav2_util::TwistPublisher>(node, "cmd_vel", 1);
+    vel_pub_ = std::make_unique<nav2_util::TwistPublisher>(node, "cmd_vel");
 
     onConfigure();
   }
@@ -183,14 +175,14 @@ public:
   }
 
 protected:
-  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
+  nav2::LifecycleNode::WeakPtr node_;
 
   std::string behavior_name_;
   std::unique_ptr<nav2_util::TwistPublisher> vel_pub_;
-  std::shared_ptr<ActionServer> action_server_;
+  typename ActionServer::SharedPtr action_server_;
   std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> local_collision_checker_;
   std::shared_ptr<nav2_costmap_2d::CostmapTopicCollisionChecker> global_collision_checker_;
-  std::shared_ptr<tf2_ros::Buffer> tf_;
+  nav2::TransformBuffer::SharedPtr tf_;
 
   double cycle_frequency_;
   double enabled_;
@@ -198,7 +190,7 @@ protected:
   std::string global_frame_;
   std::string robot_base_frame_;
   double transform_tolerance_;
-  rclcpp::Duration elasped_time_{0, 0};
+  rclcpp::Duration elapsed_time_{0, 0};
 
   // Clock
   rclcpp::Clock::SharedPtr clock_;
@@ -224,19 +216,32 @@ protected:
 
     ResultStatus on_run_result = onRun(action_server_->get_current_goal());
     if (on_run_result.status != Status::SUCCEEDED) {
-      RCLCPP_INFO(
-        logger_,
-        "Initial checks failed for %s", behavior_name_.c_str());
       result->error_code = on_run_result.error_code;
+      result->error_msg = on_run_result.error_msg;
+      RCLCPP_INFO(
+        logger_, "Initial checks failed for %s - %s", behavior_name_.c_str(),
+        on_run_result.error_msg.c_str());
       action_server_->terminate_current(result);
       return;
     }
 
     auto start_time = clock_->now();
-    rclcpp::WallRate loop_rate(cycle_frequency_);
+    auto node = node_.lock();
+    if (!node) {
+      RCLCPP_ERROR(
+        logger_,
+        "Failed to run %s because the parent node is no longer available.",
+        behavior_name_.c_str());
+      result->error_msg = behavior_name_ + " failed: parent node expired";
+      result->total_elapsed_time = clock_->now() - start_time;
+      onActionCompletion(result);
+      action_server_->terminate_current(result);
+      return;
+    }
+    nav2::Rate loop_rate(node, cycle_frequency_);
 
     while (rclcpp::ok()) {
-      elasped_time_ = clock_->now() - start_time;
+      elapsed_time_ = clock_->now() - start_time;
       // TODO(orduno) #868 Enable preempting a Behavior on-the-fly without stopping
       if (action_server_->is_preempt_requested()) {
         RCLCPP_ERROR(
@@ -253,7 +258,7 @@ protected:
       if (action_server_->is_cancel_requested()) {
         RCLCPP_INFO(logger_, "Canceling %s", behavior_name_.c_str());
         stopRobot();
-        result->total_elapsed_time = elasped_time_;
+        result->total_elapsed_time = elapsed_time_;
         onActionCompletion(result);
         action_server_->terminate_all(result);
         return;
@@ -271,9 +276,10 @@ protected:
           return;
 
         case Status::FAILED:
-          RCLCPP_WARN(logger_, "%s failed", behavior_name_.c_str());
-          result->total_elapsed_time = clock_->now() - start_time;
           result->error_code = on_cycle_update_result.error_code;
+          result->error_msg = behavior_name_ + " failed:" + on_cycle_update_result.error_msg;
+          RCLCPP_WARN(logger_, "%s", result->error_msg.c_str());
+          result->total_elapsed_time = clock_->now() - start_time;
           onActionCompletion(result);
           action_server_->terminate_current(result);
           return;

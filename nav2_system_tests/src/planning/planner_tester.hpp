@@ -19,23 +19,21 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 #include <algorithm>
 
-#include "rclcpp/rclcpp.hpp"
-#include "rclcpp_action/rclcpp_action.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
 #include "nav2_msgs/action/compute_path_to_pose.hpp"
 #include "nav_msgs/msg/occupancy_grid.hpp"
 #include "nav2_msgs/msg/costmap.hpp"
 #include "nav2_msgs/srv/get_costmap.hpp"
 #include "nav2_msgs/srv/is_path_valid.hpp"
-#include "visualization_msgs/msg/marker.hpp"
 #include "nav2_util/costmap.hpp"
-#include "nav2_util/node_thread.hpp"
+#include "nav2_ros_common/node_thread.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/transform_stamped.hpp"
-#include "tf2_msgs/msg/tf_message.hpp"
 #include "nav2_planner/planner_server.hpp"
-#include "tf2_ros/transform_broadcaster.h"
+#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_system_tests
 {
@@ -88,7 +86,8 @@ public:
     }
     try {
       auto dummy_cancel_checker = []() {return false;};
-      path = planners_["GridBased"]->createPlan(start, goal, dummy_cancel_checker);
+      std::vector<geometry_msgs::msg::PoseStamped> viapoints{start};
+      path = planners_["GridBased"]->createPlan(start, goal, viapoints, dummy_cancel_checker);
       // The situation when createPlan() did not throw any exception
       // does not guarantee that plan was created correctly.
       // So it should be checked additionally that path is correct.
@@ -129,7 +128,7 @@ enum class TaskStatus : int8_t
   RUNNING = 3,
 };
 
-class PlannerTester : public rclcpp::Node
+class PlannerTester : public nav2::LifecycleNode
 {
 public:
   using ComputePathToPoseCommand = geometry_msgs::msg::PoseStamped;
@@ -161,7 +160,11 @@ public:
     const unsigned int number_tests,
     const float acceptable_fail_ratio);
 
-  bool isPathValid(nav_msgs::msg::Path & path);
+  std::shared_ptr<nav2_msgs::srv::IsPathValid::Response> isPathValid(
+    nav_msgs::msg::Path & path, unsigned int max_cost,
+    bool consider_unknown_as_obstacle, const std::string & layer_name = "",
+    const std::string & footprint = "", bool stop_at_first_collision = true,
+    double max_lookahead_distance = -1.0);
 
 private:
   void setCostmap();
@@ -193,23 +196,22 @@ private:
   std::shared_ptr<NavFnPlannerTester> planner_tester_;
 
   // The is path valid client
-  rclcpp::Client<nav2_msgs::srv::IsPathValid>::SharedPtr path_valid_client_;
+  nav2::ServiceClient<nav2_msgs::srv::IsPathValid>::SharedPtr path_valid_client_;
 
   // A thread for spinning the ROS node
-  std::unique_ptr<nav2_util::NodeThread> spin_thread_;
+  std::unique_ptr<nav2::NodeThread> spin_thread_;
 
   // The tester must provide the robot pose through a transform
   std::unique_ptr<geometry_msgs::msg::TransformStamped> base_transform_;
-  std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  nav2::TransformBroadcaster::SharedPtr tf_broadcaster_;
   rclcpp::TimerBase::SharedPtr transform_timer_;
   void publishRobotTransform();
   void startRobotTransform();
   void updateRobotPosition(const geometry_msgs::msg::Point & position);
 
   // Occupancy grid publisher for visualization
-  rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_pub_;
+  nav2::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr map_pub_;
   rclcpp::TimerBase::SharedPtr map_timer_;
-  rclcpp::WallRate map_publish_rate_;
   void mapCallback();
 
   // Executes a test run with the provided end points.

@@ -15,14 +15,10 @@
 #ifndef NAV2_SMAC_PLANNER__NODE_2D_HPP_
 #define NAV2_SMAC_PLANNER__NODE_2D_HPP_
 
-#include <math.h>
-#include <vector>
-#include <iostream>
-#include <memory>
-#include <queue>
-#include <limits>
-#include <utility>
 #include <functional>
+#include <memory>
+#include <stdexcept>
+#include <vector>
 
 #include "nav2_smac_planner/types.hpp"
 #include "nav2_smac_planner/constants.hpp"
@@ -42,27 +38,20 @@ public:
   typedef Node2D * NodePtr;
   typedef std::unique_ptr<std::vector<Node2D>> Graph;
   typedef std::vector<NodePtr> NodeVector;
-
-  /**
-   * @class nav2_smac_planner::Node2D::Coordinates
-   * @brief Node2D implementation of coordinate structure
-   */
-  struct Coordinates
-  {
-    Coordinates() {}
-    Coordinates(const float & x_in, const float & y_in)
-    : x(x_in), y(y_in)
-    {}
-
-    float x, y;
-  };
+  using Coordinates = nav2_smac_planner::Coordinates2D;
   typedef std::vector<Coordinates> CoordinateVector;
+
+  struct NodeContext
+  {
+    float cost_travel_multiplier;
+    std::vector<int> neighbors_grid_offsets;
+  };
 
   /**
    * @brief A constructor for nav2_smac_planner::Node2D
    * @param index The index of this node for self-reference
    */
-  explicit Node2D(const uint64_t index);
+  explicit Node2D(const uint64_t index, NodeContext * ctx);
 
   /**
    * @brief A destructor for nav2_smac_planner::Node2D
@@ -72,11 +61,20 @@ public:
   /**
    * @brief operator== for comparisons
    * @param Node2D right hand side node reference
-   * @return If cell indicies are equal
+   * @return If cell indices are equal
    */
-  bool operator==(const Node2D & rhs)
+  bool operator==(const Node2D & rhs) const
   {
     return this->_index == rhs._index;
+  }
+
+  /**
+   * @brief setting continuous coordinate search poses (in partial-cells)
+   * @param Pose pose
+   */
+  inline void setPose(const Coordinates & pose_in)
+  {
+    pose = pose_in;
   }
 
   /**
@@ -210,13 +208,13 @@ public:
   }
 
   /**
-   * @brief Get index
+   * @brief Get coordinates using index
    * @param Index Index of point
    * @return coordinates of point
    */
-  static inline Coordinates getCoords(const uint64_t & index)
+  inline Coordinates getCoords(const uint64_t & index)
   {
-    const unsigned int & size_x = _neighbors_grid_offsets[3];
+    const unsigned int & size_x = _ctx->neighbors_grid_offsets[3];
     return Coordinates(index % size_x, index / size_x);
   }
 
@@ -226,9 +224,9 @@ public:
    * @param node Node index of new
    * @return Heuristic cost between the nodes
    */
-  static float getHeuristicCost(
+  float getHeuristicCost(
     const Coordinates & node_coords,
-    const Coordinates & goal_coordinates);
+    const CoordinateVector & goals_coords);
 
   /**
    * @brief Initialize the neighborhood to be used in A*
@@ -240,6 +238,7 @@ public:
    * @param search_info Search parameters, unused by 2D node
    */
   static void initMotionModel(
+    NodeContext * ctx,
     const MotionModel & motion_model,
     unsigned int & size_x,
     unsigned int & size_y,
@@ -262,14 +261,13 @@ public:
 
   /**
    * @brief Set the starting pose for planning, as a node index
-   * @param path Reference to a vector of indicies of generated path
+   * @param path Reference to a vector of indices of generated path
    * @return whether the path was able to be backtraced
    */
   bool backtracePath(CoordinateVector & path);
 
   Node2D * parent;
-  static float cost_travel_multiplier;
-  static std::vector<int> _neighbors_grid_offsets;
+  Coordinates pose;
 
 private:
   float _cell_cost;
@@ -278,6 +276,7 @@ private:
   bool _was_visited;
   bool _is_queued;
   bool _in_collision{false};
+  NodeContext * _ctx = nullptr;
 };
 
 }  // namespace nav2_smac_planner

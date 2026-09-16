@@ -32,32 +32,43 @@ PlannerSelector::PlannerSelector(
   const BT::NodeConfiguration & conf)
 : BT::SyncActionNode(name, conf)
 {
-  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
-  callback_group_ = node_->create_callback_group(
-    rclcpp::CallbackGroupType::MutuallyExclusive,
-    false);
-  callback_group_executor_.add_callback_group(callback_group_, node_->get_node_base_interface());
+  initialize();
+  bt_loop_duration_ =
+    config().blackboard->template get<std::chrono::milliseconds>("bt_loop_duration");
+}
 
-  getInput("topic_name", topic_name_);
+void PlannerSelector::initialize()
+{
+  createROSInterfaces();
+}
 
-  rclcpp::QoS qos(rclcpp::KeepLast(1));
-  qos.transient_local().reliable();
+void PlannerSelector::createROSInterfaces()
+{
+  std::string topic_new;
+  getInput("topic_name", topic_new);
+  if (topic_new != topic_name_ || !planner_selector_sub_) {
+    topic_name_ = topic_new;
+    node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
+    callback_group_ = node_->create_callback_group(
+      rclcpp::CallbackGroupType::MutuallyExclusive,
+      false);
+    callback_group_executor_.add_callback_group(callback_group_, node_->get_node_base_interface());
 
-  rclcpp::SubscriptionOptions sub_option;
-  sub_option.callback_group = callback_group_;
-  planner_selector_sub_ = node_->create_subscription<std_msgs::msg::String>(
-    topic_name_,
-    qos,
-    std::bind(&PlannerSelector::callbackPlannerSelect, this, _1),
-    sub_option);
-
-  // Spin multiple times due to rclcpp regression in Jazzy requiring a 'warm up' spin
-  callback_group_executor_.spin_some(std::chrono::nanoseconds(1));
+    planner_selector_sub_ = node_->create_subscription<std_msgs::msg::String>(
+      topic_name_,
+      std::bind(&PlannerSelector::callbackPlannerSelect, this, _1),
+      nav2::qos::LatchedSubscriptionQoS(),
+      callback_group_);
+  }
 }
 
 BT::NodeStatus PlannerSelector::tick()
 {
-  callback_group_executor_.spin_some();
+  if (!BT::isStatusActive(status())) {
+    initialize();
+  }
+
+  callback_group_executor_.spin_all(bt_loop_duration_);
 
   // This behavior always use the last selected planner received from the topic input.
   // When no input is specified it uses the default planner.
@@ -80,7 +91,7 @@ BT::NodeStatus PlannerSelector::tick()
 }
 
 void
-PlannerSelector::callbackPlannerSelect(const std_msgs::msg::String::SharedPtr msg)
+PlannerSelector::callbackPlannerSelect(const std_msgs::msg::String::ConstSharedPtr & msg)
 {
   last_selected_planner_ = msg->data;
 }

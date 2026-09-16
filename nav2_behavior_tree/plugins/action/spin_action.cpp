@@ -31,8 +31,11 @@ void SpinAction::initialize()
   getInput("spin_dist", dist);
   double time_allowance;
   getInput("time_allowance", time_allowance);
+  bool disable_collision_checks;
+  getInput("disable_collision_checks", disable_collision_checks);
   goal_.target_yaw = dist;
   goal_.time_allowance = rclcpp::Duration::from_seconds(time_allowance);
+  goal_.disable_collision_checks = disable_collision_checks;
   getInput("is_recovery", is_recovery_);
 }
 
@@ -50,18 +53,21 @@ void SpinAction::on_tick()
 BT::NodeStatus SpinAction::on_success()
 {
   setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 
 BT::NodeStatus SpinAction::on_aborted()
 {
   setOutput("error_code_id", result_.result->error_code);
+  setOutput("error_msg", result_.result->error_msg);
   return BT::NodeStatus::FAILURE;
 }
 
 BT::NodeStatus SpinAction::on_cancelled()
 {
   setOutput("error_code_id", ActionResult::NONE);
+  setOutput("error_msg", "");
   return BT::NodeStatus::SUCCESS;
 }
 

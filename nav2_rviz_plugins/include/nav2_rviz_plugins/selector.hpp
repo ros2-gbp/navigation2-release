@@ -44,12 +44,13 @@ public:
 private:
   void loadPlugins();
 
-  rclcpp::Node::SharedPtr client_node_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_controller_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_planner_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_goal_checker_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_smoother_;
-  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_progress_checker_;
+  rclcpp::Node::SharedPtr client_node_;  //  nosemgrep
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_controller_;  //  nosemgrep
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_planner_;  //  nosemgrep
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_goal_checker_;  //  nosemgrep
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_smoother_;  //  nosemgrep
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_progress_checker_;  //  nosemgrep
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr pub_path_handler_;  //  nosemgrep
 
   bool plugins_loaded_ = false;
   bool server_failed_ = false;
@@ -68,12 +69,14 @@ private:
   QComboBox * goal_checker_;
   QComboBox * smoother_;
   QComboBox * progress_checker_;
+  QComboBox * path_handler_;
 
   void setController();
   void setPlanner();
   void setGoalChecker();
   void setSmoother();
   void setProgressChecker();
+  void setPathHandler();
 
   /*
     * @brief Set the selection from the combo box
@@ -82,7 +85,7 @@ private:
   */
   void setSelection(
     QComboBox * combo_box,
-    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher);
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr publisher);  //  nosemgrep
 
 protected:
   QVBoxLayout * layout1 = new QVBoxLayout;
