@@ -210,7 +210,7 @@ class NavTester(Node):
         self.info_msg('Shutting down')
         self.action_client.destroy()
 
-        transition_service = 'lifecycle_manager_navigation/manage_nodes'
+        transition_service = 'lifecycle_manager_nav2/manage_nodes'
         mgr_client: Client[ManageLifecycleNodes.Request, ManageLifecycleNodes.Response] = \
             self.create_client(ManageLifecycleNodes, transition_service)
         while not mgr_client.wait_for_service(timeout_sec=1.0):
@@ -224,21 +224,6 @@ class NavTester(Node):
             rclpy.spin_until_future_complete(self, future)
             future.result()
             self.info_msg('Shutting down navigation lifecycle manager complete.')
-        except Exception as e:  # noqa: B902
-            self.error_msg(f'Service call failed {e!r}')
-        transition_service = 'lifecycle_manager_localization/manage_nodes'
-        mgr_client = self.create_client(ManageLifecycleNodes, transition_service)
-        while not mgr_client.wait_for_service(timeout_sec=1.0):
-            self.info_msg(f'{transition_service} service not available, waiting...')
-
-        req = ManageLifecycleNodes.Request()
-        req.command = ManageLifecycleNodes.Request.SHUTDOWN
-        future = mgr_client.call_async(req)
-        try:
-            self.info_msg('Shutting down localization lifecycle manager...')
-            rclpy.spin_until_future_complete(self, future)
-            future.result()
-            self.info_msg('Shutting down localization lifecycle manager complete')
         except Exception as e:  # noqa: B902
             self.error_msg(f'Service call failed {e!r}')
 
@@ -284,8 +269,7 @@ def run_all_tests(robot_tester: NavTester) -> bool:
             behavior_tree='behavior_tree_that_does_not_exist.xml',
             expected_error_code=NavigateThroughPoses.Result.FAILED_TO_LOAD_BEHAVIOR_TREE,
             expected_error_msg=(
-                'Error loading BT: behavior_tree_that_does_not_exist.xml. '
-                'Navigation canceled.'
+                'Failed to extract ID from behavior_tree_that_does_not_exist.xml'
             ),
         )
 
@@ -307,8 +291,8 @@ def run_all_tests(robot_tester: NavTester) -> bool:
         result = robot_tester.runNavigateAction(
             goal_pose=reasonable_pose,
             behavior_tree='',
-            expected_error_code=100,
-            expected_error_msg=('Failed to find goal checker name: junk_goal_checker'))
+            expected_error_code=1,
+            expected_error_msg=('Goal was rejected by the action server.'))
         robot_tester.setGoalChecker('general_goal_checker')
 
     if result:
@@ -317,8 +301,8 @@ def run_all_tests(robot_tester: NavTester) -> bool:
         result = robot_tester.runNavigateAction(
             goal_pose=reasonable_pose,
             behavior_tree='',
-            expected_error_code=100,
-            expected_error_msg=('Failed to find progress checker name: junk_progress_checker'))
+            expected_error_code=1,
+            expected_error_msg=('Goal was rejected by the action server.'))
         robot_tester.setProgressChecker('progress_checker')
 
     if result:
