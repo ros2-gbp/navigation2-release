@@ -1,6 +1,0 @@
-# Clears the costmap within a distance
-
-float32 reset_distance
-string[] plugins
----
-bool success
