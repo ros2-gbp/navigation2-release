@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-simple-commander
+Section: misc
+Priority: optional
+Maintainer: "steve" <stevenmacenski@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), python3-pytest <!nocheck>, ros-lyrical-ament-copyright <!nocheck>, ros-lyrical-ament-flake8 <!nocheck>, ros-lyrical-ament-mypy <!nocheck>, ros-lyrical-ament-pep257 <!nocheck>, ros-lyrical-ament-xmllint <!nocheck>, ros-lyrical-ros-workspace, python3-all, python3-setuptools, dh-python
+Homepage: https://index.ros.org/p/nav2_simple_commander/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-simple-commander
+Architecture: any
+Depends: ${python3:Depends}, ${misc:Depends}, ros-lyrical-action-msgs, ros-lyrical-geometry-msgs, ros-lyrical-lifecycle-msgs, ros-lyrical-nav2-msgs, ros-lyrical-rclpy, ros-lyrical-ros-workspace
+Description: An importable library for writing mobile robot applications in python3
