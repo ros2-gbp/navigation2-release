@@ -1,3 +1,72 @@
+## navigation2 (lyrical) - 1.5.2-2
+
+The packages in the `navigation2` repository were released into the `lyrical` distro by running `/usr/bin/bloom-release navigation2 --ros-distro lyrical --track lyrical` on `Wed, 16 Sep 2026 18:52:19 -0000`
+
+These packages were released:
+- `costmap_queue`
+- `dwb_core`
+- `dwb_critics`
+- `dwb_msgs`
+- `dwb_plugins`
+- `nav2_amcl`
+- `nav2_behavior_tree`
+- `nav2_behaviors`
+- `nav2_bringup`
+- `nav2_bt_navigator`
+- `nav2_collision_monitor`
+- `nav2_common`
+- `nav2_constrained_smoother`
+- `nav2_controller`
+- `nav2_core`
+- `nav2_costmap_2d`
+- `nav2_dwb_controller`
+- `nav2_graceful_controller`
+- `nav2_lifecycle_manager`
+- `nav2_loopback_sim`
+- `nav2_map_server`
+- `nav2_mppi_controller`
+- `nav2_msgs`
+- `nav2_navfn_planner`
+- `nav2_planner`
+- `nav2_regulated_pure_pursuit_controller`
+- `nav2_ros_common`
+- `nav2_rotation_shim_controller`
+- `nav2_route`
+- `nav2_rviz_plugins`
+- `nav2_simple_commander`
+- `nav2_smac_planner`
+- `nav2_smoother`
+- `nav2_system_tests`
+- `nav2_theta_star_planner`
+- `nav2_util`
+- `nav2_velocity_smoother`
+- `nav2_voxel_grid`
+- `nav2_waypoint_follower`
+- `nav_2d_msgs`
+- `nav_2d_utils`
+- `navigation2`
+- `opennav_docking`
+- `opennav_docking_bt`
+- `opennav_docking_core`
+- `opennav_following`
+
+Version of package(s) in repository `navigation2`:
+
+- upstream repository: https://github.com/ros-planning/navigation2.git
+- release repository: https://github.com/ros2-gbp/navigation2-release.git
+- rosdistro version: `1.5.1-1`
+- old version: `1.5.2-1`
+- new version: `1.5.2-2`
+
+Versions of tools used:
+
+- bloom version: `0.14.4`
+- catkin_pkg version: `1.1.1`
+- rosdep version: `0.27.0`
+- rosdistro version: `1.1.0`
+- vcstools version: `0.1.42`
+
+
 ## navigation2 (lyrical) - 1.5.2-1
 
 The packages in the `navigation2` repository were released into the `lyrical` distro by running `/usr/bin/bloom-release navigation2 --track lyrical --ros-distro lyrical` on `Wed, 16 Sep 2026 00:45:20 -0000`
