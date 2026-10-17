@@ -1,0 +1,257 @@
+// Copyright (c) 2019 Samsung Research America
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__CLEAR_COSTMAP_SERVICE_HPP_
+#define NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__CLEAR_COSTMAP_SERVICE_HPP_
+
+#include <string>
+#include <vector>
+#include <memory>
+
+#include "nav2_behavior_tree/bt_service_node.hpp"
+#include "nav2_msgs/srv/clear_entire_costmap.hpp"
+#include "nav2_msgs/srv/clear_costmap_around_robot.hpp"
+#include "nav2_msgs/srv/clear_costmap_around_pose.hpp"
+#include "nav2_msgs/srv/clear_costmap_except_region.hpp"
+#include "nav2_ros_common/lifecycle_node.hpp"
+
+namespace nav2_behavior_tree
+{
+
+/**
+ * @brief A nav2_behavior_tree::BtServiceNode class that wraps nav2_msgs::srv::ClearEntireCostmap
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <ClearEntireCostmap name="ClearLocalCostmap-Subtree"
+ *                     service_name="local_costmap/clear_entirely_local_costmap"
+ *                     plugins="obstacle_layer;voxel_layer"/>
+ * @endcode
+ */
+class ClearEntireCostmapService : public BtServiceNode<nav2_msgs::srv::ClearEntireCostmap>
+{
+public:
+  /**
+   * @brief A constructor for nav2_behavior_tree::ClearEntireCostmapService
+   * @param service_node_name Service name this node creates a client for
+   * @param conf BT node configuration
+   */
+  ClearEntireCostmapService(
+    const std::string & service_node_name,
+    const BT::NodeConfiguration & conf);
+
+  /**
+   * @brief The main override required by a BT service
+   * @return BT::NodeStatus Status of tick execution
+   */
+  void on_tick() override;
+
+  /**
+   * @brief Check the service response and return appropriate BT status
+   * @param response Service response containing success status
+   * @return BT::NodeStatus SUCCESS if service succeeded, FAILURE otherwise
+   */
+  BT::NodeStatus on_completion(
+    std::shared_ptr<typename nav2_msgs::srv::ClearEntireCostmap::Response> response) override;
+
+  /**
+   * @brief Creates list of BT ports
+   * @return BT::PortsList Containing basic ports along with node-specific ports
+   */
+  static BT::PortsList providedPorts()
+  {
+    return providedBasicPorts(
+      {
+        BT::InputPort<std::vector<std::string>>("plugins",
+          "List of costmap plugin names to clear. If empty, all plugins will be cleared")
+      });
+  }
+};
+
+/**
+ * @brief A nav2_behavior_tree::BtServiceNode class that
+ * wraps nav2_msgs::srv::ClearCostmapExceptRegion
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <ClearCostmapExceptRegion name="ClearLocalCostmap-Subtree"
+ *                           service_name="local_costmap/clear_except_local_costmap"
+ *                           reset_distance="2.0"
+ *                           plugins="obstacle_layer;voxel_layer"/>
+ * @endcode
+ */
+class ClearCostmapExceptRegionService
+  : public BtServiceNode<nav2_msgs::srv::ClearCostmapExceptRegion>
+{
+public:
+  /**
+   * @brief A constructor for nav2_behavior_tree::ClearCostmapExceptRegionService
+   * @param service_node_name Service name this node creates a client for
+   * @param conf BT node configuration
+   */
+  ClearCostmapExceptRegionService(
+    const std::string & service_node_name,
+    const BT::NodeConfiguration & conf);
+
+  /**
+   * @brief The main override required by a BT service
+   * @return BT::NodeStatus Status of tick execution
+   */
+  void on_tick() override;
+
+  /**
+   * @brief Check the service response and return appropriate BT status
+   * @param response Service response containing success status
+   * @return BT::NodeStatus SUCCESS if service succeeded, FAILURE otherwise
+   */
+  BT::NodeStatus on_completion(
+    std::shared_ptr<typename nav2_msgs::srv::ClearCostmapExceptRegion::Response> response) override;
+
+  /**
+   * @brief Creates list of BT ports
+   * @return BT::PortsList Containing basic ports along with node-specific ports
+   */
+  static BT::PortsList providedPorts()
+  {
+    return providedBasicPorts(
+      {
+        BT::InputPort<double>(
+          "reset_distance", 1.0,
+          "Distance from the robot above which obstacles are cleared"),
+        BT::InputPort<std::vector<std::string>>("plugins",
+          "List of costmap plugin names to clear. If empty, all plugins will be cleared")
+      });
+  }
+};
+
+/**
+ * @brief A nav2_behavior_tree::BtServiceNode class that
+ * wraps nav2_msgs::srv::ClearCostmapAroundRobot
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <ClearCostmapAroundRobot name="ClearLocalCostmap-Subtree"
+ *                          service_name="local_costmap/clear_around_local_costmap"
+ *                          reset_distance="2.0"
+ *                          plugins="obstacle_layer;voxel_layer"/>
+ * @endcode
+ */
+class ClearCostmapAroundRobotService : public BtServiceNode<nav2_msgs::srv::ClearCostmapAroundRobot>
+{
+public:
+  /**
+   * @brief A constructor for nav2_behavior_tree::ClearCostmapAroundRobotService
+   * @param service_node_name Service name this node creates a client for
+   * @param conf BT node configuration
+   */
+  ClearCostmapAroundRobotService(
+    const std::string & service_node_name,
+    const BT::NodeConfiguration & conf);
+
+  /**
+   * @brief The main override required by a BT service
+   * @return BT::NodeStatus Status of tick execution
+   */
+  void on_tick() override;
+
+  /**
+   * @brief Check the service response and return appropriate BT status
+   * @param response Service response containing success status
+   * @return BT::NodeStatus SUCCESS if service succeeded, FAILURE otherwise
+   */
+  BT::NodeStatus on_completion(
+    std::shared_ptr<typename nav2_msgs::srv::ClearCostmapAroundRobot::Response> response) override;
+
+  /**
+   * @brief Creates list of BT ports
+   * @return BT::PortsList Containing basic ports along with node-specific ports
+   */
+  static BT::PortsList providedPorts()
+  {
+    return providedBasicPorts(
+      {
+        BT::InputPort<double>(
+          "reset_distance", 1.0,
+          "Distance from the robot under which obstacles are cleared"),
+        BT::InputPort<std::vector<std::string>>("plugins",
+          "List of costmap plugin names to clear. If empty, all plugins will be cleared")
+      });
+  }
+};
+
+/**
+ * @brief A nav2_behavior_tree::BtServiceNode class that
+ * wraps nav2_msgs::srv::ClearCostmapAroundPose
+ * @note It will re-initialize when halted.
+ *
+ * Usage in XML:
+ * @code
+ * <ClearCostmapAroundPose name="ClearLocalCostmapAroundPose"
+ *                         service_name="local_costmap/clear_around_pose_local_costmap"
+ *                         pose="{goal_pose}"
+ *                         reset_distance="2.0"
+ *                         plugins="obstacle_layer;voxel_layer"/>
+ * @endcode
+ */
+class ClearCostmapAroundPoseService : public BtServiceNode<nav2_msgs::srv::ClearCostmapAroundPose>
+{
+public:
+  /**
+   * @brief A constructor for nav2_behavior_tree::ClearCostmapAroundPoseService
+   * @param service_node_name Service name this node creates a client for
+   * @param conf BT node configuration
+   */
+  ClearCostmapAroundPoseService(
+    const std::string & service_node_name,
+    const BT::NodeConfiguration & conf);
+
+  /**
+   * @brief The main override required by a BT service
+   * @return BT::NodeStatus Status of tick execution
+   */
+  void on_tick() override;
+
+  /**
+   * @brief Check the service response and return appropriate BT status
+   * @param response Service response containing success status
+   * @return BT::NodeStatus SUCCESS if service succeeded, FAILURE otherwise
+   */
+  BT::NodeStatus on_completion(
+    std::shared_ptr<typename nav2_msgs::srv::ClearCostmapAroundPose::Response> response) override;
+
+  /**
+   * @brief Creates list of BT ports
+   * @return BT::PortsList Containing basic ports along with node-specific ports
+   */
+  static BT::PortsList providedPorts()
+  {
+    return providedBasicPorts(
+      {
+        BT::InputPort<geometry_msgs::msg::PoseStamped>(
+          "pose", "Pose around which to clear the costmap"),
+        BT::InputPort<double>(
+          "reset_distance", 1.0,
+          "Distance from the pose under which obstacles are cleared"),
+        BT::InputPort<std::vector<std::string>>("plugins",
+          "List of costmap plugin names to clear. If empty, all plugins will be cleared")
+      });
+  }
+};
+
+}  // namespace nav2_behavior_tree
+
+#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__ACTION__CLEAR_COSTMAP_SERVICE_HPP_
