@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>nav2_rviz_plugins</name>
-  <version>1.5.2</version>
+  <version>1.5.3</version>
   <description>Navigation 2 plugins for rviz</description>
   <maintainer email="michael.jeronimo@intel.com">Michael Jeronimo</maintainer>
   <license>Apache-2.0</license>
@@ -12,6 +12,7 @@
   <build_depend>qt6-base-dev</build_depend>
   <build_depend>qt6-scxml-dev</build_depend>
 
+  <depend>action_msgs</depend>
   <depend>backward_ros</depend>
   <depend>geometry_msgs</depend>
   <depend>nav2_lifecycle_manager</depend>
