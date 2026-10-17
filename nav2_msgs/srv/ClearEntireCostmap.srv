@@ -1,0 +1,5 @@
+# Clears all layers on the costmap
+
+string[] plugins
+---
+bool success
