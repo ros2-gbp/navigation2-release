@@ -1,0 +1,6 @@
+geometry_msgs/PoseStamped pose
+nav_2d_msgs/Twist2D velocity
+nav_msgs/Path global_plan
+Trajectory2D traj
+---
+TrajectoryScore score
