@@ -95,7 +95,7 @@ protected:
     * @param wy Float world Y coord
     * @param mx unsigned int map X coord
     * @param my unsigned into map Y coord
-    * @return if successful
+    * @return if successsful
     */
   inline bool worldToMapFloat(float wx, float wy, unsigned int & mx, unsigned int & my) const
   {

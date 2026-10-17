@@ -15,15 +15,19 @@
 #ifndef NAV2_MPPI_CONTROLLER__TOOLS__TRAJECTORY_VISUALIZER_HPP_
 #define NAV2_MPPI_CONTROLLER__TOOLS__TRAJECTORY_VISUALIZER_HPP_
 
-#include <Eigen/Dense>
-
 #include <memory>
 #include <string>
-#include <utility>
-#include <vector>
+
+// xtensor creates warnings that needs to be ignored as we are building with -Werror
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#include <xtensor/xtensor.hpp>
+#pragma GCC diagnostic pop
 
 #include "nav_msgs/msg/path.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 
 #include "nav2_mppi_controller/tools/parameters_handler.hpp"
@@ -53,7 +57,7 @@ public:
     * @param dynamic_parameter_handler Parameter handler object
     */
   void on_configure(
-    nav2::LifecycleNode::WeakPtr parent, const std::string & name,
+    rclcpp_lifecycle::LifecycleNode::WeakPtr parent, const std::string & name,
     const std::string & frame_id, ParametersHandler * parameters_handler);
 
   /**
@@ -76,26 +80,20 @@ public:
     * @param trajectory Optimal trajectory
     */
   void add(
-    const Eigen::ArrayXXf & trajectory, const std::string & marker_namespace,
+    const xt::xtensor<float, 2> & trajectory, const std::string & marker_namespace,
     const builtin_interfaces::msg::Time & cmd_stamp);
 
   /**
-    * @brief Add candidate trajectories colored by cost gradient
+    * @brief Add candidate trajectories to visualize
     * @param trajectories Candidate trajectories
-    * @param costs Cost per trajectory for the selected layer
-    * @param collisions Per-trajectory collision flags
-    * @param stamp Timestamp for markers
     */
-  void add(
-    const models::Trajectories & trajectories,
-    const Eigen::ArrayXf & costs,
-    const std::vector<bool> & collisions,
-    const builtin_interfaces::msg::Time & stamp);
+  void add(const models::Trajectories & trajectories, const std::string & marker_namespace);
 
   /**
     * @brief Visualize the plan
+    * @param plan Plan to visualize
     */
-  void visualize();
+  void visualize(const nav_msgs::msg::Path & plan);
 
   /**
     * @brief Reset object
@@ -103,32 +101,11 @@ public:
   void reset();
 
 protected:
-  /**
-    * @brief Create a LINE_STRIP marker for a single trajectory colored by normalized cost
-    * @param trajectory_idx Row index into the trajectories arrays
-    * @param trajectories Trajectory data
-    * @param normalized_cost Cost value in [0, 1] range
-    * @param in_collision Whether this trajectory is in collision
-    * @param stamp Timestamp
-    */
-  void addCostColoredTrajectory(
-    size_t trajectory_idx,
-    const models::Trajectories & trajectories,
-    float normalized_cost,
-    bool in_collision,
-    const builtin_interfaces::msg::Time & stamp);
-
-  /**
-    * @brief Convert a normalized cost [0,1] to a green->yellow->red color
-    * @param normalized Value in [0, 1]
-    * @return ColorRGBA
-    */
-  static std_msgs::msg::ColorRGBA costToColor(float normalized);
-
   std::string frame_id_;
-  nav2::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr
-    trajectories_publisher_;
-  nav2::Publisher<nav_msgs::msg::Path>::SharedPtr optimal_path_pub_;
+  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<visualization_msgs::msg::MarkerArray>>
+  trajectories_publisher_;
+  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> transformed_path_pub_;
+  std::shared_ptr<rclcpp_lifecycle::LifecyclePublisher<nav_msgs::msg::Path>> optimal_path_pub_;
 
   std::unique_ptr<nav_msgs::msg::Path> optimal_path_;
   std::unique_ptr<visualization_msgs::msg::MarkerArray> points_;

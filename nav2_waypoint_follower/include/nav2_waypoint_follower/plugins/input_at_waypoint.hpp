@@ -19,9 +19,7 @@
 #include <mutex>
 #include <memory>
 
-#include "rclcpp/clock.hpp"
-#include "rclcpp/duration.hpp"
-#include "rclcpp/logger.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/empty.hpp"
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "nav2_core/waypoint_task_executor.hpp"
@@ -30,7 +28,7 @@ namespace nav2_waypoint_follower
 {
 
 /**
- * @brief Simple plugin based on WaypointTaskExecutor, let's robot to wait for a
+ * @brief Simple plugin based on WaypointTaskExecutor, lets robot to wait for a
  *        user input at waypoint arrival.
  */
 class InputAtWaypoint : public nav2_core::WaypointTaskExecutor
@@ -54,7 +52,7 @@ public:
    * @param plugin_name name of plugin
    */
   void initialize(
-    const nav2::LifecycleNode::WeakPtr & parent,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     const std::string & plugin_name);
 
   /**
@@ -71,16 +69,15 @@ protected:
    * @brief Processor callback
    * @param msg Empty message
    */
-  void Cb(const std_msgs::msg::Empty::ConstSharedPtr & msg);
+  void Cb(const std_msgs::msg::Empty::SharedPtr msg);
 
   bool input_received_;
   bool is_enabled_;
   rclcpp::Duration timeout_;
   rclcpp::Logger logger_{rclcpp::get_logger("nav2_waypoint_follower")};
   rclcpp::Clock::SharedPtr clock_;
-  nav2::LifecycleNode::WeakPtr node_;
   std::mutex mutex_;
-  nav2::Subscription<std_msgs::msg::Empty>::SharedPtr subscription_;
+  rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr subscription_;
 };
 
 }  // namespace nav2_waypoint_follower

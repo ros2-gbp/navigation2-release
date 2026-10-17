@@ -398,7 +398,7 @@ protected:
     double & r,
     Eigen::Vector2d & xi) const
   {
-    if (value == FREE_COST) {
+    if (value == FREE) {
       return;
     }
 
@@ -432,7 +432,7 @@ protected:
     double & j0,
     double & j1) const
   {
-    if (value == FREE_COST) {
+    if (value == FREE) {
       return;
     }
 

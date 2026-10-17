@@ -13,8 +13,7 @@
 // limitations under the License. Reserved.
 
 #include <memory>
-#include "rclcpp/executors.hpp"
-#include "rclcpp/utilities.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "dummy_controller.hpp"
 
 int main(int argc, char ** argv)

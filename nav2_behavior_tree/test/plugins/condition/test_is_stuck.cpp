@@ -18,8 +18,7 @@
 #include <memory>
 #include <set>
 
-#include "rclcpp/duration.hpp"
-#include "rclcpp/utilities.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav2_util/robot_utils.hpp"
 
@@ -51,8 +50,7 @@ IsStuckTestFixture::bt_node_ = nullptr;
 
 TEST_F(IsStuckTestFixture, test_behavior)
 {
-  auto odom_pub = node_->create_publisher<nav_msgs::msg::Odometry>("odom");
-  odom_pub->on_activate();
+  auto odom_pub = node_->create_publisher<nav_msgs::msg::Odometry>("odom", 1);
   nav_msgs::msg::Odometry odom_msg;
 
   // fill up odometry history with zero velocity

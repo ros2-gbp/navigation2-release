@@ -19,11 +19,29 @@
 #include <string>
 #include <utility>
 
+#include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
 #include "nav2_util/geometry_utils.hpp"
 
 namespace nav2_lifecycle_manager
 {
 using nav2_util::geometry_utils::orientationAroundZAxis;
+
+LifecycleManagerClient::LifecycleManagerClient(
+  const std::string & name,
+  std::shared_ptr<rclcpp::Node> parent_node)
+{
+  manage_service_name_ = name + std::string("/manage_nodes");
+  active_service_name_ = name + std::string("/is_active");
+
+  // Use parent node for service call and logging
+  node_ = parent_node;
+
+  // Create the service clients
+  manager_client_ = std::make_shared<nav2_util::ServiceClient<ManageLifecycleNodes>>(
+    manage_service_name_, node_);
+  is_active_client_ = std::make_shared<nav2_util::ServiceClient<std_srvs::srv::Trigger>>(
+    active_service_name_, node_);
+}
 
 bool
 LifecycleManagerClient::startup(const std::chrono::nanoseconds timeout)
@@ -74,7 +92,7 @@ LifecycleManagerClient::is_active(const std::chrono::nanoseconds timeout)
   auto response = std::make_shared<std_srvs::srv::Trigger::Response>();
 
   RCLCPP_DEBUG(
-    logger_, "Waiting for the %s service...",
+    node_->get_logger(), "Waiting for the %s service...",
     active_service_name_.c_str());
 
   if (!is_active_client_->wait_for_service(std::chrono::seconds(1))) {
@@ -82,7 +100,7 @@ LifecycleManagerClient::is_active(const std::chrono::nanoseconds timeout)
   }
 
   RCLCPP_DEBUG(
-    logger_, "Sending %s request",
+    node_->get_logger(), "Sending %s request",
     active_service_name_.c_str());
 
   try {
@@ -105,19 +123,19 @@ LifecycleManagerClient::callService(uint8_t command, const std::chrono::nanoseco
   request->command = command;
 
   RCLCPP_DEBUG(
-    logger_, "Waiting for the %s service...",
+    node_->get_logger(), "Waiting for the %s service...",
     manage_service_name_.c_str());
 
   while (!manager_client_->wait_for_service(timeout)) {
     if (!rclcpp::ok()) {
-      RCLCPP_ERROR(logger_, "Client interrupted while waiting for service to appear");
+      RCLCPP_ERROR(node_->get_logger(), "Client interrupted while waiting for service to appear");
       return false;
     }
-    RCLCPP_DEBUG(logger_, "Waiting for service to appear...");
+    RCLCPP_DEBUG(node_->get_logger(), "Waiting for service to appear...");
   }
 
   RCLCPP_DEBUG(
-    logger_, "Sending %s request",
+    node_->get_logger(), "Sending %s request",
     manage_service_name_.c_str());
   try {
     auto future_result = manager_client_->invoke(request, timeout);

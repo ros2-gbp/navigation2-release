@@ -19,12 +19,21 @@
 
 #include "gtest/gtest.h"
 #include "nav2_smac_planner/collision_checker.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 
 using namespace nav2_costmap_2d;  // NOLINT
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
+
 TEST(collision_footprint, test_basic)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("testA");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testA");
   nav2_costmap_2d::Costmap2D * costmap_ = new nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0, 0, 0);
 
   geometry_msgs::msg::Point p1;
@@ -58,7 +67,7 @@ TEST(collision_footprint, test_basic)
 
 TEST(collision_footprint, test_point_cost)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("testB");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testB");
   nav2_costmap_2d::Costmap2D * costmap_ = new nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0, 0, 0);
 
   // Convert raw costmap into a costmap ros object
@@ -79,7 +88,7 @@ TEST(collision_footprint, test_point_cost)
 
 TEST(collision_footprint, test_world_to_map)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("testC");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testC");
   nav2_costmap_2d::Costmap2D * costmap_ = new nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0, 0, 0);
 
   // Convert raw costmap into a costmap ros object
@@ -111,7 +120,7 @@ TEST(collision_footprint, test_world_to_map)
 
 TEST(collision_footprint, test_footprint_at_pose_with_movement)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("testD");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testD");
   nav2_costmap_2d::Costmap2D * costmap_ = new nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0, 0, 254);
 
   for (unsigned int i = 40; i <= 60; ++i) {
@@ -165,7 +174,7 @@ TEST(collision_footprint, test_footprint_at_pose_with_movement)
 
 TEST(collision_footprint, test_point_and_line_cost)
 {
-  auto node = std::make_shared<nav2::LifecycleNode>("testE");
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testE");
   nav2_costmap_2d::Costmap2D * costmap_ = new nav2_costmap_2d::Costmap2D(
     100, 100, 0.10000, 0, 0.0, 128.0);
 
@@ -213,17 +222,4 @@ TEST(collision_footprint, test_point_and_line_cost)
   EXPECT_NEAR(other_value, 254.0, 0.001);  // center cost
 
   delete costmap_;
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

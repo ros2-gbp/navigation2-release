@@ -22,7 +22,6 @@
 #include "sensor_msgs/msg/laser_scan.hpp"
 
 #include "nav2_collision_monitor/source.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_collision_monitor
 {
@@ -46,9 +45,9 @@ public:
    * considering the difference between current time and latest source time
    */
   Scan(
-    const nav2::LifecycleNode::WeakPtr & node,
+    const nav2_util::LifecycleNode::WeakPtr & node,
     const std::string & source_name,
-    const nav2::TransformBuffer::SharedPtr tf_buffer,
+    const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
     const std::string & base_frame_id,
     const std::string & global_frame_id,
     const tf2::Duration & transform_tolerance,
@@ -62,9 +61,8 @@ public:
   /**
    * @brief Data source configuration routine. Obtains ROS-parameters
    * and creates laser scanner subscriber.
-   * @return True in case of everything is configured correctly, or false otherwise
    */
-  bool configure();
+  void configure();
 
   /**
    * @brief Adds latest data from laser scanner to the data array.
@@ -73,9 +71,9 @@ public:
    * Added data is transformed to base_frame_id_ coordinate system at curr_time.
    * @return false if an invalid source should block the robot
    */
-  bool getSourceData(
+  bool getData(
     const rclcpp::Time & curr_time,
-    std::vector<Point> & data) override;
+    std::vector<Point> & data);
 
 protected:
   /**
@@ -87,7 +85,7 @@ protected:
   // ----- Variables -----
 
   /// @brief Laser scanner data subscriber
-  nav2::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr data_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr data_sub_;
 
   /// @brief Latest data obtained from laser scanner
   sensor_msgs::msg::LaserScan::ConstSharedPtr data_;

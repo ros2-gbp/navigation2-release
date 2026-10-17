@@ -3,7 +3,7 @@
 The ``nav2_velocity_smoother`` is a package containing a lifecycle-component node for smoothing velocities sent by Nav2 to robot controllers.
 The aim of this package is to implement velocity, acceleration, and deadband smoothing from Nav2 to reduce wear-and-tear on robot motors and hardware controllers by smoothing out the accelerations/jerky movements that might be present with some local trajectory planners' control efforts.
 
-It supports differential drive and omnidirectional robot platforms primarily, but is applicable to ackermann as well with some interpretations of ``Twist``. It was built by [Steve Macenski](https://www.linkedin.com/in/steve-macenski-41a985101/) while at [Samsung Research](https://www.sra.samsung.com/).
+It supports differential drive and omnidirectional robot platforms primarily, but is applicable to ackermann as well with some interpretations of ``Twist``. It was built by [Steve Macenski](https://www.linkedin.com/in/steve-macenski-41a985101/) while at [Samsung Research](https://www.sra.samsung.com/). 
 
 See its [Configuration Guide Page](https://docs.nav2.org/configuration/packages/configuring-velocity-smoother.html) for additional parameter descriptions.
 
@@ -20,18 +20,17 @@ This package was created to do the following:
 - Provide open loop and closed loop options
 - Component nodes for use in single-process systems and stand-alone node format
 - Dynamically reconfigurable parameters
-- Smooth command timestamps upon different planning and smoothing frequencies
 
 ## Design
 
 This is a lifecycle-component node, using the lifecycle manager for state management and composition for process management.
 It is designed to take in a command from Nav2's controller server and smooth it for use on robot hardware controllers.
-Thusly, it takes in a command via the `cmd_vel` topic and produces a smoothed output on `cmd_vel_smoothed`.
+Thusly, it takes in a command via the `cmd_vel` topic and produces a smoothed output on `smoothed_cmd_vel`.
 
 The node is designed on a regular timer running at a configurable rate.
 This is in contrast to simply computing a smoothed velocity command in the callback of each `cmd_vel` input from Nav2.
 This allows us to interpolate commands at a higher frequency than Nav2's local trajectory planners can provide.
-For example, if a local trajectory planner is running at 20hz, the velocity smoother can run at 100hz to provide approximately 5 messages to a robot controller which will be smoothed by kinematic limits at each timestep. Furthermore, the timestamps of the command messages will also be smoothed according to the rule: `cmd_vel_timestamp = cmd_vel_timestamp_of_last_input_command + (now() - last_receive_time_of_input_command)`
+For example, if a local trajectory planner is running at 20hz, the velocity smoother can run at 100hz to provide approximately 5 messages to a robot controller which will be smoothed by kinematic limits at each timestep.
 This provides a more regular stream of commands to a robot base and interpolates commands between the current velocity and the desired velocity more finely for smoother acceleration / motion profiles.
 While this is not required, it is a nice design feature.
 It is possible to also simply run the smoother at `cmd_vel` rate to smooth velocities alone without interpolation.
@@ -61,13 +60,14 @@ velocity_smoother:
    	odom_topic: "odom"  # Topic of odometry to use for estimating current velocities
    	odom_duration: 0.1  # Period of time (s) to sample odometry information in for velocity estimation
 	enable_stamped_cmd_vel: false # Whether to stamp the velocity. True uses TwistStamped. False uses Twist
+    stamp_smoothed_velocity_with_smoothing_time: false # Whether to smooth the timestamp of the header message of TwistStamped output instead of keeping the timestamp of the last received command
 ```
 
 ## Topics
 
 | Topic            | Type                    | Use                           |
 |------------------|-------------------------|-------------------------------|
-| cmd_vel_smoothed | geometry_msgs/Twist or  geometry_msgs/TwistStamped | Publish smoothed velocities   |
+| smoothed_cmd_vel | geometry_msgs/Twist or  geometry_msgs/TwistStamped | Publish smoothed velocities   |
 | cmd_vel          | geometry_msgs/Twist or  geometry_msgs/TwistStamped | Subscribe to input velocities |
 
 

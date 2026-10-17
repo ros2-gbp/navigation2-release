@@ -18,13 +18,7 @@
 #include <memory>
 #include <filesystem>
 
-#include "rclcpp/client.hpp"
-#include "rclcpp/executors.hpp"
-#include "rclcpp/future_return_code.hpp"
-#include "rclcpp/logging.hpp"
-#include "rclcpp/node.hpp"
-#include "rclcpp/parameter_client.hpp"
-#include "rclcpp/utilities.hpp"
+#include <rclcpp/rclcpp.hpp>
 
 #include "test_constants/test_constants.h"
 #include "nav2_map_server/map_server.hpp"
@@ -38,6 +32,15 @@ using namespace rclcpp;  // NOLINT
 using std::filesystem::path;
 
 using lifecycle_msgs::msg::Transition;
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+
+RclCppFixture g_rclcppfixture;
 
 class MapServerTestFixture : public ::testing::Test
 {
@@ -231,17 +234,4 @@ TEST_F(MapServerTestFixture, NoInitialMap)
 
   ASSERT_EQ(load_res->result, nav2_msgs::srv::LoadMap::Response::RESULT_SUCCESS);
   verifyMapMsg(load_res->map);
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

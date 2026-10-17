@@ -21,7 +21,7 @@ import time
 import unittest
 
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import PoseStamped, TransformStamped, Twist, TwistStamped
+from geometry_msgs.msg import PoseStamped, TransformStamped, Twist
 from launch import LaunchDescription
 from launch_ros.actions import Node
 import launch_testing
@@ -36,22 +36,11 @@ from rclpy.executors import SingleThreadedExecutor
 import tf2_ros
 from tf2_ros import TransformBroadcaster
 
-# This test can be run standalone with:
-# python3 -u -m pytest test_following_server.py -s
-
-# If python3-flaky is installed, you can run the test multiple times to
-# try to identify flaky ness.
-# python3 -u -m pytest --force-flaky --min-passes 3 --max-runs 5 -s -v test_following_server.py
-
 
 @pytest.mark.rostest
-# @pytest.mark.flaky
-# @pytest.mark.flaky(max_runs=5, min_passes=3)
 def generate_test_description():
 
     return LaunchDescription([
-        # SetEnvironmentVariable('RCUTILS_LOGGING_BUFFERED_STREAM', '1'),
-        # SetEnvironmentVariable('RCUTILS_LOGGING_USE_STDOUT', '1'),
         Node(
             package='opennav_following',
             executable='opennav_following',
@@ -98,21 +87,17 @@ class ObjectPublisher:
         at_distance_getter,
         mode='topic',
     ):
-        # Create a dedicated node and executor so timers and clocks behave correctly
         self._node = rclpy.create_node('test_object_pose_publisher')
         self._pub = self._node.create_publisher(PoseStamped, topic_name, 10)
         self._at_distance_getter = at_distance_getter
         self._mode = mode
         self._frame_name = frame_name
 
-        # Timer will drive publishing for both modes
         self._timer = self._node.create_timer(1.0 / rate_hz, self._timer_cb)
 
-        # Use a single-threaded executor to spin this node in the background
         self._executor = SingleThreadedExecutor()
         self._executor.add_node(self._node)
 
-        # If in frame mode, create a TransformBroadcaster for publishing TF
         self._tf_broadcaster = None
         if self._mode == 'frame':
             self._tf_broadcaster = TransformBroadcaster(self._node)
@@ -122,7 +107,6 @@ class ObjectPublisher:
         self._thread.start()
 
     def _timer_cb(self):
-        # Called in executor context at the configured rate
         if self._at_distance_getter():
             return
         if self._mode == 'topic':
@@ -134,7 +118,6 @@ class ObjectPublisher:
             self._pub.publish(p)
             self._node.get_logger().debug('Publishing pose')
         elif self._mode == 'frame':
-            # Publish a TF map -> object_frame
             t = TransformStamped()
             t.header.stamp = self._node.get_clock().now().to_msg()
             t.header.frame_id = 'map'
@@ -149,17 +132,14 @@ class ObjectPublisher:
                 self._tf_broadcaster.sendTransform(t)
 
     def _spin(self):
-        # Spin until stop event is set
         try:
             while not self._stop_event.is_set():
                 self._executor.spin_once(timeout_sec=0.1)
         except Exception:
-            # Ensure we don't crash the main test thread
             pass
 
     def shutdown(self):
         self._stop_event.set()
-        # Allow the executor loop to finish
         self._thread.join(timeout=1.0)
         try:
             self._executor.remove_node(self._node)
@@ -182,23 +162,16 @@ class TestFollowingServer(unittest.TestCase):
         rclpy.shutdown()
 
     def setUp(self):
-        # Create a ROS node for tests
-        # Latest odom -> base_link
         self.x = 0.0
         self.y = 0.0
         self.theta = 0.0
-        # Track states
         self.at_distance = False
         self.retry_state = False
-        # Latest command velocity
         self.command = Twist()
         self.node = rclpy.create_node('test_following_server')
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self.node)
-        # Determine test mode from environment: 'topic, 'frame' or 'search'
         mode_env = os.getenv('FOLLOWING_MODE', 'topic')
-        # In 'search' mode stop publishing once the robot reaches 0.75m so the server must
-        # perform its recovery behavior (object lost)
         if mode_env == 'search':
             def at_distance_getter():
                 return bool(((self.x ** 2 + self.y ** 2) ** 0.5) >= 0.75)
@@ -226,7 +199,7 @@ class TestFollowingServer(unittest.TestCase):
 
         start_time = time.time()
         while time.time() - start_time < timeout_sec:
-            req = GetState.Request()  # empty request
+            req = GetState.Request()
             future = client.call_async(req)
             rclpy.spin_until_future_complete(self.node, future, timeout_sec=1.0)
             result = future.result()
@@ -234,7 +207,6 @@ class TestFollowingServer(unittest.TestCase):
                 self.node.get_logger().info(f'Node {node_name} is active.')
                 return
             time.sleep(0.5)
-        # raises AssertionError
         self.fail(f'Node {node_name} did not become active within {timeout_sec} seconds.')
 
     def tearDown(self):
@@ -242,20 +214,17 @@ class TestFollowingServer(unittest.TestCase):
         self.node.destroy_node()
 
     def command_velocity_callback(self, msg):
-        self.node.get_logger().info(f'Command: {msg.twist.linear.x:f} {msg.twist.angular.z:f}')
-        self.command = msg.twist
+        self.node.get_logger().info(f'Command: {msg.linear.x:f} {msg.angular.z:f}')
+        self.command = msg
 
     def timer_callback(self):
-        # Propagate command
         period = 0.05
         self.x += cos(self.theta) * self.command.linear.x * period
         self.y += sin(self.theta) * self.command.linear.x * period
         self.theta += self.command.angular.z * period
-        # Need to publish updated TF
         self.publish()
 
     def publish(self):
-        # Publish base->odom transform
         t = TransformStamped()
         t.header.stamp = self.node.get_clock().now().to_msg()
         t.header.frame_id = 'odom'
@@ -265,7 +234,6 @@ class TestFollowingServer(unittest.TestCase):
         t.transform.rotation.z = sin(self.theta / 2.0)
         t.transform.rotation.w = cos(self.theta / 2.0)
         self.tf_broadcaster.sendTransform(t)
-        # Also publish map->odom transform so object pose in 'map' can be transformed
         m = TransformStamped()
         m.header.stamp = self.node.get_clock().now().to_msg()
         m.header.frame_id = 'map'
@@ -282,8 +250,6 @@ class TestFollowingServer(unittest.TestCase):
         self,
         msg
     ):
-        # Force the following action to run a full recovery loop when
-        # the robot is at distance
         if msg.feedback.state == msg.feedback.STOPPING:
             self.at_distance = True
         elif msg.feedback.state == msg.feedback.RETRY:
@@ -291,28 +257,22 @@ class TestFollowingServer(unittest.TestCase):
             self.retry_state = True
 
     def test_following_server(self):
-        # Publish TF for odometry
         self.tf_broadcaster = TransformBroadcaster(self.node)
         time.sleep(0.5)
 
-        # Create a timer to run "control loop" at 20hz
         self.timer = self.node.create_timer(0.05, self.timer_callback)
 
-        # Create action client
         self.follow_action_client = ActionClient(self.node, FollowObject, 'follow_object')
 
-        # Subscribe to command velocity
         self.node.create_subscription(
-            TwistStamped,
+            Twist,
             'cmd_vel',
             self.command_velocity_callback,
             10
         )
 
-        # Publish transform
         self.publish()
 
-        # Wait until the transform is available.
         self.node.get_logger().info('Waiting for TF odom->base_link to be available...')
         start_time = time.time()
         timeout = 10.0
@@ -323,15 +283,12 @@ class TestFollowingServer(unittest.TestCase):
             time.sleep(0.1)
         self.node.get_logger().info('TF is ready, proceeding with test.')
 
-        # Wait until the following server is active.
         self.wait_for_node_to_be_active('following_server')
 
-        # Test follow action with an object at 1.75m in front of the robot
         self.action_result = []
         assert self.follow_action_client.wait_for_server(timeout_sec=5.0), \
             'follow_object service not available'
 
-        # Create the goal
         goal = FollowObject.Goal()
         if os.getenv('FOLLOWING_MODE') == 'topic' or os.getenv('FOLLOWING_MODE') == 'search':
             goal.pose_topic = 'tested_pose'
@@ -340,7 +297,6 @@ class TestFollowingServer(unittest.TestCase):
             goal.tracked_frame = 'object_frame'
             goal.max_duration = Duration(seconds=4.0).to_msg()
 
-        # Send a goal
         self.node.get_logger().info('Sending first goal')
         future = self.follow_action_client.send_goal_async(
             goal, feedback_callback=self.action_feedback_callback)
@@ -350,12 +306,10 @@ class TestFollowingServer(unittest.TestCase):
         assert self.goal_handle.accepted, 'goal_handle not accepted'
         result_future_original = self.goal_handle.get_result_async()
 
-        # Run for 2 seconds
         for _ in range(20):
             rclpy.spin_once(self.node, timeout_sec=0.1)
             time.sleep(0.1)
 
-        # Send another goal to preempt the first
         self.node.get_logger().info('Preempting with a new goal')
         future = self.follow_action_client.send_goal_async(
             goal, feedback_callback=self.action_feedback_callback)
@@ -370,7 +324,6 @@ class TestFollowingServer(unittest.TestCase):
         rclpy.spin_until_future_complete(self.node, result_future_original)
         self.action_result.append(result_future_original.result())
 
-        # First is aborted due to preemption
         self.assertIsNotNone(self.action_result[0])
         if self.action_result[0] is not None:
             self.assertEqual(self.action_result[0].status, GoalStatus.STATUS_ABORTED)
@@ -379,19 +332,16 @@ class TestFollowingServer(unittest.TestCase):
 
         self.node.get_logger().info('Goal preempted')
 
-        # Run for 0.5 seconds
         for _ in range(5):
             rclpy.spin_once(self.node, timeout_sec=0.1)
             time.sleep(0.1)
 
-        # Second is aborted due to preemption during main loop (takes down all actions)
         self.assertIsNotNone(self.action_result[1])
         if self.action_result[1] is not None:
             self.assertEqual(self.action_result[1].status, GoalStatus.STATUS_ABORTED)
             self.assertTrue(self.action_result[1].result, FollowObject.Result.NONE)
             self.assertFalse(self.at_distance)
 
-        # Resend the goal
         self.node.get_logger().info('Sending goal again')
         future = self.follow_action_client.send_goal_async(
             goal, feedback_callback=self.action_feedback_callback)
@@ -416,5 +366,4 @@ class TestFollowingServer(unittest.TestCase):
 class TestProcessOutput(unittest.TestCase):
 
     def test_exit_code(self, proc_info):
-        # Check that all processes in the launch exit with code 0
         launch_testing.asserts.assertExitCodes(proc_info)

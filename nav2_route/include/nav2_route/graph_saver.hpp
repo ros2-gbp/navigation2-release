@@ -22,9 +22,10 @@
 #include <nlohmann/json.hpp>
 #include <pluginlib/class_loader.hpp>
 
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/lifecycle_node.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "nav2_util/node_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
 #include "nav2_route/types.hpp"
 #include "nav2_route/interfaces/graph_file_saver.hpp"
@@ -47,8 +48,8 @@ public:
    * @param frame Coordinate frame that the graph belongs to
    */
   explicit GraphSaver(
-    nav2::LifecycleNode::SharedPtr node,
-    nav2::TransformBuffer::SharedPtr tf,
+    nav2_util::LifecycleNode::SharedPtr node,
+    std::shared_ptr<tf2_ros::Buffer> tf,
     const std::string frame);
 
   /**
@@ -75,7 +76,7 @@ public:
 
 protected:
   std::string route_frame_, graph_filepath_;
-  nav2::TransformBuffer::SharedPtr tf_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
   rclcpp::Logger logger_{rclcpp::get_logger("GraphSaver")};
 
   // Graph Parser

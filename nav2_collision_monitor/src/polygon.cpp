@@ -14,36 +14,32 @@
 
 #include "nav2_collision_monitor/polygon.hpp"
 
-#include <algorithm>
 #include <exception>
 #include <utility>
 
 #include "geometry_msgs/msg/point.hpp"
 #include "geometry_msgs/msg/point32.hpp"
-#include "tf2/transform_datatypes.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2/transform_datatypes.h"
 
-#include "nav2_ros_common/node_utils.hpp"
-#include "nav2_util/geometry_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
+#include "nav2_util/array_parser.hpp"
 
 #include "nav2_collision_monitor/kinematics.hpp"
-#include "nav2_collision_monitor/polygon_utils.hpp"
 
 namespace nav2_collision_monitor
 {
 
 Polygon::Polygon(
-  const nav2::LifecycleNode::WeakPtr & node,
+  const nav2_util::LifecycleNode::WeakPtr & node,
   const std::string & polygon_name,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   const std::string & base_frame_id,
   const tf2::Duration & transform_tolerance)
 : node_(node), polygon_name_(polygon_name), action_type_(DO_NOTHING),
   slowdown_ratio_(0.0), linear_limit_(0.0), angular_limit_(0.0),
   footprint_sub_(nullptr), tf_buffer_(tf_buffer),
-  base_frame_id_(base_frame_id), transform_tolerance_(transform_tolerance),
-  node_clock_(nullptr)
+  base_frame_id_(base_frame_id), transform_tolerance_(transform_tolerance)
 {
   RCLCPP_INFO(logger_, "[%s]: Creating Polygon", polygon_name_.c_str());
 }
@@ -54,16 +50,7 @@ Polygon::~Polygon()
   polygon_sub_.reset();
   polygon_pub_.reset();
   poly_.clear();
-  node_clock_.reset();
-  auto node = node_.lock();
-  if (post_set_params_handler_ && node) {
-    node->remove_post_set_parameters_callback(post_set_params_handler_.get());
-  }
-  post_set_params_handler_.reset();
-  if (on_set_params_handler_ && node) {
-    node->remove_on_set_parameters_callback(on_set_params_handler_.get());
-  }
-  on_set_params_handler_.reset();
+  dyn_params_handler_.reset();
 }
 
 bool Polygon::configure()
@@ -73,7 +60,6 @@ bool Polygon::configure()
     throw std::runtime_error{"Failed to lock node"};
   }
 
-  node_clock_ = node->get_clock();
   std::string polygon_sub_topic, polygon_pub_topic, footprint_topic;
 
   if (!getParameters(polygon_sub_topic, polygon_pub_topic, footprint_topic)) {
@@ -105,27 +91,20 @@ bool Polygon::configure()
       polygon_.polygon.points.push_back(p_s);
     }
 
+    rclcpp::QoS polygon_qos = rclcpp::SystemDefaultsQoS();  // set to default
     polygon_pub_ = node->create_publisher<geometry_msgs::msg::PolygonStamped>(
-      polygon_pub_topic);
+      polygon_pub_topic, polygon_qos);
   }
 
   // Add callback for dynamic parameters
-  post_set_params_handler_ = node->add_post_set_parameters_callback(
-    std::bind(
-      &Polygon::updateParametersCallback,
-      this, std::placeholders::_1));
-  on_set_params_handler_ = node->add_on_set_parameters_callback(
-    std::bind(
-      &Polygon::validateParameterUpdatesCallback,
-      this, std::placeholders::_1));
+  dyn_params_handler_ = node->add_on_set_parameters_callback(
+    std::bind(&Polygon::dynamicParametersCallback, this, std::placeholders::_1));
 
   return true;
 }
 
 void Polygon::activate()
 {
-  resetTriggerState();
-
   if (visualize_) {
     polygon_pub_->on_activate();
   }
@@ -150,54 +129,12 @@ ActionType Polygon::getActionType() const
 
 bool Polygon::getEnabled() const
 {
-  std::lock_guard<std::mutex> lock_reinit(mutex_);
   return enabled_;
 }
 
 int Polygon::getMinPoints() const
 {
   return min_points_;
-}
-
-bool Polygon::isTriggered(
-  const std::unordered_map<std::string, std::vector<Point>> & sources_collision_points_map,
-  std::vector<Point> & out_triggering_points)
-{
-  const int points_inside = getPointsInside(sources_collision_points_map, out_triggering_points);
-  return isTriggeredInternal(points_inside);
-}
-
-bool Polygon::isTriggeredInternal(int points_inside)
-{
-  const bool hit_now = points_inside >= min_points_;
-
-  if (trigger_consecutive_points_ == 1 && release_consecutive_points_ == 1) {
-    trigger_active_ = hit_now;
-    return trigger_active_;
-  }
-
-  if (hit_now) {
-    trigger_hits_ += 1;
-    release_hits_ = 0;
-    if (trigger_hits_ >= trigger_consecutive_points_) {
-      trigger_active_ = true;
-    }
-  } else {
-    release_hits_ += 1;
-    trigger_hits_ = 0;
-    if (release_hits_ >= release_consecutive_points_) {
-      trigger_active_ = false;
-    }
-  }
-
-  return trigger_active_;
-}
-
-void Polygon::resetTriggerState()
-{
-  trigger_hits_ = 0;
-  release_hits_ = 0;
-  trigger_active_ = false;
 }
 
 double Polygon::getSlowdownRatio() const
@@ -227,10 +164,6 @@ std::vector<std::string> Polygon::getSourcesNames() const
 
 void Polygon::getPolygon(std::vector<Point> & poly) const
 {
-  poly.clear();
-  if (poly_.empty()) {
-    return;
-  }
   poly = poly_;
 }
 
@@ -290,14 +223,11 @@ void Polygon::updatePolygon(const Velocity & /*cmd_vel_in*/)
   }
 }
 
-int Polygon::getPointsInside(
-  const std::vector<Point> & points,
-  std::vector<Point> & out_triggering_points) const
+int Polygon::getPointsInside(const std::vector<Point> & points) const
 {
   int num = 0;
   for (const Point & point : points) {
-    if (nav2_util::geometry_utils::isPointInsidePolygon(point.x, point.y, poly_)) {
-      out_triggering_points.push_back(point);
+    if (isPointInside(point)) {
       num++;
     }
   }
@@ -305,22 +235,8 @@ int Polygon::getPointsInside(
 }
 
 int Polygon::getPointsInside(
-  const std::vector<Point> & points,
-  std::vector<std::size_t> & out_triggering_indices) const
-{
-  int num = 0;
-  for (std::size_t i = 0; i < points.size(); ++i) {
-    if (nav2_util::geometry_utils::isPointInsidePolygon(points[i].x, points[i].y, poly_)) {
-      out_triggering_indices.push_back(i);
-      num++;
-    }
-  }
-  return num;
-}
-
-int Polygon::getPointsInside(
-  const std::unordered_map<std::string, std::vector<Point>> & sources_collision_points_map,
-  std::vector<Point> & out_triggering_points) const
+  const std::unordered_map<std::string,
+  std::vector<Point>> & sources_collision_points_map) const
 {
   int num = 0;
   std::vector<std::string> polygon_sources_names = getSourcesNames();
@@ -329,7 +245,7 @@ int Polygon::getPointsInside(
   for (const auto & source_name : polygon_sources_names) {
     const auto & iter = sources_collision_points_map.find(source_name);
     if (iter != sources_collision_points_map.end()) {
-      num += getPointsInside(iter->second, out_triggering_points);
+      num += getPointsInside(iter->second);
     }
   }
 
@@ -338,8 +254,7 @@ int Polygon::getPointsInside(
 
 double Polygon::getCollisionTime(
   const std::unordered_map<std::string, std::vector<Point>> & sources_collision_points_map,
-  const Velocity & velocity,
-  std::vector<Point> & out_triggering_points) const
+  const Velocity & velocity) const
 {
   // Initial robot pose is {0,0} in base_footprint coordinates
   Pose pose = {0.0, 0.0, 0.0};
@@ -360,7 +275,7 @@ double Polygon::getCollisionTime(
   std::vector<Point> points_transformed = collision_points;
 
   // Check static polygon
-  if (getPointsInside(collision_points, out_triggering_points) >= min_points_) {
+  if (getPointsInside(collision_points) >= min_points_) {
     return 0.0;
   }
 
@@ -374,11 +289,7 @@ double Polygon::getCollisionTime(
     transformPoints(pose, points_transformed);
     // If the collision occurred on this stage, return the actual time before a collision
     // as if robot was moved with given velocity
-    std::vector<std::size_t> triggering_indices;
-    if (getPointsInside(points_transformed, triggering_indices) >= min_points_) {
-      for (std::size_t i : triggering_indices) {
-        out_triggering_points.push_back(collision_points[i]);
-      }
+    if (getPointsInside(points_transformed) >= min_points_) {
       return time;
     }
   }
@@ -418,8 +329,10 @@ bool Polygon::getCommonParameters(
   try {
     // Get action type.
     // Leave it not initialized: the will cause an error if it will not set.
-    const std::string at_str = node->declare_or_get_parameter<std::string>(
-      polygon_name_ + ".action_type");
+    nav2_util::declare_parameter_if_not_declared(
+      node, polygon_name_ + ".action_type", rclcpp::PARAMETER_STRING);
+    const std::string at_str =
+      node->get_parameter(polygon_name_ + ".action_type").as_string();
     if (at_str == "stop") {
       action_type_ = STOP;
     } else if (at_str == "slowdown") {
@@ -435,25 +348,18 @@ bool Polygon::getCommonParameters(
       return false;
     }
 
-    enabled_ = node->declare_or_get_parameter(polygon_name_ + ".enabled", true);
-    min_points_ = node->declare_or_get_parameter(polygon_name_ + ".min_points", 4);
-    trigger_consecutive_points_ = node->declare_or_get_parameter(
-      polygon_name_ + ".trigger_consecutive_points", 1);
-    release_consecutive_points_ = node->declare_or_get_parameter(
-      polygon_name_ + ".release_consecutive_points", 1);
+    nav2_util::declare_parameter_if_not_declared(
+      node, polygon_name_ + ".enabled", rclcpp::ParameterValue(true));
+    enabled_ = node->get_parameter(polygon_name_ + ".enabled").as_bool();
 
-    if (trigger_consecutive_points_ < 1 || release_consecutive_points_ < 1) {
-      RCLCPP_ERROR(
-        logger_,
-        "[%s]: trigger_consecutive_points and release_consecutive_points must be >= 1",
-        polygon_name_.c_str());
-      return false;
-    }
-
-    resetTriggerState();
+    nav2_util::declare_parameter_if_not_declared(
+      node, polygon_name_ + ".min_points", rclcpp::ParameterValue(4));
+    min_points_ = node->get_parameter(polygon_name_ + ".min_points").as_int();
 
     try {
-      min_points_ = node->declare_or_get_parameter<int>(polygon_name_ + ".max_points") + 1;
+      nav2_util::declare_parameter_if_not_declared(
+        node, polygon_name_ + ".max_points", rclcpp::PARAMETER_INTEGER);
+      min_points_ = node->get_parameter(polygon_name_ + ".max_points").as_int() + 1;
       RCLCPP_WARN(
         logger_,
         "[%s]: \"max_points\" parameter was deprecated. Use \"min_points\" instead to specify "
@@ -464,49 +370,71 @@ bool Polygon::getCommonParameters(
     }
 
     if (action_type_ == SLOWDOWN) {
-      slowdown_ratio_ = node->declare_or_get_parameter(polygon_name_ + ".slowdown_ratio", 0.5);
+      nav2_util::declare_parameter_if_not_declared(
+        node, polygon_name_ + ".slowdown_ratio", rclcpp::ParameterValue(0.5));
+      slowdown_ratio_ = node->get_parameter(polygon_name_ + ".slowdown_ratio").as_double();
     }
 
     if (action_type_ == LIMIT) {
-      linear_limit_ = node->declare_or_get_parameter(polygon_name_ + ".linear_limit", 0.5);
-      angular_limit_ = node->declare_or_get_parameter(polygon_name_ + ".angular_limit", 0.5);
+      nav2_util::declare_parameter_if_not_declared(
+        node, polygon_name_ + ".linear_limit", rclcpp::ParameterValue(0.5));
+      linear_limit_ = node->get_parameter(polygon_name_ + ".linear_limit").as_double();
+      nav2_util::declare_parameter_if_not_declared(
+        node, polygon_name_ + ".angular_limit", rclcpp::ParameterValue(0.5));
+      angular_limit_ = node->get_parameter(polygon_name_ + ".angular_limit").as_double();
     }
 
     if (action_type_ == APPROACH) {
-      time_before_collision_ = node->declare_or_get_parameter(
-        polygon_name_ + ".time_before_collision", 2.0);
-      simulation_time_step_ = node->declare_or_get_parameter(
-        polygon_name_ + ".simulation_time_step", 0.1);
+      nav2_util::declare_parameter_if_not_declared(
+        node, polygon_name_ + ".time_before_collision", rclcpp::ParameterValue(2.0));
+      time_before_collision_ =
+        node->get_parameter(polygon_name_ + ".time_before_collision").as_double();
+      nav2_util::declare_parameter_if_not_declared(
+        node, polygon_name_ + ".simulation_time_step", rclcpp::ParameterValue(0.1));
+      simulation_time_step_ =
+        node->get_parameter(polygon_name_ + ".simulation_time_step").as_double();
     }
 
-    visualize_ = node->declare_or_get_parameter(polygon_name_ + ".visualize", false);
+    nav2_util::declare_parameter_if_not_declared(
+      node, polygon_name_ + ".visualize", rclcpp::ParameterValue(false));
+    visualize_ = node->get_parameter(polygon_name_ + ".visualize").as_bool();
     if (visualize_) {
       // Get polygon topic parameter in case if it is going to be published
-      polygon_pub_topic = node->declare_or_get_parameter(
-        polygon_name_ + ".polygon_pub_topic", polygon_name_);
+      nav2_util::declare_parameter_if_not_declared(
+        node, polygon_name_ + ".polygon_pub_topic", rclcpp::ParameterValue(polygon_name_));
+      polygon_pub_topic = node->get_parameter(polygon_name_ + ".polygon_pub_topic").as_string();
     }
 
-    polygon_subscribe_transient_local_ = node->declare_or_get_parameter(
-      polygon_name_ + ".polygon_subscribe_transient_local", false);
+    nav2_util::declare_parameter_if_not_declared(
+      node, polygon_name_ + ".polygon_subscribe_transient_local", rclcpp::ParameterValue(false));
+    polygon_subscribe_transient_local_ =
+      node->get_parameter(polygon_name_ + ".polygon_subscribe_transient_local").as_bool();
 
     if (use_dynamic_sub_topic) {
       if (action_type_ != APPROACH) {
         // Get polygon sub topic
-        polygon_sub_topic = node->declare_or_get_parameter<std::string>(
-          polygon_name_ + ".polygon_sub_topic");
+        nav2_util::declare_parameter_if_not_declared(
+          node, polygon_name_ + ".polygon_sub_topic", rclcpp::PARAMETER_STRING);
+        polygon_sub_topic =
+          node->get_parameter(polygon_name_ + ".polygon_sub_topic").as_string();
       } else {
         // Obtain the footprint topic to make a footprint subscription for approach polygon
-        footprint_topic = node->declare_or_get_parameter(
-          polygon_name_ + ".footprint_topic",
-          std::string("local_costmap/published_footprint"));
+        nav2_util::declare_parameter_if_not_declared(
+          node, polygon_name_ + ".footprint_topic",
+          rclcpp::ParameterValue("local_costmap/published_footprint"));
+        footprint_topic =
+          node->get_parameter(polygon_name_ + ".footprint_topic").as_string();
       }
     }
 
     // By default, use all observation sources for polygon
+    nav2_util::declare_parameter_if_not_declared(
+      node, "observation_sources", rclcpp::PARAMETER_STRING_ARRAY);
     const std::vector<std::string> observation_sources =
-      node->declare_or_get_parameter<std::vector<std::string>>("observation_sources");
-    sources_names_ = node->declare_or_get_parameter(
-      polygon_name_ + ".sources_names", observation_sources);
+      node->get_parameter("observation_sources").as_string_array();
+    nav2_util::declare_parameter_if_not_declared(
+      node, polygon_name_ + ".sources_names", rclcpp::ParameterValue(observation_sources));
+    sources_names_ = node->get_parameter(polygon_name_ + ".sources_names").as_string_array();
 
     // Check the observation sources configured for polygon are defined
     for (auto source_name : sources_names_) {
@@ -549,11 +477,13 @@ bool Polygon::getParameters(
   bool use_dynamic_sub = true;  // if getting parameter points fails, use dynamic subscription
   try {
     // Leave it uninitialized: it will throw an inner exception if the parameter is not set
-    std::string poly_string = node->declare_or_get_parameter<std::string>(
-      polygon_name_ + ".points");
+    nav2_util::declare_parameter_if_not_declared(
+      node, polygon_name_ + ".points", rclcpp::PARAMETER_STRING);
+    std::string poly_string =
+      node->get_parameter(polygon_name_ + ".points").as_string();
 
     use_dynamic_sub = !getPolygonFromString(poly_string, poly_);
-  } catch (const rclcpp::exceptions::InvalidParameterValueException &) {
+  } catch (const rclcpp::exceptions::ParameterUninitializedException &) {
     RCLCPP_INFO(
       logger_,
       "[%s]: Polygon points are not defined. Using dynamic subscription instead.",
@@ -588,14 +518,13 @@ void Polygon::createSubscription(std::string & polygon_sub_topic)
       logger_,
       "[%s]: Subscribing on %s topic for polygon",
       polygon_name_.c_str(), polygon_sub_topic.c_str());
-    rclcpp::QoS polygon_qos = nav2::qos::StandardTopicQoS();
+    rclcpp::QoS polygon_qos = rclcpp::SystemDefaultsQoS();  // set to default
     if (polygon_subscribe_transient_local_) {
       polygon_qos.transient_local();
     }
     polygon_sub_ = node->create_subscription<geometry_msgs::msg::PolygonStamped>(
-      polygon_sub_topic,
-      std::bind(&Polygon::polygonCallback, this, std::placeholders::_1),
-      polygon_qos);
+      polygon_sub_topic, polygon_qos,
+      std::bind(&Polygon::polygonCallback, this, std::placeholders::_1));
   }
 }
 
@@ -635,70 +564,67 @@ void Polygon::updatePolygon(geometry_msgs::msg::PolygonStamped::ConstSharedPtr m
   // Store incoming polygon for further (possible) poly_ vertices corrections
   // from PolygonStamped frame -> to base frame
   polygon_ = *msg;
-
-  resetTriggerState();
 }
 
-rcl_interfaces::msg::SetParametersResult Polygon::validateParameterUpdatesCallback(
-  const std::vector<rclcpp::Parameter> & /*parameters*/)
+rcl_interfaces::msg::SetParametersResult
+Polygon::dynamicParametersCallback(
+  std::vector<rclcpp::Parameter> parameters)
 {
   rcl_interfaces::msg::SetParametersResult result;
+
+  for (auto parameter : parameters) {
+    const auto & param_type = parameter.get_type();
+    const auto & param_name = parameter.get_name();
+
+    if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_BOOL) {
+      if (param_name == polygon_name_ + "." + "enabled") {
+        enabled_ = parameter.as_bool();
+      }
+    }
+  }
   result.successful = true;
   return result;
 }
 
-void Polygon::updateParametersCallback(
-  const std::vector<rclcpp::Parameter> & parameters)
-{
-  std::lock_guard<std::mutex> lock_reinit(mutex_);
-
-  for (const auto & parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if (param_name.find(polygon_name_ + ".") != 0) {
-      continue;
-    }
-    if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_BOOL) {
-      if (param_name == polygon_name_ + "." + "enabled") {
-        enabled_ = parameter.as_bool();
-        resetTriggerState();
-      }
-    }
-
-    if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER) {
-      if (param_name == polygon_name_ + "." + "min_points") {
-        min_points_ = std::max(1, static_cast<int>(parameter.as_int()));
-        resetTriggerState();
-      } else if (param_name == polygon_name_ + "." + "trigger_consecutive_points") {
-        const auto value = static_cast<int>(parameter.as_int());
-        if (value < 1) {
-          throw rclcpp::exceptions::InvalidParameterValueException(
-            "Parameter 'trigger_consecutive_points' must be >= 1");
-        }
-        trigger_consecutive_points_ = value;
-        resetTriggerState();
-      } else if (param_name == polygon_name_ + "." + "release_consecutive_points") {
-        const auto value = static_cast<int>(parameter.as_int());
-        if (value < 1) {
-          throw rclcpp::exceptions::InvalidParameterValueException(
-            "Parameter 'release_consecutive_points' must be >= 1");
-        }
-        release_consecutive_points_ = value;
-        resetTriggerState();
-      }
-    }
-  }
-}
-
 void Polygon::polygonCallback(geometry_msgs::msg::PolygonStamped::ConstSharedPtr msg)
 {
-  RCLCPP_INFO_THROTTLE(
+  RCLCPP_INFO(
     logger_,
-    *node_clock_,
-    2000,
-    "[%s]: Polygon shape update has arrived",
+    "[%s]: Polygon shape update has been arrived",
     polygon_name_.c_str());
   updatePolygon(msg);
+}
+
+inline bool Polygon::isPointInside(const Point & point) const
+{
+  // Adaptation of Shimrat, Moshe. "Algorithm 112: position of point relative to polygon."
+  // Communications of the ACM 5.8 (1962): 434.
+  // Implementation of ray crossings algorithm for point in polygon task solving.
+  // Y coordinate is fixed. Moving the ray on X+ axis starting from given point.
+  // Odd number of intersections with polygon boundaries means the point is inside polygon.
+  const int poly_size = poly_.size();
+  int i, j;  // Polygon vertex iterators
+  bool res = false;  // Final result, initialized with already inverted value
+
+  // Starting from the edge where the last point of polygon is connected to the first
+  i = poly_size - 1;
+  for (j = 0; j < poly_size; j++) {
+    // Checking the edge only if given point is between edge boundaries by Y coordinates.
+    // One of the condition should contain equality in order to exclude the edges
+    // parallel to X+ ray.
+    if ((point.y <= poly_[i].y) == (point.y > poly_[j].y)) {
+      // Calculating the intersection coordinate of X+ ray
+      const double x_inter = poly_[i].x +
+        (point.y - poly_[i].y) * (poly_[j].x - poly_[i].x) /
+        (poly_[j].y - poly_[i].y);
+      // If intersection with checked edge is greater than point.x coordinate, inverting the result
+      if (x_inter > point.x) {
+        res = !res;
+      }
+    }
+    i = j;
+  }
+  return res;
 }
 
 bool Polygon::getPolygonFromString(
@@ -706,12 +632,39 @@ bool Polygon::getPolygonFromString(
   std::vector<Point> & polygon)
 {
   std::string error;
-  // Historically the collision-monitor polygon requires at least 4 vertices.
-  if (!parsePolygonPoints(poly_string, 4, polygon, error)) {
+  std::vector<std::vector<float>> vvf = nav2_util::parseVVF(poly_string, error);
+
+  if (error != "") {
     RCLCPP_ERROR(
-      logger_, "[%s]: %s", polygon_name_.c_str(), error.c_str());
+      logger_, "Error parsing polygon parameter %s: '%s'",
+      poly_string.c_str(), error.c_str());
     return false;
   }
+
+  // Check for minimum 4 points
+  if (vvf.size() <= 3) {
+    RCLCPP_ERROR(
+      logger_,
+      "Polygon must have at least three points.");
+    return false;
+  }
+  for (unsigned int i = 0; i < vvf.size(); i++) {
+    if (vvf[i].size() == 2) {
+      Point point;
+      point.x = vvf[i][0];
+      point.y = vvf[i][1];
+      polygon.push_back(point);
+    } else {
+      RCLCPP_ERROR(
+        logger_,
+        "Points in the polygon specification must be pairs of numbers"
+        "Found a point with %d numbers.",
+        static_cast<int>(vvf[i].size()));
+      polygon.clear();
+      return false;
+    }
+  }
+
   return true;
 }
 

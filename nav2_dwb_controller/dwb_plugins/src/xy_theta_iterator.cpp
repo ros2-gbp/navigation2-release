@@ -38,21 +38,31 @@
 #include <memory>
 #include <string>
 
+#include "nav_2d_utils/parameters.hpp"
+#include "nav2_util/node_utils.hpp"
+
 namespace dwb_plugins
 {
 void XYThetaIterator::initialize(
-  const nav2::LifecycleNode::SharedPtr & nh,
+  const nav2_util::LifecycleNode::SharedPtr & nh,
   KinematicsHandler::Ptr kinematics,
   const std::string & plugin_name)
 {
   kinematics_handler_ = kinematics;
 
-  vx_samples_ = nh->declare_or_get_parameter(
-    plugin_name + ".vx_samples", 20);
-  vy_samples_ = nh->declare_or_get_parameter(
-    plugin_name + ".vy_samples", 5);
-  vtheta_samples_ = nh->declare_or_get_parameter(
-    plugin_name + ".vtheta_samples", 20);
+  nav2_util::declare_parameter_if_not_declared(
+    nh,
+    plugin_name + ".vx_samples", rclcpp::ParameterValue(20));
+  nav2_util::declare_parameter_if_not_declared(
+    nh,
+    plugin_name + ".vy_samples", rclcpp::ParameterValue(5));
+  nav2_util::declare_parameter_if_not_declared(
+    nh,
+    plugin_name + ".vtheta_samples", rclcpp::ParameterValue(20));
+
+  nh->get_parameter(plugin_name + ".vx_samples", vx_samples_);
+  nh->get_parameter(plugin_name + ".vy_samples", vy_samples_);
+  nh->get_parameter(plugin_name + ".vtheta_samples", vtheta_samples_);
 }
 
 void XYThetaIterator::startNewIteration(

@@ -15,6 +15,7 @@
 #include <chrono>
 #include <string>
 
+#include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "behaviortree_cpp/decorator_node.h"
 #include "nav2_behavior_tree/plugins/decorator/goal_updated_controller.hpp"
@@ -43,7 +44,7 @@ BT::NodeStatus GoalUpdatedController::tick()
 
   setStatus(BT::NodeStatus::RUNNING);
 
-  nav_msgs::msg::Goals current_goals;
+  std::vector<geometry_msgs::msg::PoseStamped> current_goals;
   BT::getInputOrBlackboard("goals", current_goals);
   geometry_msgs::msg::PoseStamped current_goal;
   BT::getInputOrBlackboard("goal", current_goal);

@@ -18,18 +18,27 @@ from pathlib import Path
 import sys
 
 from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription, LaunchService
-from launch.actions import (AppendEnvironmentVariable, ExecuteProcess, IncludeLaunchDescription,
-                            SetEnvironmentVariable)
+
+from launch import LaunchDescription
+from launch import LaunchService
+from launch.actions import (
+    AppendEnvironmentVariable,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 from launch_testing.legacy import LaunchTestService
+
 from nav2_common.launch import RewrittenYaml
+from nav2_simple_commander.utils import kill_os_processes
 
 
 def generate_launch_description():
     sim_dir = get_package_share_directory('nav2_minimal_tb3_sim')
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
+    ros_gz_sim_dir = get_package_share_directory('ros_gz_sim')
 
     world_sdf_xacro = os.path.join(sim_dir, 'worlds', 'tb3_sandbox.sdf.xacro')
     robot_sdf = os.path.join(sim_dir, 'urdf', 'gz_waffle.sdf.xacro')
@@ -43,7 +52,7 @@ def generate_launch_description():
     bt_navigator_xml = os.path.join(
         get_package_share_directory('nav2_bt_navigator'),
         'behavior_trees',
-        os.getenv('BT_NAVIGATOR_XML', ''),
+        os.getenv('BT_NAVIGATOR_XML'),
     )
 
     bringup_dir = get_package_share_directory('nav2_bringup')
@@ -51,12 +60,7 @@ def generate_launch_description():
 
     # Replace the `use_astar` setting on the params file
     configured_params = RewrittenYaml(
-        source_file=params_file, root_key='', param_rewrites={},
-        value_rewrites={
-            'KEEPOUT_ZONE_ENABLED': 'False',
-            'SPEED_ZONE_ENABLED': 'False',
-        },
-        convert_types=True
+        source_file=params_file, root_key='', param_rewrites='', convert_types=True
     )
 
     return LaunchDescription(
@@ -70,9 +74,11 @@ def generate_launch_description():
                 'GZ_SIM_RESOURCE_PATH',
                 str(Path(os.path.join(sim_dir)).parent.resolve())
             ),
-            ExecuteProcess(
-                cmd=['gz', 'sim', '-r', '-s', world_sdf_xacro],
-                output='screen',
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(ros_gz_sim_dir, 'launch', 'gz_sim.launch.py')
+                ),
+                launch_arguments={'gz_args': ['-r -s ', world_sdf_xacro]}.items(),
             ),
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
@@ -118,7 +124,7 @@ def generate_launch_description():
 def main(argv=sys.argv[1:]):
     ld = generate_launch_description()
 
-    testExecutable = os.getenv('TEST_EXECUTABLE', '')
+    testExecutable = os.getenv('TEST_EXECUTABLE')
 
     test1_action = ExecuteProcess(
         cmd=[testExecutable], name='test_wait_behavior_node', output='screen',
@@ -129,6 +135,7 @@ def main(argv=sys.argv[1:]):
     ls = LaunchService(argv=argv)
     ls.include_launch_description(ld)
     return_code = lts.run(ls)
+    kill_os_processes('gz sim')
     return return_code
 
 

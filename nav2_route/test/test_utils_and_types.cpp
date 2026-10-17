@@ -18,12 +18,18 @@
 #include <vector>
 
 #include "gtest/gtest.h"
-#include "rclcpp/time.hpp"
-#include "rclcpp/utilities.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_route/utils.hpp"
 #include "nav2_route/types.hpp"
 
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 using namespace nav2_route;  // NOLINT
 
@@ -33,23 +39,16 @@ TEST(TypesTest, test_metadata)
   float flt = 0.8f;
   std::string str = "value";
   unsigned int uintv = 17u;
-  float cr = 1.5f;
   mdata.setValue<std::string>("key", str);
   mdata.setValue<float>("speed_limit", flt);
   mdata.setValue<unsigned int>("graph_id", uintv);
-  mdata.setValue<float>("corner_radius", cr);
-  mdata.setValue<float>("max_speed", 3.5f);
 
   float default_flt = 1.0f;
   std::string default_str = "";
   unsigned int default_uint = 0u;
-  std::string missing_str = "missing";
   EXPECT_EQ(mdata.getValue<std::string>("key", default_str), str);
   EXPECT_EQ(mdata.getValue<float>("speed_limit", default_flt), flt);
   EXPECT_EQ(mdata.getValue<unsigned int>("graph_id", default_uint), uintv);
-  EXPECT_EQ(mdata.getValue<float>("corner_radius", 0.0f), cr);
-  EXPECT_EQ(mdata.getValue<float>("max_speed", 0.0f), 3.5f);
-  EXPECT_EQ(mdata.getValue<std::string>("missing_key", missing_str), missing_str);
 }
 
 TEST(TypesTest, test_search_state)
@@ -168,8 +167,8 @@ TEST(UtilsTest, test_to_visualization_msg_conversion)
     expected_edge_markers + expected_node_markers +
     expected_edge_id_text_markers + expected_node_id_text_markers;
 
-  EXPECT_EQ(graph_msg->markers.size(), expected_total_markers);
-  for (auto & marker : graph_msg->markers) {
+  EXPECT_EQ(graph_msg.markers.size(), expected_total_markers);
+  for (auto & marker : graph_msg.markers) {
     if (marker.ns == "route_graph_ids") {
       EXPECT_EQ(marker.type, visualization_msgs::msg::Marker::TEXT_VIEW_FACING);
     } else if (marker.ns == "route_graph") {
@@ -352,13 +351,4 @@ TEST(UtilsTest, test_routing_state)
   EXPECT_EQ(state.closest_pt_on_edge.x, 0.0);
   EXPECT_EQ(state.rerouting_start_id, std::numeric_limits<unsigned int>::max());
   EXPECT_EQ(state.rerouting_start_pose.pose.position.x, 0.0);
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-  rclcpp::init(argc, argv);
-  int result = RUN_ALL_TESTS();
-  rclcpp::shutdown();
-  return result;
 }

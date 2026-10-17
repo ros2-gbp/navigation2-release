@@ -18,14 +18,13 @@
 #include <vector>
 
 #include "nav2_route/edge_scorer.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_route
 {
 
 EdgeScorer::EdgeScorer(
-  nav2::LifecycleNode::SharedPtr node,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  nav2_util::LifecycleNode::SharedPtr node,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   const std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber)
 : plugin_loader_("nav2_route", "nav2_route::EdgeCostFunction")
 {
@@ -34,19 +33,20 @@ EdgeScorer::EdgeScorer(
   const std::vector<std::string> default_plugin_types(
     {"nav2_route::DistanceScorer", "nav2_route::DynamicEdgesScorer"});
 
-  auto edge_cost_function_ids = node->declare_or_get_parameter(
-    "edge_cost_functions", default_plugin_ids);
+  nav2_util::declare_parameter_if_not_declared(
+    node, "edge_cost_functions", rclcpp::ParameterValue(default_plugin_ids));
+  auto edge_cost_function_ids = node->get_parameter("edge_cost_functions").as_string_array();
 
   if (edge_cost_function_ids == default_plugin_ids) {
     for (unsigned int i = 0; i != edge_cost_function_ids.size(); i++) {
-      nav2::declare_parameter_if_not_declared(
+      nav2_util::declare_parameter_if_not_declared(
         node, default_plugin_ids[i] + ".plugin", rclcpp::ParameterValue(default_plugin_types[i]));
     }
   }
 
   for (size_t i = 0; i != edge_cost_function_ids.size(); i++) {
     try {
-      std::string type = nav2::get_plugin_type_param(
+      std::string type = nav2_util::get_plugin_type_param(
         node, edge_cost_function_ids[i]);
       EdgeCostFunction::Ptr scorer = plugin_loader_.createUniqueInstance(type);
       RCLCPP_INFO(

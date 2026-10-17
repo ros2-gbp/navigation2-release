@@ -19,7 +19,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/assisted_teleop_cancel_node.hpp"
 #include "lifecycle_msgs/srv/change_state.hpp"
 
@@ -48,7 +48,7 @@ class CancelAssistedTeleopActionTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<nav2::LifecycleNode>("cancel_back_up_action_test_fixture");
+    node_ = std::make_shared<rclcpp::Node>("cancel_back_up_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -98,19 +98,19 @@ public:
   }
 
   static std::shared_ptr<CancelAssistedTeleopServer> action_server_;
-  static std::shared_ptr<nav2::ActionClient<nav2_msgs::action::AssistedTeleop>> client_;
+  static std::shared_ptr<rclcpp_action::Client<nav2_msgs::action::AssistedTeleop>> client_;
 
 protected:
-  static nav2::LifecycleNode::SharedPtr node_;
+  static rclcpp::Node::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-nav2::LifecycleNode::SharedPtr CancelAssistedTeleopActionTestFixture::node_ = nullptr;
+rclcpp::Node::SharedPtr CancelAssistedTeleopActionTestFixture::node_ = nullptr;
 std::shared_ptr<CancelAssistedTeleopServer>
 CancelAssistedTeleopActionTestFixture::action_server_ = nullptr;
-std::shared_ptr<nav2::ActionClient<nav2_msgs::action::AssistedTeleop>>
+std::shared_ptr<rclcpp_action::Client<nav2_msgs::action::AssistedTeleop>>
 CancelAssistedTeleopActionTestFixture::client_ = nullptr;
 
 BT::NodeConfiguration * CancelAssistedTeleopActionTestFixture::config_ = nullptr;
@@ -129,7 +129,7 @@ TEST_F(CancelAssistedTeleopActionTestFixture, test_ports)
       </root>)";
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
-  auto send_goal_options = nav2::ActionClient<
+  auto send_goal_options = rclcpp_action::Client<
     nav2_msgs::action::AssistedTeleop>::SendGoalOptions();
 
   // Creating a dummy goal_msg
@@ -148,7 +148,7 @@ TEST_F(CancelAssistedTeleopActionTestFixture, test_ports)
   // BT node should return success, once when the goal is cancelled
   EXPECT_EQ(tree_->rootNode()->status(), BT::NodeStatus::SUCCESS);
 
-  // Adding another test case to check if the goal is in fact cancelling
+  // Adding another test case to check if the goal is infact cancelling
   EXPECT_EQ(action_server_->isGoalCancelled(), true);
 }
 

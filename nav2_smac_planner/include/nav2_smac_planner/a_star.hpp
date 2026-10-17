@@ -16,12 +16,14 @@
 #ifndef NAV2_SMAC_PLANNER__A_STAR_HPP_
 #define NAV2_SMAC_PLANNER__A_STAR_HPP_
 
-#include <functional>
+#include <vector>
+#include <iostream>
+#include <unordered_map>
 #include <memory>
 #include <queue>
-#include <tuple>
 #include <utility>
-#include <vector>
+#include <tuple>
+#include "Eigen/Core"
 
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_core/planner_exceptions.hpp"
@@ -32,7 +34,6 @@
 #include "nav2_smac_planner/node_hybrid.hpp"
 #include "nav2_smac_planner/node_lattice.hpp"
 #include "nav2_smac_planner/node_basic.hpp"
-#include "nav2_smac_planner/goal_manager.hpp"
 #include "nav2_smac_planner/types.hpp"
 #include "nav2_smac_planner/constants.hpp"
 
@@ -55,9 +56,6 @@ public:
   typedef typename NodeT::CoordinateVector CoordinateVector;
   typedef typename NodeVector::iterator NeighborIterator;
   typedef std::function<bool (const uint64_t &, NodeT * &)> NodeGetter;
-  typedef GoalManager<NodeT> GoalManagerT;
-  using NodeContext = typename NodeT::NodeContext;
-
 
   /**
    * @struct nav2_smac_planner::NodeComparator
@@ -94,8 +92,6 @@ public:
    * or planning time exceeded
    * @param max_planning_time Maximum time (in seconds) to wait for a plan, createPath returns
    * false after this timeout
-   * @param lookup_table_size Size of the lookup table to store heuristic values
-   * @param dim_3_size Number of quantization bins
    */
   void initialize(
     const bool & allow_unknown,
@@ -108,7 +104,7 @@ public:
 
   /**
    * @brief Creating path from given costmap, start, and goal
-   * @param path Reference to a vector of indices of generated path
+   * @param path Reference to a vector of indicies of generated path
    * @param num_iterations Reference to number of iterations to create plan
    * @param tolerance Reference to tolerance in costmap nodes
    * @param cancel_checker Function to check if the task has been canceled
@@ -121,12 +117,6 @@ public:
     std::vector<std::tuple<float, float, float>> * expansions_log = nullptr);
 
   /**
-   * @brief Update the search info used by the algorithm
-   * @param search_info Search info to update
-   */
-  void setSearchInfo(const SearchInfo & search_info) {_search_info = search_info;}
-
-  /**
    * @brief Sets the collision checker to use
    * @param collision_checker Collision checker to use for checking state validity
    */
@@ -137,15 +127,11 @@ public:
    * @param mx The node X index of the goal
    * @param my The node Y index of the goal
    * @param dim_3 The node dim_3 index of the goal
-   * @param goal_heading_mode The goal heading mode to use
-   * @param coarse_search_resolution The resolution to search for goal heading
    */
   void setGoal(
     const float & mx,
     const float & my,
-    const unsigned int & dim_3,
-    const GoalHeadingMode & goal_heading_mode = GoalHeadingMode::DEFAULT,
-    const int & coarse_search_resolution = 1);
+    const unsigned int & dim_3);
 
   /**
    * @brief Set the starting pose for planning, as a node index
@@ -171,8 +157,14 @@ public:
   NodePtr & getStart();
 
   /**
+   * @brief Get pointer reference to goal node
+   * @return Node pointer reference to goal node
+   */
+  NodePtr & getGoal();
+
+  /**
    * @brief Get maximum number of on-approach iterations after within threshold
-   * @return Reference to Maximum on-approach iterations parameter
+   * @return Reference to Maximum on-appraoch iterations parameter
    */
   int & getOnApproachMaxIterations();
 
@@ -200,24 +192,6 @@ public:
    */
   unsigned int & getSizeDim3();
 
-  /**
-   * @brief Get the resolution of the coarse search
-   * @return Size of the goals to expand
-   */
-  unsigned int getCoarseSearchResolution();
-
-  /**
-   * @brief Get the goals manager class
-   * @return Goal manager class
-   */
-  GoalManagerT getGoalManager();
-
-  /**
-   * @brief Get pointer to shared node context
-   * @return Node context pointer
-   */
-  NodeContext * getContext();
-
 protected:
   /**
    * @brief Get pointer to next goal in open set
@@ -239,6 +213,13 @@ protected:
   inline NodePtr addToGraph(const uint64_t & index);
 
   /**
+   * @brief Check if this node is the goal node
+   * @param node Node pointer to check if its the goal node
+   * @return if node is goal
+   */
+  inline bool isGoal(NodePtr & node);
+
+  /**
    * @brief Get cost of heuristic of node
    * @param node Node pointer to get heuristic for
    * @return Heuristic cost for node
@@ -252,14 +233,7 @@ protected:
   inline bool areInputsValid();
 
   /**
-   * @brief Get the closest path within tolerance if available
-   * @param path Vector of coordinates to fill with path
-   * @return if a valid path was found within tolerance
-   */
-  inline bool getClosestPathWithinTolerance(CoordinateVector & path);
-
-  /**
-   * @brief Clear heuristic queue of nodes to search
+   * @brief Clear hueristic queue of nodes to search
    */
   inline void clearQueue();
 
@@ -268,21 +242,6 @@ protected:
    */
   inline void clearGraph();
 
-  /**
-   * @brief Get index at coordinates
-   * @param x X coordinate of point
-   * @param y Y coordinate of point
-   * @param dim3 Z coordinate / theta bin of point
-   * @return Index
-   */
-  inline uint64_t getIndex(
-    const unsigned int & x, const unsigned int & y, const unsigned int & dim3);
-
-  /**
-   * @brief Check if node has been visited
-   * @param current_node Node to check if visited
-   * @return if node has been visited
-   */
   inline bool onVisitationCheckNode(const NodePtr & node);
 
   /**
@@ -303,11 +262,12 @@ protected:
   unsigned int _x_size;
   unsigned int _y_size;
   unsigned int _dim3_size;
-  unsigned int _coarse_search_resolution;
   SearchInfo _search_info;
 
+  Coordinates _goal_coordinates;
   NodePtr _start;
-  GoalManagerT _goal_manager;
+  NodePtr _goal;
+
   Graph _graph;
   NodeQueue _queue;
 
@@ -317,11 +277,8 @@ protected:
   GridCollisionChecker * _collision_checker;
   nav2_costmap_2d::Costmap2D * _costmap;
   std::unique_ptr<AnalyticExpansion<NodeT>> _expander;
-  std::shared_ptr<NodeContext> _shared_ctx;
 };
 
 }  // namespace nav2_smac_planner
-
-#include "nav2_smac_planner/a_star_impl.hpp"  // NOLINT
 
 #endif  // NAV2_SMAC_PLANNER__A_STAR_HPP_

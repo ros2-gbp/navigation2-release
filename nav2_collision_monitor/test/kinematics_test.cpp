@@ -20,7 +20,7 @@
 #include <vector>
 #include <limits>
 
-#include "rclcpp/utilities.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include "nav2_collision_monitor/types.hpp"
 #include "nav2_collision_monitor/kinematics.hpp"
@@ -28,6 +28,14 @@
 using namespace std::chrono_literals;
 
 static constexpr double EPSILON = std::numeric_limits<float>::epsilon();
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture g_rclcppfixture;
 
 TEST(KinematicsTest, testTransformPoints)
 {
@@ -87,17 +95,4 @@ TEST(KinematicsTest, testProjectState)
   EXPECT_NEAR(vel.x, std::cos(rotated_vel_angle), EPSILON);
   EXPECT_NEAR(vel.y, std::sin(rotated_vel_angle), EPSILON);
   EXPECT_NEAR(vel.tw, M_PI / 4.0, EPSILON);  // should be the same
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

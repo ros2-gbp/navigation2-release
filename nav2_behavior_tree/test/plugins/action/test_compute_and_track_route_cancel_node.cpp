@@ -19,7 +19,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/compute_and_track_route_cancel_node.hpp"
 #include "lifecycle_msgs/srv/change_state.hpp"
 
@@ -50,7 +50,8 @@ public:
   static void SetUpTestCase()
   {
     node_ =
-      std::make_shared<nav2::LifecycleNode>("cancel_compute_and_track_route_action_test_fixture");
+      std::make_shared<rclcpp::Node>(
+      "cancel_compute_and_track_route_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -100,19 +101,19 @@ public:
   }
 
   static std::shared_ptr<CancelComputeAndTrackRouteServer> action_server_;
-  static std::shared_ptr<nav2::ActionClient<nav2_msgs::action::ComputeAndTrackRoute>> client_;
+  static std::shared_ptr<rclcpp_action::Client<nav2_msgs::action::ComputeAndTrackRoute>> client_;
 
 protected:
-  static nav2::LifecycleNode::SharedPtr node_;
+  static rclcpp::Node::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-nav2::LifecycleNode::SharedPtr CancelComputeAndTrackRouteActionTestFixture::node_ = nullptr;
+rclcpp::Node::SharedPtr CancelComputeAndTrackRouteActionTestFixture::node_ = nullptr;
 std::shared_ptr<CancelComputeAndTrackRouteServer>
 CancelComputeAndTrackRouteActionTestFixture::action_server_ = nullptr;
-std::shared_ptr<nav2::ActionClient<nav2_msgs::action::ComputeAndTrackRoute>>
+std::shared_ptr<rclcpp_action::Client<nav2_msgs::action::ComputeAndTrackRoute>>
 CancelComputeAndTrackRouteActionTestFixture::client_ = nullptr;
 
 BT::NodeConfiguration * CancelComputeAndTrackRouteActionTestFixture::config_ = nullptr;
@@ -131,8 +132,8 @@ TEST_F(CancelComputeAndTrackRouteActionTestFixture, test_ports)
       </root>)";
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
-  auto send_goal_options = nav2::ActionClient<
-    nav2_msgs::action::ComputeAndTrackRoute>::SendGoalOptions();
+  auto send_goal_options =
+    rclcpp_action::Client<nav2_msgs::action::ComputeAndTrackRoute>::SendGoalOptions();
 
   // Creating a dummy goal_msg
   auto goal_msg = nav2_msgs::action::ComputeAndTrackRoute::Goal();

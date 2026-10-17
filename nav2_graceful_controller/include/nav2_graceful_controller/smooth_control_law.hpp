@@ -40,14 +40,12 @@ public:
    * @param beta Constant factor applied to the path curvature: dropping velocity.
    * @param lambda Constant factor applied to the path curvature for sharpness.
    * @param slowdown_radius Radial threshold applied to the slowdown rule.
-   * @param deceleration_max Maximum deceleration.
    * @param v_linear_min Minimum linear velocity.
    * @param v_linear_max Maximum linear velocity.
    * @param v_angular_max Maximum angular velocity.
    */
   SmoothControlLaw(
-    double k_phi, double k_delta, double beta, double lambda,
-    double slowdown_radius, double deceleration_max,
+    double k_phi, double k_delta, double beta, double lambda, double slowdown_radius,
     double v_linear_min, double v_linear_max, double v_angular_max);
 
   /**
@@ -72,13 +70,6 @@ public:
    * @param slowdown_radius Radial threshold applied to the slowdown rule.
    */
   void setSlowdownRadius(const double slowdown_radius);
-
-  /**
-   * @brief Set the maximum deceleration
-   *
-   * @param deceleration_max Maximum deceleration possible.
-   */
-  void setMaxDeceleration(const double deceleration_max);
 
   /**
    * @brief Update the velocity limits.
@@ -178,11 +169,6 @@ protected:
    * @brief Radial threshold applied to the slowdown rule.
    */
   double slowdown_radius_;
-
-  /**
-   * @brief Maximum deceleration.
-   */
-  double deceleration_max_;
 
   /**
    * @brief Minimum linear velocity.

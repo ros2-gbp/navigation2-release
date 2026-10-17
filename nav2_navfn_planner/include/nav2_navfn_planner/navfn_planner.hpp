@@ -28,12 +28,10 @@
 #include "nav2_core/planner_exceptions.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "nav2_navfn_planner/navfn.hpp"
-#include "nav2_navfn_planner/parameter_handler.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_navfn_planner
 {
@@ -59,8 +57,8 @@ public:
    * @param costmap_ros Costmap2DROS object
    */
   void configure(
-    const nav2::LifecycleNode::WeakPtr & parent,
-    std::string name, nav2::TransformBuffer::SharedPtr tf,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) override;
 
   /**
@@ -89,7 +87,6 @@ public:
   nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
-    const std::vector<geometry_msgs::msg::PoseStamped> & viapoints,
     std::function<bool()> cancel_checker) override;
 
 protected:
@@ -199,7 +196,7 @@ protected:
   std::unique_ptr<NavFn> planner_;
 
   // TF buffer
-  nav2::TransformBuffer::SharedPtr tf_;
+  std::shared_ptr<tf2_ros::Buffer> tf_;
 
   // Clock
   rclcpp::Clock::SharedPtr clock_;
@@ -213,11 +210,28 @@ protected:
   // The global frame of the costmap
   std::string global_frame_, name_;
 
-  // parent node weak ptr
-  nav2::LifecycleNode::WeakPtr node_;
+  // Whether or not the planner should be allowed to plan through unknown space
+  bool allow_unknown_, use_final_approach_orientation_;
 
-  Parameters * params_;
-  std::unique_ptr<nav2_navfn_planner::ParameterHandler> param_handler_;
+  // If the goal is obstructed, the tolerance specifies how many meters the planner
+  // can relax the constraint in x and y before failing
+  double tolerance_;
+
+  // Whether to use the astar planner or default dijkstras
+  bool use_astar_;
+
+  // parent node weak ptr
+  rclcpp_lifecycle::LifecycleNode::WeakPtr node_;
+
+  // Dynamic parameters handler
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr dyn_params_handler_;
+
+  /**
+   * @brief Callback executed when a paramter change is detected
+   * @param parameters list of changed parameters
+   */
+  rcl_interfaces::msg::SetParametersResult
+  dynamicParametersCallback(std::vector<rclcpp::Parameter> parameters);
 };
 
 }  // namespace nav2_navfn_planner

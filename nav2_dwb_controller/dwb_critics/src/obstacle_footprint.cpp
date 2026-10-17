@@ -45,25 +45,24 @@ PLUGINLIB_EXPORT_CLASS(dwb_critics::ObstacleFootprintCritic, dwb_core::Trajector
 namespace dwb_critics
 {
 Footprint getOrientedFootprint(
-  const geometry_msgs::msg::Pose & pose,
+  const geometry_msgs::msg::Pose2D & pose,
   const Footprint & footprint_spec)
 {
   std::vector<geometry_msgs::msg::Point> oriented_footprint;
   oriented_footprint.resize(footprint_spec.size());
-  double theta = tf2::getYaw(pose.orientation);
-  double cos_th = cos(theta);
-  double sin_th = sin(theta);
+  double cos_th = cos(pose.theta);
+  double sin_th = sin(pose.theta);
   for (unsigned int i = 0; i < footprint_spec.size(); ++i) {
     geometry_msgs::msg::Point & new_pt = oriented_footprint[i];
-    new_pt.x = pose.position.x + footprint_spec[i].x * cos_th - footprint_spec[i].y * sin_th;
-    new_pt.y = pose.position.y + footprint_spec[i].x * sin_th + footprint_spec[i].y * cos_th;
+    new_pt.x = pose.x + footprint_spec[i].x * cos_th - footprint_spec[i].y * sin_th;
+    new_pt.y = pose.y + footprint_spec[i].x * sin_th + footprint_spec[i].y * cos_th;
   }
   return oriented_footprint;
 }
 
 bool ObstacleFootprintCritic::prepare(
-  const geometry_msgs::msg::Pose &, const nav_2d_msgs::msg::Twist2D &,
-  const geometry_msgs::msg::Pose &, const nav_msgs::msg::Path &)
+  const geometry_msgs::msg::Pose2D &, const nav_2d_msgs::msg::Twist2D &,
+  const geometry_msgs::msg::Pose2D &, const nav_2d_msgs::msg::Path2D &)
 {
   footprint_spec_ = costmap_ros_->getRobotFootprint();
   if (footprint_spec_.size() == 0) {
@@ -75,10 +74,10 @@ bool ObstacleFootprintCritic::prepare(
   return true;
 }
 
-double ObstacleFootprintCritic::scorePose(const geometry_msgs::msg::Pose & pose)
+double ObstacleFootprintCritic::scorePose(const geometry_msgs::msg::Pose2D & pose)
 {
   unsigned int cell_x, cell_y;
-  if (!costmap_->worldToMap(pose.position.x, pose.position.y, cell_x, cell_y)) {
+  if (!costmap_->worldToMap(pose.x, pose.y, cell_x, cell_y)) {
     throw dwb_core::
           IllegalTrajectoryException(name_, "Trajectory Goes Off Grid.");
   }
@@ -86,7 +85,7 @@ double ObstacleFootprintCritic::scorePose(const geometry_msgs::msg::Pose & pose)
 }
 
 double ObstacleFootprintCritic::scorePose(
-  const geometry_msgs::msg::Pose &,
+  const geometry_msgs::msg::Pose2D &,
   const Footprint & footprint)
 {
   // now we really have to lay down the footprint in the costmap grid

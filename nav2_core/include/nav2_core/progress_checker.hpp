@@ -18,9 +18,10 @@
 #include <memory>
 #include <string>
 
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "geometry_msgs/msg/pose.hpp"
+#include "geometry_msgs/msg/pose2_d.hpp"
 
 namespace nav2_core
 {
@@ -42,7 +43,7 @@ public:
    * @param parent Node pointer
    */
   virtual void initialize(
-    const nav2::LifecycleNode::WeakPtr & parent,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
     const std::string & plugin_name) = 0;
   /**
    * @brief Checks if the robot has moved compare to previous

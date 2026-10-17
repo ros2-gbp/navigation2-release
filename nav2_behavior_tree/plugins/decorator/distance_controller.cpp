@@ -21,7 +21,7 @@
 #include "nav2_util/robot_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_ros/buffer.h"
 
 #include "behaviortree_cpp/decorator_node.h"
 
@@ -38,8 +38,8 @@ DistanceController::DistanceController(
   first_time_(false)
 {
   getInput("distance", distance_);
-  node_ = config().blackboard->get<nav2::LifecycleNode::SharedPtr>("node");
-  tf_ = config().blackboard->get<nav2::TransformBuffer::SharedPtr>("tf_buffer");
+  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
+  tf_ = config().blackboard->get<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer");
   node_->get_parameter("transform_tolerance", transform_tolerance_);
 
   global_frame_ = BT::deconflictPortAndParamFrame<std::string>(

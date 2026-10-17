@@ -33,7 +33,7 @@ using ClearAroundPose = nav2_msgs::srv::ClearCostmapAroundPose;
 using ClearEntirely = nav2_msgs::srv::ClearEntireCostmap;
 
 ClearCostmapService::ClearCostmapService(
-  const nav2::LifecycleNode::WeakPtr & parent,
+  const nav2_util::LifecycleNode::WeakPtr & parent,
   Costmap2DROS & costmap)
 : costmap_(costmap)
 {
@@ -42,13 +42,13 @@ ClearCostmapService::ClearCostmapService(
   reset_value_ = costmap_.getCostmap()->getDefaultValue();
 
   clear_except_service_ = node->create_service<ClearExceptRegion>(
-    std::string("clear_except_") + costmap_.getName(),
+    "clear_except_" + costmap_.getName(),
     std::bind(
       &ClearCostmapService::clearExceptRegionCallback, this,
       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
   clear_around_service_ = node->create_service<ClearAroundRobot>(
-    std::string("clear_around_") + costmap_.getName(),
+    "clear_around_" + costmap.getName(),
     std::bind(
       &ClearCostmapService::clearAroundRobotCallback, this,
       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
@@ -60,7 +60,7 @@ ClearCostmapService::ClearCostmapService(
       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
   clear_entire_service_ = node->create_service<ClearEntirely>(
-    std::string("clear_entirely_") + costmap_.getName(),
+    "clear_entirely_" + costmap_.getName(),
     std::bind(
       &ClearCostmapService::clearEntireCallback, this,
       std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
@@ -78,63 +78,50 @@ ClearCostmapService::~ClearCostmapService()
 void ClearCostmapService::clearExceptRegionCallback(
   const shared_ptr<rmw_request_id_t>/*request_header*/,
   const shared_ptr<ClearExceptRegion::Request> request,
-  const shared_ptr<ClearExceptRegion::Response> response)
+  const shared_ptr<ClearExceptRegion::Response>/*response*/)
 {
-  RCLCPP_INFO_STREAM(
-    logger_,
-      "Received request to clear except a region for " <<
-      (request->plugins.empty() ? "all layers" : "specific layers") << " in " <<
-      costmap_.getName());
+  RCLCPP_INFO(
+    logger_, "%s",
+    ("Received request to clear except a region the " + costmap_.getName()).c_str());
 
-  response->success = clearRegion(request->reset_distance, true, request->plugins);
+  clearRegion(request->reset_distance, true);
 }
 
 void ClearCostmapService::clearAroundRobotCallback(
   const shared_ptr<rmw_request_id_t>/*request_header*/,
   const shared_ptr<ClearAroundRobot::Request> request,
-  const shared_ptr<ClearAroundRobot::Response> response)
+  const shared_ptr<ClearAroundRobot::Response>/*response*/)
 {
-  RCLCPP_INFO_STREAM(
-    logger_,
-      "Received request to clear around robot for " <<
-      (request->plugins.empty() ? "all layers" : "specific layers") << " in " <<
-      costmap_.getName());
-
-  response->success = clearRegion(request->reset_distance, false, request->plugins);
+  clearRegion(request->reset_distance, false);
 }
 
 void ClearCostmapService::clearAroundPoseCallback(
   const shared_ptr<rmw_request_id_t>/*request_header*/,
   const shared_ptr<ClearAroundPose::Request> request,
-  const shared_ptr<ClearAroundPose::Response> response)
+  const shared_ptr<ClearAroundPose::Response>/*response*/)
 {
-  RCLCPP_INFO_STREAM(
-    logger_,
-      "Received request to clear around pose for " <<
-      (request->plugins.empty() ? "all layers" : "specific layers") << " in " <<
-      costmap_.getName());
+  RCLCPP_INFO(
+    logger_, "%s",
+    ("Received request to clear around pose for " + costmap_.getName()).c_str());
 
-  response->success = clearAroundPose(request->pose, request->reset_distance, request->plugins);
+  clearAroundPose(request->pose, request->reset_distance);
 }
 
 void ClearCostmapService::clearEntireCallback(
   const std::shared_ptr<rmw_request_id_t>/*request_header*/,
-  const std::shared_ptr<ClearEntirely::Request> request,
-  const std::shared_ptr<ClearEntirely::Response> response)
+  const std::shared_ptr<ClearEntirely::Request>/*request*/,
+  const std::shared_ptr<ClearEntirely::Response>/*response*/)
 {
-  RCLCPP_INFO_STREAM(
-    logger_,
-      "Received request to clear entirely for " <<
-      (request->plugins.empty() ? "all layers" : "specific layers") << " in " <<
-      costmap_.getName());
+  RCLCPP_INFO(
+    logger_, "%s",
+    ("Received request to clear entirely the " + costmap_.getName()).c_str());
 
-  response->success = clearEntirely(request->plugins);
+  clearEntirely();
 }
 
-bool ClearCostmapService::clearAroundPose(
+void ClearCostmapService::clearAroundPose(
   const geometry_msgs::msg::PoseStamped & pose,
-  const double reset_distance,
-  const std::vector<std::string> & plugins)
+  const double reset_distance)
 {
   double x, y;
 
@@ -151,7 +138,7 @@ bool ClearCostmapService::clearAroundPose(
       logger_,
       "Cannot clear map around pose because pose cannot be transformed to costmap frame: %s",
       ex.what());
-    return false;
+    return;
   }
 
   x = global_pose.pose.position.x;
@@ -159,28 +146,15 @@ bool ClearCostmapService::clearAroundPose(
 
   auto layers = costmap_.getLayeredCostmap()->getPlugins();
 
-  if (!plugins.empty()) {
-    return validateAndClearPlugins(
-      plugins, layers,
-      [this, x, y, reset_distance](std::shared_ptr<CostmapLayer> & layer) {
-        clearLayerRegion(layer, x, y, reset_distance, false);
-      },
-      "clear costmap around pose");
-  } else {
-    // Clear all clearable layers (default behavior)
-    for (auto & layer : *layers) {
-      if (layer->isClearable()) {
-        auto costmap_layer = std::static_pointer_cast<CostmapLayer>(layer);
-        clearLayerRegion(costmap_layer, x, y, reset_distance, false);
-      }
+  for (auto & layer : *layers) {
+    if (layer->isClearable()) {
+      auto costmap_layer = std::static_pointer_cast<CostmapLayer>(layer);
+      clearLayerRegion(costmap_layer, x, y, reset_distance, false);
     }
-    return true;
   }
 }
 
-bool ClearCostmapService::clearRegion(
-  const double reset_distance, bool invert,
-  const std::vector<std::string> & plugins)
+void ClearCostmapService::clearRegion(const double reset_distance, bool invert)
 {
   double x, y;
 
@@ -188,28 +162,20 @@ bool ClearCostmapService::clearRegion(
     RCLCPP_ERROR(
       logger_, "%s",
       "Cannot clear map because robot pose cannot be retrieved.");
-    return false;
+    return;
   }
 
   auto layers = costmap_.getLayeredCostmap()->getPlugins();
 
-  if (!plugins.empty()) {
-    return validateAndClearPlugins(
-      plugins, layers,
-      [this, x, y, reset_distance, invert](std::shared_ptr<CostmapLayer> & layer) {
-        clearLayerRegion(layer, x, y, reset_distance, invert);
-      },
-      "clear costmap region");
-  } else {
-    // Clear all clearable layers (default behavior)
-    for (auto & layer : *layers) {
-      if (layer->isClearable()) {
-        auto costmap_layer = std::static_pointer_cast<CostmapLayer>(layer);
-        clearLayerRegion(costmap_layer, x, y, reset_distance, invert);
-      }
+  for (auto & layer : *layers) {
+    if (layer->isClearable()) {
+      auto costmap_layer = std::static_pointer_cast<CostmapLayer>(layer);
+      clearLayerRegion(costmap_layer, x, y, reset_distance, invert);
     }
-    return true;
   }
+
+  // AlexeyMerzlyakov: No need to clear layer region for costmap filters
+  // as they are always supposed to be not clearable.
 }
 
 void ClearCostmapService::clearLayerRegion(
@@ -224,8 +190,8 @@ void ClearCostmapService::clearLayerRegion(
   double end_point_y = start_point_y + reset_distance;
 
   int start_x, start_y, end_x, end_y;
-  costmap->worldToMapNoBounds(start_point_x, start_point_y, start_x, start_y);
-  costmap->worldToMapNoBounds(end_point_x, end_point_y, end_x, end_y);
+  costmap->worldToMapEnforceBounds(start_point_x, start_point_y, start_x, start_y);
+  costmap->worldToMapEnforceBounds(end_point_x, end_point_y, end_x, end_y);
 
   costmap->clearArea(start_x, start_y, end_x, end_y, invert);
 
@@ -234,102 +200,10 @@ void ClearCostmapService::clearLayerRegion(
   costmap->addExtraBounds(ox, oy, ox + width, oy + height);
 }
 
-bool ClearCostmapService::clearEntirely(const std::vector<std::string> & plugins)
+void ClearCostmapService::clearEntirely()
 {
-  if (plugins.empty()) {
-    // Default behavior: clear all layers
-    std::unique_lock<Costmap2D::mutex_t> lock(*(costmap_.getCostmap()->getMutex()));
-    RCLCPP_INFO(logger_, "Clearing all layers in costmap: %s", costmap_.getName().c_str());
-    costmap_.resetLayers();
-    return true;
-  } else {
-    // Clear only specified plugins
-    std::unique_lock<Costmap2D::mutex_t> lock(*(costmap_.getCostmap()->getMutex()));
-    auto layers = costmap_.getLayeredCostmap()->getPlugins();
-
-    bool result = validateAndClearPlugins(
-      plugins, layers,
-      [](const std::shared_ptr<CostmapLayer> & layer) {
-        layer->resetMap(0, 0, layer->getSizeInCellsX(), layer->getSizeInCellsY());
-      },
-      "clear costmap entirely");
-
-    if (result) {
-      RCLCPP_INFO(logger_, "Resetting master costmap after plugin clearing");
-      costmap_.getCostmap()->resetMap(0, 0,
-        costmap_.getCostmap()->getSizeInCellsX(),
-        costmap_.getCostmap()->getSizeInCellsY());
-    }
-
-    return result;
-  }
-}
-
-void ClearCostmapService::validatePlugins(
-  const std::vector<std::string> & requested_plugins,
-  const std::vector<std::shared_ptr<Layer>> * layers,
-  std::vector<std::string> & invalid_plugins) const
-{
-  invalid_plugins.clear();
-
-  for (const auto & requested_plugin : requested_plugins) {
-    bool found = false;
-    bool clearable = false;
-
-    for (auto & layer : *layers) {
-      if (layer->getName() == requested_plugin) {
-        found = true;
-        clearable = layer->isClearable();
-        break;
-      }
-    }
-
-    if (!found) {
-      invalid_plugins.push_back(requested_plugin + " (not found)");
-    } else if (!clearable) {
-      invalid_plugins.push_back(requested_plugin + " (not clearable)");
-    }
-  }
-}
-
-bool ClearCostmapService::validateAndClearPlugins(
-  const std::vector<std::string> & plugins,
-  const std::vector<std::shared_ptr<Layer>> * layers,
-  std::function<void(std::shared_ptr<CostmapLayer> &)> clear_callback,
-  const std::string & operation_name) const
-{
-  std::vector<std::string> invalid_plugins;
-
-  validatePlugins(plugins, layers, invalid_plugins);
-
-  if (!invalid_plugins.empty()) {
-    std::string error_msg = "Invalid plugin(s) requested for clearing: ";
-    for (size_t i = 0; i < invalid_plugins.size(); ++i) {
-      error_msg += invalid_plugins[i];
-      if (i < invalid_plugins.size() - 1) {
-        error_msg += ", ";
-      }
-    }
-    RCLCPP_ERROR(logger_, "%s", error_msg.c_str());
-    RCLCPP_ERROR(
-      logger_,
-      "Failed to %s: %zu invalid plugin(s) out of %zu requested. No layers were cleared.",
-      operation_name.c_str(), invalid_plugins.size(), plugins.size());
-    return false;
-  }
-
-  for (auto & layer : *layers) {
-    if (std::find(plugins.begin(), plugins.end(),
-        layer->getName()) != plugins.end())
-    {
-      auto costmap_layer = std::static_pointer_cast<CostmapLayer>(layer);
-      clear_callback(costmap_layer);
-      RCLCPP_INFO(logger_, "Performed action '%s' on layer: %s", operation_name.c_str(),
-          layer->getName().c_str());
-    }
-  }
-
-  return true;
+  std::unique_lock<Costmap2D::mutex_t> lock(*(costmap_.getCostmap()->getMutex()));
+  costmap_.resetLayers();
 }
 
 bool ClearCostmapService::getPosition(double & x, double & y) const

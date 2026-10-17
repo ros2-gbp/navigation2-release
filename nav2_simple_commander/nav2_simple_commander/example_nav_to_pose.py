@@ -66,10 +66,10 @@ def main():
     # sanity check a valid path exists
     # path = navigator.getPath(initial_pose, goal_pose)
 
-    go_to_pose_task = navigator.goToPose(goal_pose)
+    navigator.goToPose(goal_pose)
 
     i = 0
-    while not navigator.isTaskComplete(task=go_to_pose_task):
+    while not navigator.isTaskComplete():
         ################################################
         #
         # Implement some code here for your application!
@@ -78,33 +78,15 @@ def main():
 
         # Do something with the feedback
         i = i + 1
-        feedback = navigator.getFeedback(task=go_to_pose_task)
+        feedback = navigator.getFeedback()
         if feedback and i % 5 == 0:
             print(
                 'Estimated time of arrival: '
-                + '{:.0f}'.format(
+                + '{0:.0f}'.format(
                     Duration.from_msg(feedback.estimated_time_remaining).nanoseconds
                     / 1e9
                 )
                 + ' seconds.'
-            )
-
-            print(
-                'Distance remaining: '
-                + '{:.2f}'.format(feedback.distance_remaining)
-                + ' meters.'
-            )
-
-            print(
-                'Position error: '
-                + '{:.2f}'.format(feedback.position_tracking_error)
-                + ' meters.'
-            )
-
-            print(
-                'Heading error: '
-                + '{:.2f}'.format(feedback.heading_tracking_error)
-                + ' radians.'
             )
 
             # Some navigation timeout to demo cancellation
@@ -115,7 +97,7 @@ def main():
             if Duration.from_msg(feedback.navigation_time) > Duration(seconds=18.0):
                 goal_pose.pose.position.x = 0.0
                 goal_pose.pose.position.y = 0.0
-                go_to_pose_task = navigator.goToPose(goal_pose)
+                navigator.goToPose(goal_pose)
 
     # Do something depending on the return code
     result = navigator.getResult()
@@ -124,8 +106,7 @@ def main():
     elif result == TaskResult.CANCELED:
         print('Goal was canceled!')
     elif result == TaskResult.FAILED:
-        (error_code, error_msg) = navigator.getTaskError()
-        print('Goal failed!{error_code}:{error_msg}')
+        print('Goal failed!')
     else:
         print('Goal has an invalid return status!')
 

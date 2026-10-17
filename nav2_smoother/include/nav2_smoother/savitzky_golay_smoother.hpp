@@ -15,7 +15,6 @@
 #ifndef NAV2_SMOOTHER__SAVITZKY_GOLAY_SMOOTHER_HPP_
 #define NAV2_SMOOTHER__SAVITZKY_GOLAY_SMOOTHER_HPP_
 
-#include <Eigen/Dense>
 #include <cmath>
 #include <vector>
 #include <string>
@@ -25,15 +24,14 @@
 #include <utility>
 
 #include "nav2_core/smoother.hpp"
-#include "nav2_util/smoother_utils.hpp"
+#include "nav2_smoother/smoother_utils.hpp"
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/cost_values.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "nav_msgs/msg/path.hpp"
 #include "angles/angles.h"
-#include "tf2/utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2/utils.h"
 
 namespace nav2_smoother
 {
@@ -56,8 +54,8 @@ public:
   ~SavitzkyGolaySmoother() override = default;
 
   void configure(
-    const nav2::LifecycleNode::WeakPtr &,
-    std::string name, nav2::TransformBuffer::SharedPtr,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr &,
+    std::string name, std::shared_ptr<tf2_ros::Buffer>,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>,
     std::shared_ptr<nav2_costmap_2d::FootprintSubscriber>) override;
 
@@ -87,11 +85,6 @@ public:
     nav_msgs::msg::Path & path,
     const rclcpp::Duration & max_time) override;
 
-  /**
-   * @brief Method to calculate SavitzkyGolay Coefficients
-   */
-  void calculateCoefficients();
-
 protected:
   /**
    * @brief Smoother method - does the smoothing on a segment
@@ -105,9 +98,8 @@ protected:
     nav_msgs::msg::Path & path,
     bool & reversing_segment);
 
-  bool do_refinement_, enforce_path_inversion_;
-  int refinement_num_, window_size_, half_window_size_, poly_order_;
-  Eigen::VectorXd sg_coeffs_;
+  bool do_refinement_;
+  int refinement_num_;
   rclcpp::Logger logger_{rclcpp::get_logger("SGSmoother")};
 };
 

@@ -9,7 +9,7 @@ install(TARGETS
 )
 
 # Test utilities and basic types
-nav2_add_gtest(test_utils_and_types
+ament_add_gtest(test_utils_and_types
   test_utils_and_types.cpp
 )
 target_link_libraries(test_utils_and_types
@@ -17,7 +17,7 @@ target_link_libraries(test_utils_and_types
 )
 
 # Test edge scorer + plugins
-nav2_add_gtest(test_edge_scorers
+ament_add_gtest(test_edge_scorers
   test_edge_scorers.cpp
 )
 target_link_libraries(test_edge_scorers
@@ -25,7 +25,7 @@ target_link_libraries(test_edge_scorers
 )
 
 # Test path converter
-nav2_add_gtest(test_path_converter
+ament_add_gtest(test_path_converter
   test_path_converter.cpp
 )
 target_link_libraries(test_path_converter
@@ -33,7 +33,7 @@ target_link_libraries(test_path_converter
 )
 
 # Test node spatial tree
-nav2_add_gtest(test_spatial_tree
+ament_add_gtest(test_spatial_tree
   test_spatial_tree.cpp
 )
 target_link_libraries(test_spatial_tree
@@ -41,7 +41,7 @@ target_link_libraries(test_spatial_tree
 )
 
 # Test operation manager + plugins
-nav2_add_gtest(test_operations
+ament_add_gtest(test_operations
   test_operations.cpp
 )
 target_link_libraries(test_operations
@@ -49,7 +49,7 @@ target_link_libraries(test_operations
 )
 
 # Test graph loader
-nav2_add_gtest(test_graph_loader
+ament_add_gtest(test_graph_loader
     test_graph_loader.cpp
 )
 target_link_libraries(test_graph_loader
@@ -57,7 +57,7 @@ target_link_libraries(test_graph_loader
 )
 
 # Test graph saver
-nav2_add_gtest(test_graph_saver
+ament_add_gtest(test_graph_saver
     test_graph_saver.cpp
 )
 target_link_libraries(test_graph_saver
@@ -65,7 +65,7 @@ target_link_libraries(test_graph_saver
 )
 
 # Test geojson parser
-nav2_add_gtest(test_geojson_graph_file_loader
+ament_add_gtest(test_geojson_graph_file_loader
     test_geojson_graph_file_loader.cpp
 )
 target_link_libraries(test_geojson_graph_file_loader
@@ -73,7 +73,7 @@ target_link_libraries(test_geojson_graph_file_loader
 )
 
 # Test geojson saver
-nav2_add_gtest(test_geojson_graph_file_saver
+ament_add_gtest(test_geojson_graph_file_saver
     test_geojson_graph_file_saver.cpp
 )
 target_link_libraries(test_geojson_graph_file_saver
@@ -81,7 +81,7 @@ target_link_libraries(test_geojson_graph_file_saver
 )
 
 # Test collision monitor separately due to relative complexity
-nav2_add_gtest(test_collision_operation
+ament_add_gtest(test_collision_operation
   test_collision_operation.cpp
 )
 target_link_libraries(test_collision_operation
@@ -89,7 +89,7 @@ target_link_libraries(test_collision_operation
 )
 
 # Test route planner
-nav2_add_gtest(test_route_planner
+ament_add_gtest(test_route_planner
   test_route_planner.cpp
 )
 target_link_libraries(test_route_planner
@@ -97,7 +97,7 @@ target_link_libraries(test_route_planner
 )
 
 # Test goal intent extractor
-nav2_add_gtest(test_goal_intent_extractor
+ament_add_gtest(test_goal_intent_extractor
   test_goal_intent_extractor.cpp
 )
 target_link_libraries(test_goal_intent_extractor
@@ -105,7 +105,7 @@ target_link_libraries(test_goal_intent_extractor
 )
 
 # Test route tracker
-nav2_add_gtest(test_route_tracker
+ament_add_gtest(test_route_tracker
   test_route_tracker.cpp
 )
 target_link_libraries(test_route_tracker
@@ -113,7 +113,7 @@ target_link_libraries(test_route_tracker
 )
 
 # Test route server
-nav2_add_gtest(test_route_server
+ament_add_gtest(test_route_server
   test_route_server.cpp
 )
 target_link_libraries(test_route_server
@@ -121,7 +121,7 @@ target_link_libraries(test_route_server
 )
 
 # Test goal intent search
-nav2_add_gtest(test_goal_intent_search
+ament_add_gtest(test_goal_intent_search
   test_goal_intent_search.cpp
 )
 target_link_libraries(test_goal_intent_search
@@ -129,7 +129,7 @@ target_link_libraries(test_goal_intent_search
 )
 
 # Test corner smoothing
-nav2_add_gtest(test_corner_smoothing
+ament_add_gtest(test_corner_smoothing
   test_corner_smoothing.cpp
 )
 target_link_libraries(test_corner_smoothing

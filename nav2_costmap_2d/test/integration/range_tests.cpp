@@ -35,18 +35,15 @@
 #include <memory>
 #include <string>
 #include <algorithm>
-#include <limits>
 #include <utility>
 #include <vector>
 
-#include "geometry_msgs/msg/transform_stamped.hpp"
 #include "gtest/gtest.h"
 #include "nav2_costmap_2d/costmap_2d.hpp"
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "nav2_costmap_2d/observation_buffer.hpp"
 #include "../testing_helper.hpp"
 #include "sensor_msgs/msg/range.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 using std::begin;
 using std::end;
@@ -56,42 +53,58 @@ using std::none_of;
 using std::pair;
 using std::string;
 
-class TestLifecycleNode : public nav2::LifecycleNode
+class RclCppFixture
+{
+public:
+  RclCppFixture()
+  {
+    rclcpp::init(0, nullptr);
+  }
+
+  ~RclCppFixture()
+  {
+    rclcpp::shutdown();
+  }
+};
+
+RclCppFixture g_rclcppfixture;
+
+class TestLifecycleNode : public nav2_util::LifecycleNode
 {
 public:
   explicit TestLifecycleNode(const string & name)
-  : nav2::LifecycleNode(name)
+  : nav2_util::LifecycleNode(name)
   {
   }
 
-  nav2::CallbackReturn on_configure(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_configure(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn on_activate(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_activate(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn on_deactivate(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_deactivate(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn on_cleanup(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn on_cleanup(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn onShutdown(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn onShutdown(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 
-  nav2::CallbackReturn onError(const rclcpp_lifecycle::State &)
+  nav2_util::CallbackReturn onError(const rclcpp_lifecycle::State &)
   {
-    return nav2::CallbackReturn::SUCCESS;
+    return nav2_util::CallbackReturn::SUCCESS;
   }
 };
 
@@ -108,7 +121,6 @@ public:
     node_->declare_parameter("track_unknown_space", rclcpp::ParameterValue(false));
     node_->declare_parameter("use_maximum", rclcpp::ParameterValue(false));
     node_->declare_parameter("lethal_cost_threshold", rclcpp::ParameterValue(100));
-    node_->declare_parameter("inscribed_obstacle_cost_value", rclcpp::ParameterValue(99));
     node_->declare_parameter(
       "unknown_cost_value",
       rclcpp::ParameterValue(static_cast<unsigned char>(0xff)));
@@ -131,7 +143,7 @@ public:
 
 protected:
   std::shared_ptr<TestLifecycleNode> node_;
-  nav2::TransformBuffer tf_;
+  tf2_ros::Buffer tf_;
 };
 
 // Test clearing at max range
@@ -170,50 +182,6 @@ TEST_F(TestNode, testClearingAtMaxRange) {
   rlayer->bufferIncomingRangeMsg(std::make_shared<sensor_msgs::msg::Range>(msg));
   layers.updateMap(0, 0, 0);  // 0, 0, 0 is robot pose
 //  printMap(*(layers.getCostmap()));
-
-  ASSERT_EQ(layers.getCostmap()->getCost(4, 5), 0);
-}
-
-// Test clearing above max range, as +Inf, and ignoring NaN
-TEST_F(TestNode, testClearingAboveMaxRange) {
-  geometry_msgs::msg::TransformStamped transform;
-  transform.header.stamp = node_->now();
-  transform.header.frame_id = "frame";
-  transform.child_frame_id = "base_link";
-  transform.transform.translation.y = 5;
-  transform.transform.translation.x = 2;
-  tf_.setTransform(transform, "default_authority", true);
-
-  nav2_costmap_2d::LayeredCostmap layers("frame", false, false);
-  layers.resizeMap(10, 10, 1, 0, 0);
-
-  std::shared_ptr<nav2_costmap_2d::RangeSensorLayer> rlayer{nullptr};
-  addRangeLayer(layers, tf_, node_, rlayer);
-
-  sensor_msgs::msg::Range msg;
-  msg.min_range = 1.0;
-  msg.max_range = 7.0;
-  msg.range = 2.0;
-  msg.header.stamp = node_->now();
-  msg.header.frame_id = "base_link";
-  msg.radiation_type = msg.ULTRASOUND;
-  msg.field_of_view = 0.174533;  // 10 deg
-  rlayer->bufferIncomingRangeMsg(std::make_shared<sensor_msgs::msg::Range>(msg));
-  layers.updateMap(0, 0, 0);  // 0, 0, 0 is robot pose
-
-  ASSERT_EQ(layers.getCostmap()->getCost(4, 5), 254);
-
-  msg.range = std::numeric_limits<float>::quiet_NaN();
-  msg.header.stamp = node_->now();
-  rlayer->bufferIncomingRangeMsg(std::make_shared<sensor_msgs::msg::Range>(msg));
-  layers.updateMap(0, 0, 0);  // 0, 0, 0 is robot pose
-
-  ASSERT_EQ(layers.getCostmap()->getCost(4, 5), 254);
-
-  msg.range = std::numeric_limits<float>::infinity();
-  msg.header.stamp = node_->now();
-  rlayer->bufferIncomingRangeMsg(std::make_shared<sensor_msgs::msg::Range>(msg));
-  layers.updateMap(0, 0, 0);  // 0, 0, 0 is robot pose
 
   ASSERT_EQ(layers.getCostmap()->getCost(4, 5), 0);
 }
@@ -261,7 +229,7 @@ TEST_F(TestNode, testConeOutsideOfGrid) {
 }
 
 // Testing fixed scan with robot forward motion
-TEST_F(TestNode, testProbabilisticModelForward) {
+TEST_F(TestNode, testProbabalisticModelForward) {
   geometry_msgs::msg::TransformStamped transform;
   transform.header.stamp = node_->now();
   transform.header.frame_id = "frame";
@@ -314,7 +282,7 @@ TEST_F(TestNode, testProbabilisticModelForward) {
 }
 
 // Testing fixed motion with downward movement
-TEST_F(TestNode, testProbabilisticModelDownward) {
+TEST_F(TestNode, testProbabalisticModelDownward) {
   geometry_msgs::msg::TransformStamped transform;
   transform.header.stamp = node_->now();
   transform.header.frame_id = "frame";
@@ -365,17 +333,4 @@ TEST_F(TestNode, testProbabilisticModelDownward) {
   ASSERT_EQ(layers.getCostmap()->getCost(3, 5), 254);
   ASSERT_EQ(layers.getCostmap()->getCost(3, 6), 0);
   ASSERT_EQ(layers.getCostmap()->getCost(3, 7), 254);
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

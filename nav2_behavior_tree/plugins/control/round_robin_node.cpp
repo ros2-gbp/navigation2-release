@@ -20,7 +20,7 @@ namespace nav2_behavior_tree
 {
 
 RoundRobinNode::RoundRobinNode(const std::string & name)
-: BT::ControlNode::ControlNode(name, {}), wrap_around_(false)
+: BT::ControlNode::ControlNode(name, {})
 {
 }
 
@@ -29,7 +29,6 @@ RoundRobinNode::RoundRobinNode(
   const BT::NodeConfiguration & config)
 : BT::ControlNode(name, config)
 {
-  getInput("wrap_around", wrap_around_);
 }
 
 BT::NodeStatus RoundRobinNode::tick()
@@ -44,19 +43,9 @@ BT::NodeStatus RoundRobinNode::tick()
     const BT::NodeStatus child_status = child_node->executeTick();
 
     if (child_status != BT::NodeStatus::RUNNING) {
-      // Increment index and wrap around to the first child if enabled
+      // Increment index and wrap around to the first child
       if (++current_child_idx_ == num_children) {
-        if (wrap_around_) {
-          current_child_idx_ = 0;
-        } else {
-          if (child_status == BT::NodeStatus::SKIPPED) {
-            num_skipped_children++;
-          } else if (child_status == BT::NodeStatus::FAILURE) {
-            num_failed_children_++;
-          }
-          // Exit early if wrap around is disabled and we've reached the end
-          break;
-        }
+        current_child_idx_ = 0;
       }
     }
 

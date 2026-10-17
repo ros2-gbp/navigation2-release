@@ -24,7 +24,6 @@
 
 #include "assisted_teleop_behavior_tester.hpp"
 #include "nav2_util/geometry_utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 using namespace std::chrono_literals;
 using namespace std::chrono;  // NOLINT
@@ -36,13 +35,10 @@ AssistedTeleopBehaviorTester::AssistedTeleopBehaviorTester()
 : is_active_(false),
   initial_pose_received_(false)
 {
-  node_ = rclcpp::Node::make_shared(
-    "assisted_teleop_behavior_test",
-    rclcpp::NodeOptions().parameter_overrides(
-      {rclcpp::Parameter("use_sim_time", true)}));
+  node_ = rclcpp::Node::make_shared("assisted_teleop_behavior_test");
 
-  tf_buffer_ = nav2::create_transform_buffer(node_);
-  tf_listener_ = nav2::create_transform_listener(*tf_buffer_);
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   client_ptr_ = rclcpp_action::create_client<AssistedTeleop>(
     node_->get_node_base_interface(),
@@ -58,13 +54,13 @@ AssistedTeleopBehaviorTester::AssistedTeleopBehaviorTester()
     node_->create_publisher<std_msgs::msg::Empty>("preempt_teleop", 10);
 
   cmd_vel_pub_ =
-    node_->create_publisher<geometry_msgs::msg::TwistStamped>("cmd_vel_teleop", 10);
+    node_->create_publisher<geometry_msgs::msg::Twist>("cmd_vel_teleop", 10);
 
   subscription_ = node_->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
     "amcl_pose", rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable(),
     std::bind(&AssistedTeleopBehaviorTester::amclPoseCallback, this, std::placeholders::_1));
 
-  filtered_vel_sub_ = node_->create_subscription<geometry_msgs::msg::TwistStamped>(
+  filtered_vel_sub_ = node_->create_subscription<geometry_msgs::msg::Twist>(
     "cmd_vel",
     rclcpp::SystemDefaultsQoS(),
     std::bind(&AssistedTeleopBehaviorTester::filteredVelCallback, this, std::placeholders::_1));
@@ -87,7 +83,6 @@ AssistedTeleopBehaviorTester::AssistedTeleopBehaviorTester()
   );
 
   stamp_ = node_->now();
-  executor_.add_node(node_);
 }
 
 AssistedTeleopBehaviorTester::~AssistedTeleopBehaviorTester()
@@ -108,7 +103,7 @@ void AssistedTeleopBehaviorTester::activate()
     RCLCPP_WARN(node_->get_logger(), "Initial pose not received");
     sendInitialPose();
     std::this_thread::sleep_for(100ms);
-    executor_.spin_some();
+    rclcpp::spin_some(node_);
   }
 
   // Wait for lifecycle_manager_navigation to activate behavior_server
@@ -151,7 +146,7 @@ bool AssistedTeleopBehaviorTester::defaultAssistedTeleopTest(
 
   auto goal_handle_future = client_ptr_->async_send_goal(nav2_msgs::action::AssistedTeleop::Goal());
 
-  if (executor_.spin_until_future_complete(goal_handle_future) !=
+  if (rclcpp::spin_until_future_complete(node_, goal_handle_future) !=
     rclcpp::FutureReturnCode::SUCCESS)
   {
     RCLCPP_ERROR(node_->get_logger(), "send goal call failed :(");
@@ -172,9 +167,9 @@ bool AssistedTeleopBehaviorTester::defaultAssistedTeleopTest(
   counter_ = 0;
   auto start_time = std::chrono::system_clock::now();
   while (rclcpp::ok()) {
-    geometry_msgs::msg::TwistStamped cmd_vel = geometry_msgs::msg::TwistStamped();
-    cmd_vel.twist.linear.x = lin_vel;
-    cmd_vel.twist.angular.z = ang_vel;
+    geometry_msgs::msg::Twist cmd_vel = geometry_msgs::msg::Twist();
+    cmd_vel.linear.x = lin_vel;
+    cmd_vel.angular.z = ang_vel;
     cmd_vel_pub_->publish(cmd_vel);
 
     if (counter_ > 1) {
@@ -187,7 +182,7 @@ bool AssistedTeleopBehaviorTester::defaultAssistedTeleopTest(
       return false;
     }
 
-    executor_.spin_some();
+    rclcpp::spin_some(node_);
     r.sleep();
   }
 
@@ -195,7 +190,7 @@ bool AssistedTeleopBehaviorTester::defaultAssistedTeleopTest(
   preempt_pub_->publish(preempt_msg);
 
   RCLCPP_INFO(node_->get_logger(), "Waiting for result");
-  if (executor_.spin_until_future_complete(result_future) !=
+  if (rclcpp::spin_until_future_complete(node_, result_future) !=
     rclcpp::FutureReturnCode::SUCCESS)
   {
     RCLCPP_ERROR(node_->get_logger(), "get result call failed :(");
@@ -227,7 +222,12 @@ bool AssistedTeleopBehaviorTester::defaultAssistedTeleopTest(
     return false;
   }
 
-  if (!collision_checker_->isCollisionFree(current_pose.pose)) {
+  geometry_msgs::msg::Pose2D pose_2d;
+  pose_2d.x = current_pose.pose.position.x;
+  pose_2d.y = current_pose.pose.position.y;
+  pose_2d.theta = tf2::getYaw(current_pose.pose.orientation);
+
+  if (!collision_checker_->isCollisionFree(pose_2d)) {
     RCLCPP_ERROR(node_->get_logger(), "Ended in collision");
     return false;
   }
@@ -259,15 +259,15 @@ void AssistedTeleopBehaviorTester::sendInitialPose()
 }
 
 void AssistedTeleopBehaviorTester::amclPoseCallback(
-  const geometry_msgs::msg::PoseWithCovarianceStamped::ConstSharedPtr)
+  const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr)
 {
   initial_pose_received_ = true;
 }
 
 void AssistedTeleopBehaviorTester::filteredVelCallback(
-  geometry_msgs::msg::TwistStamped::ConstSharedPtr msg)
+  geometry_msgs::msg::Twist::SharedPtr msg)
 {
-  if (msg->twist.linear.x == 0.0f) {
+  if (msg->linear.x == 0.0f) {
     counter_++;
   } else {
     counter_ = 0;

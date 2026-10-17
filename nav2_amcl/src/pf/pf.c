@@ -28,7 +28,6 @@
 #include <float.h>
 #include <assert.h>
 #include <math.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <time.h>
 
@@ -55,6 +54,8 @@ pf_t * pf_alloc(
   pf_sample_set_t * set;
   pf_sample_t * sample;
 
+  srand48(time(NULL));
+
   pf = calloc(1, sizeof(pf_t));
 
   pf->random_pose_fn = random_pose_fn;
@@ -66,7 +67,7 @@ pf_t * pf_alloc(
   // the max error between the true distribution and the estimated
   // distribution.  [z] is the upper standard normal quantile for (1 -
   // p), where p is the probability that the error on the estimated
-  // distribution will be less than [err].
+  // distrubition will be less than [err].
   pf->pop_err = 0.01;
   pf->pop_z = 3;
   pf->dist_threshold = 0.5;
@@ -122,7 +123,7 @@ void pf_free(pf_t * pf)
   free(pf);
 }
 
-// Initialize the filter using a gaussian
+// Initialize the filter using a guassian
 void pf_init(pf_t * pf, pf_vector_t mean, pf_matrix_t cov)
 {
   int i;
@@ -507,7 +508,8 @@ void pf_cluster_stats(pf_t * pf, pf_sample_set_t * set)
 
     // Get the cluster label for this sample
     cidx = pf_kdtree_get_cluster(set->kdtree, sample->pose);
-    if (cidx < 0 || cidx >= set->cluster_max_count) {
+    assert(cidx >= 0);
+    if (cidx >= set->cluster_max_count) {
       continue;
     }
     if (cidx + 1 > set->cluster_count) {

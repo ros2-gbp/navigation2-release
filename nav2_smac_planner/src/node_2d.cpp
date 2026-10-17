@@ -21,15 +21,18 @@
 namespace nav2_smac_planner
 {
 
-Node2D::Node2D(const uint64_t index, NodeContext * ctx)
+// defining static member for all instance to share
+std::vector<int> Node2D::_neighbors_grid_offsets;
+float Node2D::cost_travel_multiplier = 2.0;
+
+Node2D::Node2D(const uint64_t index)
 : parent(nullptr),
   _cell_cost(std::numeric_limits<float>::quiet_NaN()),
   _accumulated_cost(std::numeric_limits<float>::max()),
   _index(index),
   _was_visited(false),
   _is_queued(false),
-  _in_collision(false),
-  _ctx(ctx)
+  _in_collision(false)
 {
 }
 
@@ -73,26 +76,25 @@ float Node2D::getTraversalCost(const NodePtr & child)
 
   // If a diagonal move, travel cost is sqrt(2) not 1.0.
   if ((dx * dx + dy * dy) > 1.05) {
-    return sqrt_2 * (1.0 + _ctx->cost_travel_multiplier * normalized_cost);
+    return sqrt_2 * (1.0 + cost_travel_multiplier * normalized_cost);
   }
 
   // Length = 1.0
-  return 1.0 + _ctx->cost_travel_multiplier * normalized_cost;
+  return 1.0 + cost_travel_multiplier * normalized_cost;
 }
 
 float Node2D::getHeuristicCost(
   const Coordinates & node_coords,
-  const CoordinateVector & goals_coords)
+  const Coordinates & goal_coordinates)
 {
   // Using Moore distance as it more accurately represents the distances
   // even a Van Neumann neighborhood robot can navigate.
-  auto dx = goals_coords[0].x - node_coords.x;
-  auto dy = goals_coords[0].y - node_coords.y;
+  auto dx = goal_coordinates.x - node_coords.x;
+  auto dy = goal_coordinates.y - node_coords.y;
   return std::sqrt(dx * dx + dy * dy);
 }
 
 void Node2D::initMotionModel(
-  NodeContext * ctx,
   const MotionModel & motion_model,
   unsigned int & x_size_uint,
   unsigned int & /*size_y*/,
@@ -104,8 +106,8 @@ void Node2D::initMotionModel(
   }
 
   int x_size = static_cast<int>(x_size_uint);
-  ctx->cost_travel_multiplier = search_info.cost_penalty;
-  ctx->neighbors_grid_offsets = {-1, +1, -x_size, +x_size, -x_size - 1,
+  cost_travel_multiplier = search_info.cost_penalty;
+  _neighbors_grid_offsets = {-1, +1, -x_size, +x_size, -x_size - 1,
     -x_size + 1, +x_size - 1, +x_size + 1};
 }
 
@@ -130,15 +132,15 @@ void Node2D::getNeighbors(
   uint64_t index;
   NodePtr neighbor;
   uint64_t node_i = this->getIndex();
-  const Coordinates coord_parent = getCoords(this->getIndex());
+  const Coordinates parent = getCoords(this->getIndex());
   Coordinates child;
 
-  for (unsigned int i = 0; i != _ctx->neighbors_grid_offsets.size(); ++i) {
-    index = node_i + _ctx->neighbors_grid_offsets[i];
+  for (unsigned int i = 0; i != _neighbors_grid_offsets.size(); ++i) {
+    index = node_i + _neighbors_grid_offsets[i];
 
     // Check for wrap around conditions
     child = getCoords(index);
-    if (fabs(coord_parent.x - child.x) > 1 || fabs(coord_parent.y - child.y) > 1) {
+    if (fabs(parent.x - child.x) > 1 || fabs(parent.y - child.y) > 1) {
       continue;
     }
 

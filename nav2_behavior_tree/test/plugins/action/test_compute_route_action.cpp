@@ -22,7 +22,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/compute_route_action.hpp"
 
 class ComputeRouteActionServer : public TestActionServer<nav2_msgs::action::ComputeRoute>
@@ -59,7 +59,7 @@ class ComputeRouteActionTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<nav2::LifecycleNode>("compute_path_to_pose_action_test_fixture");
+    node_ = std::make_shared<rclcpp::Node>("compute_path_to_pose_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
 
     config_ = new BT::NodeConfiguration();
@@ -109,13 +109,13 @@ public:
   static std::shared_ptr<ComputeRouteActionServer> action_server_;
 
 protected:
-  static nav2::LifecycleNode::SharedPtr node_;
+  static rclcpp::Node::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-nav2::LifecycleNode::SharedPtr ComputeRouteActionTestFixture::node_ = nullptr;
+rclcpp::Node::SharedPtr ComputeRouteActionTestFixture::node_ = nullptr;
 std::shared_ptr<ComputeRouteActionServer>
 ComputeRouteActionTestFixture::action_server_ = nullptr;
 BT::NodeConfiguration * ComputeRouteActionTestFixture::config_ = nullptr;
@@ -163,7 +163,7 @@ TEST_F(ComputeRouteActionTestFixture, test_IDs)
 
   builtin_interfaces::msg::Duration time1;
   EXPECT_TRUE(config_->blackboard->get<builtin_interfaces::msg::Duration>("planning_time", time1));
-  EXPECT_EQ(rclcpp::Duration(time1), rclcpp::Duration::from_seconds(0.1));
+  EXPECT_EQ(time1, rclcpp::Duration::from_seconds(0.1));
 
   // halt node so another goal can be sent
   tree_->haltTree();
@@ -221,7 +221,7 @@ TEST_F(ComputeRouteActionTestFixture, test_poses)
 
   builtin_interfaces::msg::Duration time1;
   EXPECT_TRUE(config_->blackboard->get<builtin_interfaces::msg::Duration>("planning_time", time1));
-  EXPECT_EQ(rclcpp::Duration(time1), rclcpp::Duration::from_seconds(0.1));
+  EXPECT_EQ(time1, rclcpp::Duration::from_seconds(0.1));
 
   // halt node so another goal can be sent
   tree_->haltTree();

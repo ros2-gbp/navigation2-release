@@ -16,8 +16,7 @@
 #include <memory>
 
 #include "nav2_behaviors/behavior_server.hpp"
-#include "rclcpp/executors.hpp"
-#include "rclcpp/utilities.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char ** argv)
 {

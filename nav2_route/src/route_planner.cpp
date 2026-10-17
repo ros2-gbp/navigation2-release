@@ -20,17 +20,18 @@
 #include <algorithm>
 
 #include "nav2_route/route_planner.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_route
 {
 
 void RoutePlanner::configure(
-  nav2::LifecycleNode::SharedPtr node,
-  const nav2::TransformBuffer::SharedPtr tf_buffer,
+  nav2_util::LifecycleNode::SharedPtr node,
+  const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
   const std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_subscriber)
 {
-  max_iterations_ = node->declare_or_get_parameter("max_iterations", 0);
+  nav2_util::declare_parameter_if_not_declared(
+    node, "max_iterations", rclcpp::ParameterValue(0));
+  max_iterations_ = node->get_parameter("max_iterations").as_int();
 
   if (max_iterations_ <= 0) {
     max_iterations_ = std::numeric_limits<int>::max();
@@ -87,8 +88,6 @@ void RoutePlanner::findShortestGraphTraversal(
   const std::vector<unsigned int> & blocked_ids,
   const RouteRequest & route_request)
 {
-  clearQueue();
-
   // Setup the Dijkstra's search
   resetSearchStates(graph);
   start_id_ = start_node->nodeid;
@@ -113,6 +112,8 @@ void RoutePlanner::findShortestGraphTraversal(
 
     // We have the shortest path
     if (isGoal(node)) {
+      // Reset states
+      clearQueue();
       return;
     }
 
@@ -138,6 +139,8 @@ void RoutePlanner::findShortestGraphTraversal(
   }
 
   if (iterations == max_iterations_) {
+    // Reset states
+    clearQueue();
     throw nav2_core::TimedOut("Maximum iterations was exceeded!");
   }
 }

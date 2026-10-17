@@ -17,12 +17,12 @@
 
 #include <memory>
 #include <string>
-#include <vector>
+#include "rclcpp/rclcpp.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
+#include "tf2_ros/buffer.h"
 #include "nav_msgs/msg/path.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 
 namespace nav2_core
 {
@@ -48,8 +48,8 @@ public:
    * @param  costmap_ros A pointer to the costmap
    */
   virtual void configure(
-    const nav2::LifecycleNode::WeakPtr & parent,
-    std::string name, nav2::TransformBuffer::SharedPtr tf,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
+    std::string name, std::shared_ptr<tf2_ros::Buffer> tf,
     std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros) = 0;
 
   /**
@@ -63,22 +63,20 @@ public:
   virtual void activate() = 0;
 
   /**
-   * @brief Method to deactivate planner and any threads involved in execution.
+   * @brief Method to deactive planner and any threads involved in execution.
    */
   virtual void deactivate() = 0;
 
   /**
-   * @brief Method to create the plan from a starting pose, a goal pose, and intermediate viapoints.
+   * @brief Method create the plan from a starting and ending goal.
    * @param start The starting pose of the robot
    * @param goal  The goal pose of the robot
-   * @param viapoints The intermediate viapoints for the robot
    * @param cancel_checker Function to check if the action has been canceled
    * @return      The sequence of poses to get from start to goal, if any
    */
   virtual nav_msgs::msg::Path createPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
-    const std::vector<geometry_msgs::msg::PoseStamped> & viapoints,
     std::function<bool()> cancel_checker) = 0;
 };
 

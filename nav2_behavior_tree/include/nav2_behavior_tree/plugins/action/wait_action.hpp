@@ -19,26 +19,20 @@
 
 #include "nav2_behavior_tree/bt_action_node.hpp"
 #include "nav2_msgs/action/wait.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::Wait
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
- * <Wait wait_duration="1.0" server_name="wait_server" server_timeout="10"
- *       error_code_id="{wait_error_code}" error_msg="{wait_error_msg}"/>
+ * <Wait wait_duration="1.0" server_name="wait_server" server_timeout="10"/>
  * @endcode
  */
 class WaitAction : public BtActionNode<nav2_msgs::action::Wait>
 {
-  using Action = nav2_msgs::action::Wait;
-  using ActionResult = Action::Result;
-
 public:
   /**
    * @brief A constructor for nav2_behavior_tree::WaitAction
@@ -69,24 +63,9 @@ public:
   {
     return providedBasicPorts(
       {
-        BT::InputPort<double>("wait_duration", 1.0, "Wait time"),
+        BT::InputPort<double>("wait_duration", 1.0, "Wait time")
       });
   }
-
-  /**
-   * @brief Function to perform some user-defined operation upon successful completion of the action
-   */
-  BT::NodeStatus on_success() override;
-
-  /**
-   * @brief Function to perform some user-defined operation upon abortion of the action
-   */
-  BT::NodeStatus on_aborted() override;
-
-  /**
-   * @brief Function to perform some user-defined operation upon cancellation of the action
-   */
-  BT::NodeStatus on_cancelled() override;
 };
 
 }  // namespace nav2_behavior_tree

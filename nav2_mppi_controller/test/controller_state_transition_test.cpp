@@ -23,9 +23,16 @@
 #include "nav2_mppi_controller/controller.hpp"
 
 #include "utils/utils.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
-// Tests basic transition from configure->active->process->deactivate->cleanup
+class RosLockGuard
+{
+public:
+  RosLockGuard() {rclcpp::init(0, nullptr);}
+  ~RosLockGuard() {rclcpp::shutdown();}
+};
+RosLockGuard g_rclcpp;
+
+// Tests basic transition from configure->active->process->deactive->cleanup
 
 TEST(ControllerStateTransitionTest, ControllerNotFail)
 {
@@ -39,8 +46,7 @@ TEST(ControllerStateTransitionTest, ControllerNotFail)
   options.parameter_overrides(params);
 
   auto node = getDummyNode(options);
-  node->declare_parameter("publish_optimal_trajectory", true);
-  auto tf_buffer = nav2::create_transform_buffer(node);
+  auto tf_buffer = std::make_shared<tf2_ros::Buffer>(node->get_clock());
   auto costmap_ros = getDummyCostmapRos(costmap_settings);
   costmap_ros->setRobotFootprint(getDummySquareFootprint(0.01));
 
@@ -57,28 +63,13 @@ TEST(ControllerStateTransitionTest, ControllerNotFail)
   path.header.frame_id = costmap_ros->getGlobalFrameID();
   pose.header.frame_id = costmap_ros->getGlobalFrameID();
 
-  controller->newPathReceived(path);
-  nav_msgs::msg::Path transformed_global_plan;
-  geometry_msgs::msg::PoseStamped goal;
-  EXPECT_NO_THROW(controller->computeVelocityCommands(pose, velocity, {}, transformed_global_plan,
-    goal));
+  controller->setPlan(path);
+
+  EXPECT_NO_THROW(controller->computeVelocityCommands(pose, velocity, {}));
 
   controller->setSpeedLimit(0.5, true);
   controller->setSpeedLimit(0.5, false);
   controller->setSpeedLimit(1.0, true);
   controller->deactivate();
   controller->cleanup();
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

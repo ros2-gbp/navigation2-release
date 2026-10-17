@@ -22,8 +22,7 @@
 #include <chrono>
 
 #include "rclcpp_action/rclcpp_action.hpp"
-#include "rclcpp/node.hpp"
-#include "rclcpp/service.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 namespace nav2_system_tests
 {

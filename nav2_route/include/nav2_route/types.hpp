@@ -19,7 +19,6 @@
 #include <unordered_map>
 #include <utility>
 #include <limits>
-#include <cmath>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 
 #ifndef NAV2_ROUTE__TYPES_HPP_
@@ -38,7 +37,7 @@ struct Metadata
 
   // For retrieving metadata at run-time via plugins
   template<typename T>
-  T getValue(const std::string & key, const T & default_val) const
+  T getValue(const std::string & key, T & default_val) const
   {
     auto it = data.find(key);
     if (it == data.end()) {
@@ -49,7 +48,7 @@ struct Metadata
 
   // For populating metadata from file
   template<typename T>
-  void setValue(const std::string & key, const T & value)
+  void setValue(const std::string & key, T & value)
   {
     data[key] = value;
   }

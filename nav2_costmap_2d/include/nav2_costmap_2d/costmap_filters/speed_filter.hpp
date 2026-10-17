@@ -43,13 +43,8 @@
 
 #include "nav2_costmap_2d/costmap_filters/costmap_filter.hpp"
 
-#include "geometry_msgs/msg/point_stamped.hpp"
 #include "nav2_msgs/msg/costmap_filter_info.hpp"
 #include "nav2_msgs/msg/speed_limit.hpp"
-#include "nav_msgs/msg/path.hpp"
-#include "nav2_util/odometry_utils.hpp"
-#include "nav2_util/geometry_utils.hpp"
-#include "nav2_util/path_utils.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -71,7 +66,7 @@ public:
    * @brief Initialize the filter and subscribe to the info topic
    */
   void initializeFilter(
-    const std::string & filter_info_topic) override;
+    const std::string & filter_info_topic);
 
   /**
    * @brief Process the keepout layer at the current pose / bounds / grid
@@ -79,78 +74,40 @@ public:
   void process(
     nav2_costmap_2d::Costmap2D & master_grid,
     int min_i, int min_j, int max_i, int max_j,
-    const geometry_msgs::msg::Pose & pose) override;
+    const geometry_msgs::msg::Pose2D & pose);
 
   /**
    * @brief Reset the costmap filter / topic / info
    */
-  void resetFilter() override;
+  void resetFilter();
 
   /**
    * @brief If this filter is active
    */
   bool isActive();
 
-protected:
+private:
   /**
    * @brief Callback for the filter information
    */
-  void filterInfoCallback(const nav2_msgs::msg::CostmapFilterInfo::ConstSharedPtr & msg);
+  void filterInfoCallback(const nav2_msgs::msg::CostmapFilterInfo::SharedPtr msg);
   /**
    * @brief Callback for the filter mask
    */
-  void maskCallback(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr & msg);
-  /**
-   * @brief Callback for the planned path used by path lookahead
-   */
-  void pathCallback(const nav_msgs::msg::Path::ConstSharedPtr & msg);
-  /**
-   * @brief Look up the speed limit at a single pose in the costmap's global frame
-   * @param pose Pose in global_frame_
-   * @param speed_limit output: computed speed limit
-   * @return true if pose mapped to a valid mask cell, false otherwise
-   */
-  bool getSpeedLimitAtPose(
-    const geometry_msgs::msg::Pose & pose,
-    double & speed_limit);
-  /**
-   * @brief Get the speed limit from the path lookahead
-   * @param robot_pose robot pose
-   * @param lookahead_dist lookahead distance
-   * @param speed_limit output: strictest speed limit found along the lookahead
-   * @return true if the lookahead could be evaluated, false otherwise
-   */
-  bool getSpeedLimitFromLookahead(
-    const geometry_msgs::msg::Pose & robot_pose,
-    double lookahead_dist,
-    double & speed_limit);
+  void maskCallback(const nav_msgs::msg::OccupancyGrid::SharedPtr msg);
 
-  nav2::Subscription<nav2_msgs::msg::CostmapFilterInfo>::SharedPtr filter_info_sub_;
-  nav2::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mask_sub_;
-  nav2::Subscription<nav_msgs::msg::Path>::SharedPtr path_sub_;
+  rclcpp::Subscription<nav2_msgs::msg::CostmapFilterInfo>::SharedPtr filter_info_sub_;
+  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr mask_sub_;
 
-  nav2::Publisher<nav2_msgs::msg::SpeedLimit>::SharedPtr speed_limit_pub_;
-  nav2::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr lookahead_pub_;
+  rclcpp_lifecycle::LifecyclePublisher<nav2_msgs::msg::SpeedLimit>::SharedPtr speed_limit_pub_;
 
-  nav_msgs::msg::OccupancyGrid::ConstSharedPtr filter_mask_;
-  nav_msgs::msg::Path::ConstSharedPtr current_path_;
+  nav_msgs::msg::OccupancyGrid::SharedPtr filter_mask_;
 
-  // Odometry for variable lookahead distance calculation
-  std::shared_ptr<nav2_util::OdomSmoother> odom_smoother_;
-
-  std::string global_frame_;  // Frame of current layer (master_grid)
+  std::string global_frame_;  // Frame of currnet layer (master_grid)
 
   double base_, multiplier_;
   bool percentage_;
   double speed_limit_, speed_limit_prev_;
-
-  // Lookahead distance held when entering a speed zone to avoid oscillations
-  double held_lookahead_dist_;
-  size_t lookahead_start_idx_;  // Start index for closest pose search, cached for efficiency
-  bool enable_path_lookahead_;  // Whether to enable path lookahead
-  double max_decel_;       // Deceleration (m/s^2) used to size lookahead
-  double min_lookahead_;   // Lower limit on lookahead distance (m)
-  double max_lookahead_;   // Upper limit on lookahead distance (m)
 };
 
 }  // namespace nav2_costmap_2d

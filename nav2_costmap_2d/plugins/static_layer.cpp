@@ -43,9 +43,9 @@
 #include <string>
 
 #include "pluginlib/class_list_macros.hpp"
-#include "tf2/convert.hpp"
+#include "tf2/convert.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.hpp"
-#include "nav2_ros_common/validate_messages.hpp"
+#include "nav2_util/validate_messages.hpp"
 
 #define EPSILON 1e-5
 
@@ -53,7 +53,6 @@ PLUGINLIB_EXPORT_CLASS(nav2_costmap_2d::StaticLayer, nav2_costmap_2d::Layer)
 
 using nav2_costmap_2d::NO_INFORMATION;
 using nav2_costmap_2d::LETHAL_OBSTACLE;
-using nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE;
 using nav2_costmap_2d::FREE_SPACE;
 using rcl_interfaces::msg::ParameterType;
 
@@ -76,9 +75,11 @@ StaticLayer::onInitialize()
 
   getParameters();
 
-  rclcpp::QoS map_qos = nav2::qos::StandardTopicQoS();  // initialize to default
+  rclcpp::QoS map_qos(10);  // initialize to default
   if (map_subscribe_transient_local_) {
-    map_qos = nav2::qos::LatchedSubscriptionQoS(3);
+    map_qos.transient_local();
+    map_qos.reliable();
+    map_qos.keep_last(1);
   }
 
   RCLCPP_INFO(
@@ -93,14 +94,14 @@ StaticLayer::onInitialize()
   }
 
   map_sub_ = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
-    map_topic_,
-    std::bind(&StaticLayer::incomingMap, this, std::placeholders::_1),
-    map_qos);
+    map_topic_, map_qos,
+    std::bind(&StaticLayer::incomingMap, this, std::placeholders::_1));
 
   if (subscribe_to_updates_) {
     RCLCPP_INFO(logger_, "Subscribing to updates");
     map_update_sub_ = node->create_subscription<map_msgs::msg::OccupancyGridUpdate>(
       map_topic_ + "_updates",
+      rclcpp::SystemDefaultsQoS(),
       std::bind(&StaticLayer::incomingUpdate, this, std::placeholders::_1));
   }
 }
@@ -108,37 +109,23 @@ StaticLayer::onInitialize()
 void
 StaticLayer::activate()
 {
-  auto node = node_.lock();
-  // Add callback for dynamic parameters
-  post_set_params_handler_ = node->add_post_set_parameters_callback(
-    std::bind(
-      &StaticLayer::updateParametersCallback,
-      this, std::placeholders::_1));
-  on_set_params_handler_ = node->add_on_set_parameters_callback(
-    std::bind(
-      &StaticLayer::validateParameterUpdatesCallback,
-      this, std::placeholders::_1));
 }
 
 void
 StaticLayer::deactivate()
 {
   auto node = node_.lock();
-  if (post_set_params_handler_ && node) {
-    node->remove_post_set_parameters_callback(post_set_params_handler_.get());
+  if (dyn_params_handler_ && node) {
+    node->remove_on_set_parameters_callback(dyn_params_handler_.get());
   }
-  post_set_params_handler_.reset();
-  if (on_set_params_handler_ && node) {
-    node->remove_on_set_parameters_callback(on_set_params_handler_.get());
-  }
-  on_set_params_handler_.reset();
+  dyn_params_handler_.reset();
 }
 
 void
 StaticLayer::reset()
 {
   has_updated_data_ = true;
-  setCurrent(false);
+  current_ = false;
 }
 
 void
@@ -147,28 +134,35 @@ StaticLayer::getParameters()
   int temp_lethal_threshold = 0;
   double temp_tf_tol = 0.0;
 
+  declareParameter("enabled", rclcpp::ParameterValue(true));
+  declareParameter("subscribe_to_updates", rclcpp::ParameterValue(false));
+  declareParameter("map_subscribe_transient_local", rclcpp::ParameterValue(true));
+  declareParameter("transform_tolerance", rclcpp::ParameterValue(0.0));
+  declareParameter("map_topic", rclcpp::ParameterValue(""));
+  declareParameter("footprint_clearing_enabled", rclcpp::ParameterValue(false));
+
   auto node = node_.lock();
   if (!node) {
     throw std::runtime_error{"Failed to lock node"};
   }
 
-  enabled_ = node->declare_or_get_parameter(name_ + "." + "enabled", true);
-  resize_master_ = node->declare_or_get_parameter(name_ + "." + "resize_master", true);
-  subscribe_to_updates_ = node->declare_or_get_parameter(
-    name_ + "." + "subscribe_to_updates", false);
-  footprint_clearing_enabled_ = node->declare_or_get_parameter(
-    name_ + "." + "footprint_clearing_enabled", false);
-  restore_cleared_footprint_ = node->declare_or_get_parameter(
-    name_ + "." + "restore_cleared_footprint", true);
-  map_topic_ = node->declare_or_get_parameter(
-    name_ + "." + "map_topic", std::string("map"));
-  map_topic_ = joinWithParentNamespace(map_topic_);
-  map_subscribe_transient_local_ = node->declare_or_get_parameter(
-    name_ + "." + "map_subscribe_transient_local", true);
+  node->get_parameter(name_ + "." + "enabled", enabled_);
+  node->get_parameter(name_ + "." + "subscribe_to_updates", subscribe_to_updates_);
+  node->get_parameter(name_ + "." + "footprint_clearing_enabled", footprint_clearing_enabled_);
+  std::string private_map_topic, global_map_topic;
+  node->get_parameter(name_ + "." + "map_topic", private_map_topic);
+  node->get_parameter("map_topic", global_map_topic);
+  if (!private_map_topic.empty()) {
+    map_topic_ = private_map_topic;
+  } else {
+    map_topic_ = global_map_topic;
+  }
+  node->get_parameter(
+    name_ + "." + "map_subscribe_transient_local",
+    map_subscribe_transient_local_);
   node->get_parameter("track_unknown_space", track_unknown_space_);
   node->get_parameter("use_maximum", use_maximum_);
   node->get_parameter("lethal_cost_threshold", temp_lethal_threshold);
-  node->get_parameter("inscribed_obstacle_cost_value", inscribed_obstacle_cost_value_);
   node->get_parameter("unknown_cost_value", unknown_cost_value_);
   node->get_parameter("trinary_costmap", trinary_costmap_);
   node->get_parameter("transform_tolerance", temp_tf_tol);
@@ -179,6 +173,12 @@ StaticLayer::getParameters()
   map_received_in_update_bounds_ = false;
 
   transform_tolerance_ = tf2::durationFromSec(temp_tf_tol);
+
+  // Add callback for dynamic parameters
+  dyn_params_handler_ = node->add_on_set_parameters_callback(
+    std::bind(
+      &StaticLayer::dynamicParametersCallback,
+      this, std::placeholders::_1));
 }
 
 void
@@ -196,7 +196,7 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
 
   // resize costmap if size, resolution or origin do not match
   Costmap2D * master = layered_costmap_->getCostmap();
-  if (usesMasterCostmapSize() && (master->getSizeInCellsX() != size_x ||
+  if (!layered_costmap_->isRolling() && (master->getSizeInCellsX() != size_x ||
     master->getSizeInCellsY() != size_y ||
     !isEqual(master->getResolution(), new_map.info.resolution, EPSILON) ||
     !isEqual(master->getOriginX(), new_map.info.origin.position.x, EPSILON) ||
@@ -208,20 +208,6 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
       logger_,
       "StaticLayer: Resizing costmap to %d X %d at %f m/pix", size_x, size_y,
       new_map.info.resolution);
-
-    double fmod_x = std::fmod(new_map.info.origin.position.x, new_map.info.resolution);
-    double fmod_y = std::fmod(new_map.info.origin.position.y, new_map.info.resolution);
-
-    if (std::abs(fmod_x) > EPSILON || std::abs(fmod_y) > EPSILON) {
-      RCLCPP_WARN(
-        logger_,
-        "StaticLayer: Costmap origin coordinates are not perfectly aligned with the resolution. "
-        "This may cause misalignment aliasing between rolling and non-rolling costmaps.\n"
-        "Map origin: (%.f, %.f) | Resolution: %.f",
-        new_map.info.origin.position.x, new_map.info.origin.position.y,
-        new_map.info.resolution);
-    }
-
     layered_costmap_->resizeMap(
       size_x, size_y, new_map.info.resolution,
       new_map.info.origin.position.x,
@@ -237,12 +223,6 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
       logger_,
       "StaticLayer: Resizing static layer to %d X %d at %f m/pix", size_x, size_y,
       new_map.info.resolution);
-    if (!layered_costmap_->isRolling() && !resize_master_ && size_x_ > 0 && size_y_ > 0) {
-      // Re-render the previous map's extent so a moved or shrunk map clears what it covered
-      addExtraBounds(
-        origin_x_, origin_y_,
-        origin_x_ + size_x_ * resolution_, origin_y_ + size_y_ * resolution_);
-    }
     resizeMap(
       size_x, size_y, new_map.info.resolution,
       new_map.info.origin.position.x, new_map.info.origin.position.y);
@@ -269,29 +249,20 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
   height_ = size_y_;
   has_updated_data_ = true;
 
-  setCurrent(true);
+  current_ = true;
 }
 
 void
 StaticLayer::matchSize()
 {
-  // If we are using rolling costmap or not resizing the master, the static map size is
+  // If we are using rolling costmap, the static map size is
   //   unrelated to the size of the layered costmap
-  if (usesMasterCostmapSize()) {
+  if (!layered_costmap_->isRolling()) {
     Costmap2D * master = layered_costmap_->getCostmap();
     resizeMap(
       master->getSizeInCellsX(), master->getSizeInCellsY(), master->getResolution(),
       master->getOriginX(), master->getOriginY());
-  } else {
-    // The master was resized (and cleared) by someone else: repaint our extent into it
-    has_updated_data_ = true;
   }
-}
-
-bool
-StaticLayer::usesMasterCostmapSize() const
-{
-  return !layered_costmap_->isRolling() && resize_master_;
 }
 
 unsigned char
@@ -302,8 +273,6 @@ StaticLayer::interpretValue(unsigned char value)
     return NO_INFORMATION;
   } else if (!track_unknown_space_ && value == unknown_cost_value_) {
     return FREE_SPACE;
-  } else if (value == inscribed_obstacle_cost_value_) {
-    return INSCRIBED_INFLATED_OBSTACLE;
   } else if (value >= lethal_threshold_) {
     return LETHAL_OBSTACLE;
   } else if (trinary_costmap_) {
@@ -315,21 +284,10 @@ StaticLayer::interpretValue(unsigned char value)
 }
 
 void
-StaticLayer::incomingMap(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr & new_map)
+StaticLayer::incomingMap(const nav_msgs::msg::OccupancyGrid::SharedPtr new_map)
 {
-  if (!nav2::validateMsg(*new_map)) {
+  if (!nav2_util::validateMsg(*new_map)) {
     RCLCPP_ERROR(logger_, "Received map message is malformed. Rejecting.");
-    return;
-  }
-  if (!layered_costmap_->isRolling() && !resize_master_ &&
-    new_map->header.frame_id != global_frame_)
-  {
-    // Non-rolling bounds are reported in the map frame, so it must be the costmap frame
-    RCLCPP_ERROR_THROTTLE(
-      logger_, *clock_, 10000,
-      "StaticLayer: Map in frame %s ignored: with resize_master false on a non-rolling costmap "
-      "the map must be in the costmap global frame (%s)",
-      new_map->header.frame_id.c_str(), global_frame_.c_str());
     return;
   }
   if (!map_received_) {
@@ -339,17 +297,11 @@ StaticLayer::incomingMap(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr & ne
   }
   std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
   map_buffer_ = new_map;
-  setCurrent(false);
 }
 
 void
 StaticLayer::incomingUpdate(map_msgs::msg::OccupancyGridUpdate::ConstSharedPtr update)
 {
-  if (!nav2::validateMsg(*update)) {
-    RCLCPP_ERROR(logger_, "Received map update is malformed. Rejecting.");
-    return;
-  }
-
   std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
   if (update->y < static_cast<int32_t>(y_) ||
     y_ + height_ < update->y + update->height ||
@@ -483,39 +435,11 @@ StaticLayer::updateCosts(
     return;
   }
 
-  // global_frame_ -> map_frame_; only needed for rolling costmaps, where the frames differ
-  tf2::Transform tf2_transform = tf2::Transform::getIdentity();
-  if (layered_costmap_->isRolling()) {
-    geometry_msgs::msg::TransformStamped transform;
-    try {
-      transform = tf_->lookupTransform(
-        map_frame_, global_frame_, tf2::TimePointZero,
-        transform_tolerance_);
-    } catch (tf2::TransformException & ex) {
-      RCLCPP_ERROR(logger_, "StaticLayer: %s", ex.what());
-      has_updated_data_ = true;
-      return;
-    }
-    tf2::fromMsg(transform.transform, tf2_transform);
-  }
-
-  std::vector<MapLocation> map_region_to_restore;
   if (footprint_clearing_enabled_) {
-    // The footprint is in global_frame_ but is rasterized into this layer's map_frame_ grid
-    std::vector<geometry_msgs::msg::Point> footprint_in_map_frame = transformed_footprint_;
-    if (layered_costmap_->isRolling()) {
-      for (auto & point : footprint_in_map_frame) {
-        const tf2::Vector3 p = tf2_transform * tf2::Vector3(point.x, point.y, 0);
-        point.x = p.x();
-        point.y = p.y();
-      }
-    }
-    map_region_to_restore.reserve(100);
-    getMapRegionOccupiedByPolygon(footprint_in_map_frame, map_region_to_restore);
-    setMapRegionOccupiedByPolygon(map_region_to_restore, nav2_costmap_2d::FREE_SPACE);
+    setConvexPolygonCost(transformed_footprint_, nav2_costmap_2d::FREE_SPACE);
   }
 
-  if (usesMasterCostmapSize()) {
+  if (!layered_costmap_->isRolling()) {
     // if not rolling, the layered costmap (master_grid) has same coordinates as this layer
     if (!use_maximum_) {
       updateWithTrueOverwrite(master_grid, min_i, min_j, max_i, max_j);
@@ -523,10 +447,22 @@ StaticLayer::updateCosts(
       updateWithMax(master_grid, min_i, min_j, max_i, max_j);
     }
   } else {
-    // If rolling window or not resizing the master, the master_grid is unlikely to have
-    // same coordinates as this layer
+    // If rolling window, the master_grid is unlikely to have same coordinates as this layer
     unsigned int mx, my;
     double wx, wy;
+    // Might even be in a different frame
+    geometry_msgs::msg::TransformStamped transform;
+    try {
+      transform = tf_->lookupTransform(
+        map_frame_, global_frame_, tf2::TimePointZero,
+        transform_tolerance_);
+    } catch (tf2::TransformException & ex) {
+      RCLCPP_ERROR(logger_, "StaticLayer: %s", ex.what());
+      return;
+    }
+    // Copy map data given proper transformations
+    tf2::Transform tf2_transform;
+    tf2::fromMsg(transform.transform, tf2_transform);
 
     for (int i = min_i; i < max_i; ++i) {
       for (int j = min_j; j < max_j; ++j) {
@@ -537,26 +473,16 @@ StaticLayer::updateCosts(
         p = tf2_transform * p;
         // Set master_grid with cell from map
         if (worldToMap(p.x(), p.y(), mx, my)) {
-          const unsigned char cost = getCost(mx, my);
           if (!use_maximum_) {
-            master_grid.setCost(i, j, cost);
-          } else if (cost != NO_INFORMATION) {
-            // Same rule as updateWithMax: unknown is transparent, known beats unknown
-            const unsigned char old_cost = master_grid.getCost(i, j);
-            if (old_cost == NO_INFORMATION || cost > old_cost) {
-              master_grid.setCost(i, j, cost);
-            }
+            master_grid.setCost(i, j, getCost(mx, my));
+          } else {
+            master_grid.setCost(i, j, std::max(getCost(mx, my), master_grid.getCost(i, j)));
           }
         }
       }
     }
   }
-
-  if (footprint_clearing_enabled_ && restore_cleared_footprint_) {
-    // restore the map region occupied by the polygon using cached data
-    restoreMapRegionOccupiedByPolygon(map_region_to_restore);
-  }
-  setCurrent(true);
+  current_ = true;
 }
 
 /**
@@ -571,54 +497,33 @@ bool StaticLayer::isEqual(double a, double b, double epsilon)
   return std::abs(a - b) < epsilon;
 }
 
-rcl_interfaces::msg::SetParametersResult StaticLayer::validateParameterUpdatesCallback(
-  const std::vector<rclcpp::Parameter> & parameters)
+/**
+  * @brief Callback executed when a parameter change is detected
+  * @param event ParameterEvent message
+  */
+rcl_interfaces::msg::SetParametersResult
+StaticLayer::dynamicParametersCallback(
+  std::vector<rclcpp::Parameter> parameters)
 {
+  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
   rcl_interfaces::msg::SetParametersResult result;
-  result.successful = true;
-  for (const auto & parameter : parameters) {
+
+  for (auto parameter : parameters) {
     const auto & param_type = parameter.get_type();
     const auto & param_name = parameter.get_name();
-    if (param_name.find(name_ + ".") != 0) {
-      continue;
-    }
 
     if (param_name == name_ + "." + "map_subscribe_transient_local" ||
       param_name == name_ + "." + "map_topic" ||
-      param_name == name_ + "." + "subscribe_to_updates" ||
-      param_name == name_ + "." + "resize_master")
+      param_name == name_ + "." + "subscribe_to_updates")
     {
       RCLCPP_WARN(
         logger_, "%s is not a dynamic parameter "
         "cannot be changed while running. Rejecting parameter update.", param_name.c_str());
-    } else if (param_type == ParameterType::PARAMETER_BOOL && // NOLINT
-      param_name == name_ + "." + "restore_cleared_footprint")
-    {
-      if (!footprint_clearing_enabled_) {
-        RCLCPP_WARN(
-          logger_, "restore_cleared_footprint cannot be used "
-          "when footprint_clearing_enabled is False. Rejecting parameter update.");
-        result.successful = false;
+    } else if (param_type == ParameterType::PARAMETER_DOUBLE) {
+      if (param_name == name_ + "." + "transform_tolerance") {
+        transform_tolerance_ = tf2::durationFromSec(parameter.as_double());
       }
-    }
-  }
-  return result;
-}
-
-void
-StaticLayer::updateParametersCallback(
-  const std::vector<rclcpp::Parameter> & parameters)
-{
-  std::lock_guard<Costmap2D::mutex_t> guard(*getMutex());
-
-  for (const auto & parameter : parameters) {
-    const auto & param_type = parameter.get_type();
-    const auto & param_name = parameter.get_name();
-    if (param_name.find(name_ + ".") != 0) {
-      continue;
-    }
-
-    if (param_type == ParameterType::PARAMETER_BOOL) {
+    } else if (param_type == ParameterType::PARAMETER_BOOL) {
       if (param_name == name_ + "." + "enabled" && enabled_ != parameter.as_bool()) {
         enabled_ = parameter.as_bool();
 
@@ -626,14 +531,14 @@ StaticLayer::updateParametersCallback(
         width_ = size_x_;
         height_ = size_y_;
         has_updated_data_ = true;
-        setCurrent(false);
+        current_ = false;
       } else if (param_name == name_ + "." + "footprint_clearing_enabled") {
         footprint_clearing_enabled_ = parameter.as_bool();
-      } else if (param_name == name_ + "." + "restore_cleared_footprint") {
-        restore_cleared_footprint_ = parameter.as_bool();
       }
     }
   }
+  result.successful = true;
+  return result;
 }
 
 }  // namespace nav2_costmap_2d

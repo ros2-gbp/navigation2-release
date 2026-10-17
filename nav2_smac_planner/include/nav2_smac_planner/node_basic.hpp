@@ -15,7 +15,17 @@
 #ifndef NAV2_SMAC_PLANNER__NODE_BASIC_HPP_
 #define NAV2_SMAC_PLANNER__NODE_BASIC_HPP_
 
-#include <type_traits>
+#include <math.h>
+#include <vector>
+#include <cmath>
+#include <iostream>
+#include <functional>
+#include <queue>
+#include <memory>
+#include <utility>
+#include <limits>
+
+#include "ompl/base/StateSpace.h"
 
 #include "nav2_smac_planner/constants.hpp"
 #include "nav2_smac_planner/node_hybrid.hpp"
@@ -39,9 +49,9 @@ public:
    * @brief A constructor for nav2_smac_planner::NodeBasic
    * @param index The index of this node for self-reference
    */
-  explicit NodeBasic(const uint64_t new_index)
-  : graph_node_ptr(nullptr),
-    index(new_index)
+  explicit NodeBasic(const uint64_t index)
+  : index(index),
+    graph_node_ptr(nullptr)
   {
   }
 
@@ -50,28 +60,7 @@ public:
    * cached in the queue for NodeT.
    * @param node NodeT ptr to populate metadata into NodeBasic
    */
-  void populateSearchNode(NodeT * & node)
-  {
-    if constexpr (std::is_base_of_v<NodeLattice, NodeT>) {
-      // NodeLattice or derived: cache pose and primitive
-      this->pose = node->pose;
-      this->graph_node_ptr = node;
-      this->prim_ptr = node->getMotionPrimitive();
-      this->backward = node->isBackward();
-    } else if constexpr (std::is_base_of_v<NodeHybrid, NodeT>) {
-      // NodeHybrid or derived: cache pose and motion info
-      this->pose = node->pose;
-      this->graph_node_ptr = node;
-      this->motion_index = node->getMotionPrimitiveIndex();
-      this->turn_dir = node->getTurnDirection();
-    } else if constexpr (std::is_base_of_v<Node2D, NodeT>) {
-      // Node2D or derived: only set graph_node_ptr
-      this->graph_node_ptr = node;
-    } else {
-      // Unknown node type - set basics
-      this->graph_node_ptr = node;
-    }
-  }
+  void populateSearchNode(NodeT * & node);
 
   /**
    * @brief Take a NodeBasic and populate it with any necessary state
@@ -79,33 +68,7 @@ public:
    * @param node Search node (basic) object to initialize internal node
    * with state
    */
-  void processSearchNode()
-  {
-    if constexpr (std::is_base_of_v<NodeLattice, NodeT>) {
-      // NodeLattice or derived: update pose and motion primitive
-      // We only want to override the node's pose/primitive if it has not yet been visited
-      // to prevent the case that a node has been queued multiple times and
-      // a new branch is overriding one of lower cost already visited.
-      if (!this->graph_node_ptr->wasVisited()) {
-        this->graph_node_ptr->pose = this->pose;
-        this->graph_node_ptr->setMotionPrimitive(this->prim_ptr);
-        this->graph_node_ptr->backwards(this->backward);
-      }
-    } else if constexpr (std::is_base_of_v<NodeHybrid, NodeT>) {
-      // NodeHybrid or derived: update pose and motion primitive index
-      // We only want to override the node's pose if it has not yet been visited
-      // to prevent the case that a node has been queued multiple times and
-      // a new branch is overriding one of lower cost already visited.
-      if (!this->graph_node_ptr->wasVisited()) {
-        this->graph_node_ptr->pose = this->pose;
-        this->graph_node_ptr->setMotionPrimitiveIndex(this->motion_index, this->turn_dir);
-      }
-    } else if constexpr (std::is_base_of_v<Node2D, NodeT>) {
-      // Node2D or derived: no-op
-    } else {
-      // Unknown node type: no-op
-    }
-  }
+  void processSearchNode();
 
   typename NodeT::Coordinates pose;  // Used by NodeHybrid and NodeLattice
   NodeT * graph_node_ptr;

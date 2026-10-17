@@ -19,15 +19,13 @@
 #include <memory>
 #include <string>
 
-#include "behaviortree_cpp/action_node.h"
 #include "behaviortree_cpp/json_export.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "nav_msgs/msg/path.hpp"
-#include "nav2_behavior_tree/bt_utils.hpp"
-#include "nav2_behavior_tree/json_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_util/robot_utils.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "behaviortree_cpp/action_node.h"
+#include "nav2_behavior_tree/json_utils.hpp"
+#include "nav_msgs/msg/path.h"
 
 namespace nav2_behavior_tree
 {

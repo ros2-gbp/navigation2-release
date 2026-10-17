@@ -18,7 +18,6 @@
 
 #include <behaviortree_cpp/basic_types.h>
 #include <behaviortree_cpp/action_node.h>
-#include <string>
 
 namespace nav2_behavior_tree
 {
@@ -30,20 +29,17 @@ namespace nav2_behavior_tree
 class DummyNode : public BT::ActionNodeBase
 {
 public:
-  DummyNode(
-    const std::string & /*xml_tag_name*/ = "dummy",
-    const BT::NodeConfiguration & /*conf*/ = BT::NodeConfiguration())
+  DummyNode()
   : BT::ActionNodeBase("dummy", {})
   {
   }
 
   void changeStatus(BT::NodeStatus status)
   {
-    requested_status = status;
-    if (requested_status == BT::NodeStatus::IDLE) {
+    if (status == BT::NodeStatus::IDLE) {
       resetStatus();
     } else {
-      setStatus(requested_status);
+      setStatus(status);
     }
   }
 
@@ -54,26 +50,12 @@ public:
 
   BT::NodeStatus tick() override
   {
-    if (requested_status == BT::NodeStatus::IDLE) {
-      resetStatus();
-    } else {
-      setStatus(requested_status);
-    }
     return status();
   }
 
   void halt() override
   {
-    resetStatus();
   }
-
-  static BT::PortsList providedPorts()
-  {
-    return {};
-  }
-
-protected:
-  BT::NodeStatus requested_status = BT::NodeStatus::IDLE;
 };
 
 }  // namespace nav2_behavior_tree

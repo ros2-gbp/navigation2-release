@@ -15,7 +15,7 @@
 
 #include <cmath>
 #include "nav2_mppi_controller/critics/obstacles_critic.hpp"
-#include "nav2_costmap_2d/inflation_layer_interface.hpp"
+#include "nav2_costmap_2d/inflation_layer.hpp"
 #include "nav2_core/controller_exceptions.hpp"
 
 namespace mppi::critics
@@ -23,7 +23,6 @@ namespace mppi::critics
 
 void ObstaclesCritic::initialize()
 {
-  auto getParentParam = parameters_handler_->getParamGetter(parent_name_);
   auto getParam = parameters_handler_->getParamGetter(name_);
   getParam(consider_footprint_, "consider_footprint", false);
   getParam(power_, "cost_power", 1);
@@ -49,13 +48,13 @@ void ObstaclesCritic::initialize()
 
   if (costmap_ros_->getUseRadius() == consider_footprint_) {
     RCLCPP_WARN(
-      logger_,
-      "Inconsistent configuration in collision checking. Please verify the robot's shape settings "
-      "in both the costmap and the obstacle critic.");
+    logger_,
+    "Inconsistent configuration in collision checking. Please verify the robot's shape settings "
+    "in both the costmap and the obstacle critic.");
     if (costmap_ros_->getUseRadius()) {
       throw nav2_core::ControllerException(
-              "Considering footprint in collision checking but no robot footprint provided in the "
-              "costmap.");
+      "Considering footprint in collision checking but no robot footprint provided in the "
+      "costmap.");
     }
   }
 
@@ -78,7 +77,7 @@ float ObstaclesCritic::findCircumscribedCost(
   }
 
   // check if the costmap has an inflation layer
-  const auto inflation_layer = nav2_costmap_2d::InflationLayerInterface::getInflationLayer(
+  const auto inflation_layer = nav2_costmap_2d::InflationLayer::getInflationLayer(
     costmap,
     inflation_layer_name_);
   if (inflation_layer != nullptr) {
@@ -119,6 +118,7 @@ float ObstaclesCritic::distanceToObstacle(const CollisionCost & cost)
 
 void ObstaclesCritic::score(CriticData & data)
 {
+  using xt::evaluation_strategy::immediate;
   if (!enabled_) {
     return;
   }
@@ -130,29 +130,24 @@ void ObstaclesCritic::score(CriticData & data)
 
   // If near the goal, don't apply the preferential term since the goal is near obstacles
   bool near_goal = false;
-  if (data.state.local_path_length < near_goal_distance_) {
+  if (utils::withinPositionGoalTolerance(near_goal_distance_, data.state.pose.pose, data.goal)) {
     near_goal = true;
   }
 
-  Eigen::ArrayXf raw_cost = Eigen::ArrayXf::Zero(data.costs.size());
-  Eigen::ArrayXf repulsive_cost = Eigen::ArrayXf::Zero(data.costs.size());
+  auto && raw_cost = xt::xtensor<float, 1>::from_shape({data.costs.shape(0)});
+  auto && repulsive_cost = xt::xtensor<float, 1>::from_shape({data.costs.shape(0)});
 
-  const unsigned int traj_len = data.trajectories.x.cols();
-  const unsigned int batch_size = data.trajectories.x.rows();
+  const size_t traj_len = data.trajectories.x.shape(1);
   bool all_trajectories_collide = true;
-
-  auto & collisions = data.trajectories_in_collision;
-  const bool track_collisions = !collisions.empty();
-
-  for (unsigned int i = 0; i != batch_size; i++) {
+  for (size_t i = 0; i < data.trajectories.x.shape(0); ++i) {
     bool trajectory_collide = false;
     float traj_cost = 0.0f;
     const auto & traj = data.trajectories;
     CollisionCost pose_cost;
-    raw_cost(i) = 0.0f;
-    repulsive_cost(i) = 0.0f;
+    raw_cost[i] = 0.0f;
+    repulsive_cost[i] = 0.0f;
 
-    for (unsigned int j = 0; j != traj_len; j++) {
+    for (size_t j = 0; j < traj_len; j++) {
       pose_cost = costAtPose(traj.x(i, j), traj.y(i, j), traj.yaws(i, j));
       if (pose_cost.cost < 1.0f) {continue;}  // In free space
 
@@ -180,19 +175,22 @@ void ObstaclesCritic::score(CriticData & data)
     }
 
     if (!trajectory_collide) {all_trajectories_collide = false;}
-    raw_cost(i) = trajectory_collide ? collision_cost_ : traj_cost;
-    if (trajectory_collide && track_collisions) {collisions[i] = true;}
+    raw_cost[i] = trajectory_collide ? collision_cost_ : traj_cost;
   }
 
   // Normalize repulsive cost by trajectory length & lowest score to not overweight importance
   // This is a preferential cost, not collision cost, to be tuned relative to desired behaviors
-  auto repulsive_cost_normalized = (repulsive_cost - repulsive_cost.minCoeff()) / traj_len;
+  auto && repulsive_cost_normalized =
+    (repulsive_cost - xt::amin(repulsive_cost, immediate)) / traj_len;
 
   if (power_ > 1u) {
-    data.costs +=
-      ((critical_weight_ * raw_cost) + (repulsion_weight_ * repulsive_cost_normalized)).pow(power_);
+    data.costs += xt::pow(
+      (critical_weight_ * raw_cost) +
+      (repulsion_weight_ * repulsive_cost_normalized),
+      power_);
   } else {
-    data.costs += (critical_weight_ * raw_cost) + (repulsion_weight_ * repulsive_cost_normalized);
+    data.costs += (critical_weight_ * raw_cost) +
+      (repulsion_weight_ * repulsive_cost_normalized);
   }
 
   data.fail_flag = all_trajectories_collide;

@@ -23,40 +23,34 @@ The robots co-exist on a shared environment and are controlled by independent na
 import os
 from pathlib import Path
 import tempfile
-from typing import TypedDict
 
 from ament_index_python.packages import get_package_share_directory
+
 from launch import LaunchDescription
-from launch.actions import (AppendEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess,
-                            GroupAction, IncludeLaunchDescription, LogInfo, OpaqueFunction,
-                            RegisterEventHandler)
+from launch.actions import (
+    AppendEnvironmentVariable,
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    GroupAction,
+    IncludeLaunchDescription,
+    LogInfo,
+    OpaqueFunction,
+    RegisterEventHandler,
+)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnShutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, TextSubstitution
-from nav2_common.launch import LaunchConfigAsBool
 
 
-class RobotConfig(TypedDict):
-    """TypedDict for robot configuration."""
-
-    name: str
-    x_pose: float
-    y_pose: float
-    z_pose: float
-    roll: float
-    pitch: float
-    yaw: float
-
-
-def generate_launch_description() -> LaunchDescription:
+def generate_launch_description():
     # Get the launch directory
     bringup_dir = get_package_share_directory('nav2_bringup')
     launch_dir = os.path.join(bringup_dir, 'launch')
     sim_dir = get_package_share_directory('nav2_minimal_tb3_sim')
 
     # Names and poses of the robots
-    robots: list[RobotConfig] = [
+    robots = [
         {
             'name': 'robot1',
             'x_pose': 0.0,
@@ -82,12 +76,11 @@ def generate_launch_description() -> LaunchDescription:
 
     # On this example all robots are launched with the same settings
     map_yaml_file = LaunchConfiguration('map')
-    graph_filepath = LaunchConfiguration('graph')
 
-    autostart = LaunchConfigAsBool('autostart')
+    autostart = LaunchConfiguration('autostart')
     rviz_config_file = LaunchConfiguration('rviz_config')
-    use_robot_state_pub = LaunchConfigAsBool('use_robot_state_pub')
-    use_rviz = LaunchConfigAsBool('use_rviz')
+    use_robot_state_pub = LaunchConfiguration('use_robot_state_pub')
+    use_rviz = LaunchConfiguration('use_rviz')
     log_settings = LaunchConfiguration('log_settings', default='true')
 
     # Declare the launch arguments
@@ -103,15 +96,10 @@ def generate_launch_description() -> LaunchDescription:
         description='Full path to map file to load',
     )
 
-    declare_graph_file_cmd = DeclareLaunchArgument(
-        'graph',
-        default_value=os.path.join(bringup_dir, 'graphs', 'turtlebot3_graph.geojson'),
-    )
-
     declare_robot1_params_file_cmd = DeclareLaunchArgument(
         'robot1_params_file',
         default_value=os.path.join(
-            bringup_dir, 'params', 'nav2_params.yaml'
+            bringup_dir, 'params', 'nav2_multirobot_params_1.yaml'
         ),
         description='Full path to the ROS2 parameters file to use for robot1 launched nodes',
     )
@@ -119,7 +107,7 @@ def generate_launch_description() -> LaunchDescription:
     declare_robot2_params_file_cmd = DeclareLaunchArgument(
         'robot2_params_file',
         default_value=os.path.join(
-            bringup_dir, 'params', 'nav2_params.yaml'
+            bringup_dir, 'params', 'nav2_multirobot_params_2.yaml'
         ),
         description='Full path to the ROS2 parameters file to use for robot2 launched nodes',
     )
@@ -132,7 +120,7 @@ def generate_launch_description() -> LaunchDescription:
 
     declare_rviz_config_file_cmd = DeclareLaunchArgument(
         'rviz_config',
-        default_value=os.path.join(bringup_dir, 'rviz', 'nav2_default_view.rviz'),
+        default_value=os.path.join(bringup_dir, 'rviz', 'nav2_namespaced_view.rviz'),
         description='Full path to the RVIZ config file to use.',
     )
 
@@ -174,6 +162,7 @@ def generate_launch_description() -> LaunchDescription:
                     condition=IfCondition(use_rviz),
                     launch_arguments={
                         'namespace': TextSubstitution(text=robot['name']),
+                        'use_namespace': 'True',
                         'rviz_config': rviz_config_file,
                     }.items(),
                 ),
@@ -183,8 +172,8 @@ def generate_launch_description() -> LaunchDescription:
                     ),
                     launch_arguments={
                         'namespace': robot['name'],
+                        'use_namespace': 'True',
                         'map': map_yaml_file,
-                        'graph': graph_filepath,
                         'use_sim_time': 'True',
                         'params_file': params_file,
                         'autostart': autostart,
@@ -248,7 +237,6 @@ def generate_launch_description() -> LaunchDescription:
     # Declare the launch options
     ld.add_action(declare_world_cmd)
     ld.add_action(declare_map_yaml_cmd)
-    ld.add_action(declare_graph_file_cmd)
     ld.add_action(declare_robot1_params_file_cmd)
     ld.add_action(declare_robot2_params_file_cmd)
     ld.add_action(declare_use_rviz_cmd)

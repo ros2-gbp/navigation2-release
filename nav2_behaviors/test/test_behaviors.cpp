@@ -17,20 +17,13 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
-#include <vector>
 
-#include "geometry_msgs/msg/twist_stamped.hpp"
 #include "gtest/gtest.h"
-#include "rclcpp/executors.hpp"
-#include "rclcpp/future_return_code.hpp"
-#include "rclcpp/node_options.hpp"
-#include "rclcpp/utilities.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "nav2_behaviors/timed_behavior.hpp"
 #include "nav2_msgs/action/dummy_behavior.hpp"
-#include "nav2_ros_common/subscription.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 using nav2_behaviors::TimedBehavior;
 using nav2_behaviors::Status;
@@ -62,14 +55,12 @@ public:
 
     // onRun method can have various possible outcomes (success, failure, cancelled)
     // The output is defined by the tester class on the command string.
-    if (command_ == "Testing success" || command_ == "Testing failure on run" ||
-      command_ == "Testing command then failure")
-    {
+    if (command_ == "Testing success" || command_ == "Testing failure on run") {
       initialized_ = true;
-      return ResultStatus{Status::SUCCEEDED, 0, ""};
+      return ResultStatus{Status::SUCCEEDED, 0};
     }
 
-    return ResultStatus{Status::FAILED, 0, "failed"};
+    return ResultStatus{Status::FAILED, 0};
   }
 
   ResultStatus onCycleUpdate() override
@@ -78,15 +69,8 @@ public:
     // and check for robot states on subsequent calls to check if the movement
     // was completed.
 
-    if (command_ == "Testing command then failure") {
-      auto cmd_vel = std::make_unique<geometry_msgs::msg::TwistStamped>();
-      cmd_vel->twist.linear.x = 0.4;
-      vel_pub_->publish(std::move(cmd_vel));
-      return ResultStatus{Status::FAILED, 0, "failed"};
-    }
-
     if (command_ != "Testing success" || !initialized_) {
-      return ResultStatus{Status::FAILED, 0, "failed"};
+      return ResultStatus{Status::FAILED, 0};
     }
 
     // For testing, pretend the robot takes some fixed
@@ -96,10 +80,10 @@ public:
 
     if (current_time - start_time_ >= motion_duration) {
       // Movement was completed
-      return ResultStatus{Status::SUCCEEDED, 0, ""};
+      return ResultStatus{Status::SUCCEEDED, 0};
     }
 
-    return ResultStatus{Status::RUNNING, 0, ""};
+    return ResultStatus{Status::RUNNING, 0};
   }
 
   /**
@@ -125,20 +109,35 @@ protected:
   void SetUp() override
   {
     node_lifecycle_ =
-      std::make_shared<nav2::LifecycleNode>(
+      std::make_shared<rclcpp_lifecycle::LifecycleNode>(
       "LifecycleBehaviorTestNode", rclcpp::NodeOptions());
+    node_lifecycle_->declare_parameter(
+      "local_costmap_topic",
+      rclcpp::ParameterValue(std::string("local_costmap/costmap_raw")));
+    node_lifecycle_->declare_parameter(
+      "local_footprint_topic",
+      rclcpp::ParameterValue(std::string("local_costmap/published_footprint")));
 
-    std::string local_costmap_topic = node_lifecycle_->declare_or_get_parameter(
-      "local_costmap_topic", std::string("local_costmap/costmap_raw"));
-    std::string local_footprint_topic = node_lifecycle_->declare_or_get_parameter(
-      "local_footprint_topic", std::string("local_costmap/published_footprint"));
-    std::string global_costmap_topic = node_lifecycle_->declare_or_get_parameter(
-      "global_costmap_topic", std::string("global_costmap/costmap_raw"));
-    std::string global_footprint_topic = node_lifecycle_->declare_or_get_parameter(
-      "global_footprint_topic", std::string("global_costmap/published_footprint"));
+    node_lifecycle_->declare_parameter(
+      "global_costmap_topic",
+      rclcpp::ParameterValue(std::string("global_costmap/costmap_raw")));
+    node_lifecycle_->declare_parameter(
+      "global_footprint_topic",
+      rclcpp::ParameterValue(std::string("global_costmap/published_footprint")));
 
-    tf_buffer_ = nav2::create_transform_buffer(node_lifecycle_);
-    tf_listener_ = nav2::create_transform_listener(*tf_buffer_, node_lifecycle_);
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_lifecycle_->get_clock());
+    auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+      node_lifecycle_->get_node_base_interface(),
+      node_lifecycle_->get_node_timers_interface());
+    tf_buffer_->setCreateTimerInterface(timer_interface);
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+    std::string local_costmap_topic, global_costmap_topic;
+    std::string local_footprint_topic, global_footprint_topic;
+    node_lifecycle_->get_parameter("local_costmap_topic", local_costmap_topic);
+    node_lifecycle_->get_parameter("global_costmap_topic", global_costmap_topic);
+    node_lifecycle_->get_parameter("local_footprint_topic", local_footprint_topic);
+    node_lifecycle_->get_parameter("global_footprint_topic", global_footprint_topic);
 
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> local_costmap_sub_ =
       std::make_shared<nav2_costmap_2d::CostmapSubscriber>(
@@ -174,11 +173,6 @@ protected:
       local_collision_checker_,
       global_collision_checker_);
     behavior_->activate();
-
-    cmd_vel_sub_ = node_lifecycle_->create_subscription<geometry_msgs::msg::TwistStamped>(
-      "cmd_vel", [this](geometry_msgs::msg::TwistStamped::ConstSharedPtr msg) {
-        velocities_.push_back(msg->twist.linear.x);
-      });
 
     client_ = rclcpp_action::create_client<BehaviorAction>(
       node_lifecycle_->get_node_base_interface(),
@@ -239,14 +233,12 @@ protected:
     return future_result.get();
   }
 
-  nav2::LifecycleNode::SharedPtr node_lifecycle_;
+  std::shared_ptr<rclcpp_lifecycle::LifecycleNode> node_lifecycle_;
   std::shared_ptr<DummyBehavior> behavior_;
-  std::shared_ptr<nav2::ActionClient<BehaviorAction>> client_;
+  std::shared_ptr<rclcpp_action::Client<BehaviorAction>> client_;
   std::shared_ptr<rclcpp_action::ClientGoalHandle<BehaviorAction>> goal_handle_;
-  nav2::Subscription<geometry_msgs::msg::TwistStamped>::SharedPtr cmd_vel_sub_;
-  std::vector<double> velocities_;
-  nav2::TransformBuffer::SharedPtr tf_buffer_;
-  nav2::TransformListener::SharedPtr tf_listener_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 };
 
 // Define the tests
@@ -277,21 +269,6 @@ TEST_F(BehaviorTest, testingSequentialFailures)
   ASSERT_TRUE(sendCommand("Testing failure on run"));
   EXPECT_EQ(getOutcome(), Status::FAILED);
   SUCCEED();
-}
-
-TEST_F(BehaviorTest, testingFailureStopsRobot)
-{
-  ASSERT_TRUE(sendCommand("Testing command then failure"));
-  EXPECT_EQ(getOutcome(), Status::FAILED);
-  rclcpp::executors::SingleThreadedExecutor executor;
-  executor.add_node(node_lifecycle_->get_node_base_interface());
-  for (int i = 0; i < 10; ++i) {
-    executor.spin_some();
-    std::this_thread::sleep_for(10ms);
-  }
-  ASSERT_GE(velocities_.size(), 2u);
-  EXPECT_NE(velocities_.front(), 0.0);
-  EXPECT_EQ(velocities_.back(), 0.0);
 }
 
 TEST_F(BehaviorTest, testingTotalElapsedTimeIsGratherThanZeroIfStarted)

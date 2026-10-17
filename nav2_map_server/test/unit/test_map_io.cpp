@@ -39,12 +39,11 @@
 #include <memory>
 #include <iostream>
 #include <fstream>
-#include <cstdint>
 
 #include "yaml-cpp/yaml.h"
 #include "nav2_map_server/map_io.hpp"
 #include "nav2_map_server/map_server.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/lifecycle_node.hpp"
 #include "test_constants/test_constants.h"
 
 #define TEST_DIR TEST_DIRECTORY
@@ -52,6 +51,15 @@
 using namespace std;  // NOLINT
 using namespace nav2_map_server;  // NOLINT
 using std::filesystem::path;
+
+class RclCppFixture
+{
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+
+RclCppFixture g_rclcppfixture;
 
 class MapIOTester : public ::testing::Test
 {
@@ -87,29 +95,6 @@ protected:
     save_parameters.mode = MapMode::Trinary;
   }
 
-  // Write a single-row binary PGM holding the given gray levels
-  // Input: file_name, grays
-  // Output: full path of the written file
-  std::string writeGrayPgm(const std::string & file_name, const std::vector<uint8_t> & grays)
-  {
-    const std::string file_path = path(g_tmp_dir) / path(file_name);
-    std::ofstream out(file_path, std::ios::binary);
-    out << "P5\n" << grays.size() << " 1\n255\n";
-    out.write(reinterpret_cast<const char *>(grays.data()), grays.size());
-    out.close();
-    return file_path;
-  }
-
-  // Build a map holding every gray level once, in ascending order
-  std::vector<uint8_t> grayGradient()
-  {
-    std::vector<uint8_t> grays(256);
-    for (unsigned int i = 0; i < grays.size(); i++) {
-      grays[i] = static_cast<uint8_t>(i);
-    }
-    return grays;
-  }
-
   // Check that map_msg corresponds to reference pattern
   // Input: map_msg
   void verifyMapMsg(const nav_msgs::msg::OccupancyGrid & map_msg)
@@ -127,7 +112,7 @@ protected:
 // loaded image should match the known dimensions and content of the file.
 // Save obtained OccupancyGrid message into a tmp PGM file. Then load back saved tmp file
 // and check for consistency.
-// Succeeds all steps were passed without a problem or exception.
+// Succeeds all steps were passed without a problem or expection.
 TEST_F(MapIOTester, loadSaveValidPGM)
 {
   // 1. Load reference map file and verify obtained OccupancyGrid
@@ -156,7 +141,7 @@ TEST_F(MapIOTester, loadSaveValidPGM)
 // loaded image should match the known dimensions and content of the file.
 // Save obtained OccupancyGrid message into a tmp PNG file. Then load back saved tmp file
 // and check for consistency.
-// Succeeds all steps were passed without a problem or exception.
+// Succeeds all steps were passed without a problem or expection.
 TEST_F(MapIOTester, loadSaveValidPNG)
 {
   // 1. Load reference map file and verify obtained OccupancyGrid
@@ -185,7 +170,7 @@ TEST_F(MapIOTester, loadSaveValidPNG)
 // loaded image should match the known dimensions and content of the file.
 // Save obtained OccupancyGrid message into a tmp BMP file. Then load back saved tmp file
 // and check for consistency.
-// Succeeds all steps were passed without a problem or exception.
+// Succeeds all steps were passed without a problem or expection.
 TEST_F(MapIOTester, loadSaveValidBMP)
 {
   // 1. Load reference map file and verify obtained OccupancyGrid
@@ -213,7 +198,7 @@ TEST_F(MapIOTester, loadSaveValidBMP)
 }
 
 // Load map from a valid file. Trying to save map with different modes.
-// Succeeds all steps were passed without a problem or exception.
+// Succeeds all steps were passed without a problem or expection.
 TEST_F(MapIOTester, loadSaveMapModes)
 {
   // 1. Load map from YAML file
@@ -245,96 +230,6 @@ TEST_F(MapIOTester, loadSaveMapModes)
   ASSERT_EQ(status, LOAD_MAP_SUCCESS);
 
   verifyMapMsg(map_msg);
-}
-
-// Load a map holding every gray level in Scale mode. Gray levels between the two
-// thresholds must be interpolated onto [0, 100] rather than collapsed onto the
-// extremes, and the thresholds themselves must land on an exact gray level.
-TEST_F(MapIOTester, loadScaleModeInterpolatesInBetweenValues)
-{
-  const std::vector<uint8_t> grays = grayGradient();
-  const std::string gradient_file = writeGrayPgm("gradient_map.pgm", grays);
-
-  // 1. Load the gradient in Scale mode
-  LoadParameters loadParameters;
-  fillLoadParameters(gradient_file, loadParameters);
-  loadParameters.mode = MapMode::Scale;
-
-  nav_msgs::msg::OccupancyGrid map_msg;
-  ASSERT_NO_THROW(loadMapFromFile(loadParameters, map_msg));
-  ASSERT_EQ(static_cast<size_t>(map_msg.info.width), grays.size());
-  ASSERT_EQ(static_cast<size_t>(map_msg.info.height), 1u);
-
-  // 2. Both extremes, the gray level each threshold falls on, and the midpoint
-  EXPECT_EQ(static_cast<int>(map_msg.data[0]), 100);
-  EXPECT_EQ(static_cast<int>(map_msg.data[89]), 100);
-  EXPECT_EQ(static_cast<int>(map_msg.data[90]), 99);
-  EXPECT_EQ(static_cast<int>(map_msg.data[147]), 50);
-  EXPECT_EQ(static_cast<int>(map_msg.data[204]), 1);
-  EXPECT_EQ(static_cast<int>(map_msg.data[205]), 0);
-  EXPECT_EQ(static_cast<int>(map_msg.data[255]), 0);
-
-  // 3. The scaled values decrease monotonically and stay inside [0, 100]
-  unsigned int in_between_count = 0;
-  for (unsigned int i = 0; i < grays.size(); i++) {
-    EXPECT_GE(static_cast<int>(map_msg.data[i]), 0) << "at gray level " << i;
-    EXPECT_LE(static_cast<int>(map_msg.data[i]), 100) << "at gray level " << i;
-    if (i > 0) {
-      EXPECT_LE(map_msg.data[i], map_msg.data[i - 1]) << "at gray level " << i;
-    }
-    if (map_msg.data[i] > 0 && map_msg.data[i] < 100) {
-      in_between_count++;
-    }
-  }
-  EXPECT_EQ(in_between_count, 115u);
-
-  // 4. Negating the image classifies the same gradient from the opposite end
-  loadParameters.negate = true;
-  ASSERT_NO_THROW(loadMapFromFile(loadParameters, map_msg));
-
-  EXPECT_EQ(static_cast<int>(map_msg.data[0]), 0);
-  EXPECT_EQ(static_cast<int>(map_msg.data[108]), 50);
-  EXPECT_EQ(static_cast<int>(map_msg.data[165]), 99);
-  EXPECT_EQ(static_cast<int>(map_msg.data[166]), 100);
-  EXPECT_EQ(static_cast<int>(map_msg.data[255]), 100);
-}
-
-// Trinary mode shares the classification of Scale mode but has no in-between band:
-// every gray level between the thresholds must come back as UNKNOWN.
-TEST_F(MapIOTester, loadTrinaryModeMarksInBetweenUnknown)
-{
-  const std::string gradient_file = writeGrayPgm("gradient_map.pgm", grayGradient());
-
-  LoadParameters loadParameters;
-  fillLoadParameters(gradient_file, loadParameters);
-
-  nav_msgs::msg::OccupancyGrid map_msg;
-  ASSERT_NO_THROW(loadMapFromFile(loadParameters, map_msg));
-
-  EXPECT_EQ(static_cast<int>(map_msg.data[89]), 100);
-  EXPECT_EQ(static_cast<int>(map_msg.data[90]), -1);
-  EXPECT_EQ(static_cast<int>(map_msg.data[147]), -1);
-  EXPECT_EQ(static_cast<int>(map_msg.data[205]), -1);
-  EXPECT_EQ(static_cast<int>(map_msg.data[206]), 0);
-}
-
-// The thresholds are compared in float against (1 - gray/255). Rewriting that
-// comparison to work on raw gray values instead is equivalent in real arithmetic
-// but rounds differently, which flips the classification of the pixel sitting on
-// the threshold. Pin that pixel so such a rewrite cannot slip through.
-TEST_F(MapIOTester, loadClassifiesThresholdBoundaryExactly)
-{
-  const std::string boundary_file = writeGrayPgm("boundary_map.pgm", {126, 127});
-
-  LoadParameters loadParameters;
-  fillLoadParameters(boundary_file, loadParameters);
-  loadParameters.occupied_thresh = 129.0 / 255.0;
-
-  nav_msgs::msg::OccupancyGrid map_msg;
-  ASSERT_NO_THROW(loadMapFromFile(loadParameters, map_msg));
-
-  EXPECT_EQ(static_cast<int>(map_msg.data[0]), 100);
-  EXPECT_EQ(static_cast<int>(map_msg.data[1]), -1);
 }
 
 // Try to load an invalid file with different ways.
@@ -462,17 +357,4 @@ TEST(HomeUserExpanderTestSuite, homeUserExpanderShouldExpandHomeSequenceWhenHome
   const std::string fileName{"~/valid_file.yaml"};
   const std::string expectedOutputFileName{"/home/user/valid_file.yaml"};
   ASSERT_EQ(expectedOutputFileName, expand_user_home_dir_if_needed(fileName, "/home/user"));
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

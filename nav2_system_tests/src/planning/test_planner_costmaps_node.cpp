@@ -16,8 +16,9 @@
 #include <memory>
 #include <vector>
 
-#include "rclcpp/utilities.hpp"
+#include "rclcpp/rclcpp.hpp"
 #include "planner_tester.hpp"
+#include "nav2_util/lifecycle_utils.hpp"
 
 using namespace std::chrono_literals;
 

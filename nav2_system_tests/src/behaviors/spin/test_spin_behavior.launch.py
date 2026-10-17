@@ -18,9 +18,15 @@ from pathlib import Path
 import sys
 
 from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription, LaunchService
-from launch.actions import (AppendEnvironmentVariable, DeclareLaunchArgument, ExecuteProcess,
-                            IncludeLaunchDescription, SetEnvironmentVariable)
+
+from launch import LaunchDescription
+from launch import LaunchService
+from launch.actions import (
+    AppendEnvironmentVariable,
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
@@ -44,10 +50,6 @@ def generate_launch_description():
         source_file=params_file,
         root_key='',
         param_rewrites=param_substitutions,
-        value_rewrites={
-            'KEEPOUT_ZONE_ENABLED': 'False',
-            'SPEED_ZONE_ENABLED': 'False',
-        },
         convert_types=True,
     )
 
@@ -142,8 +144,7 @@ def main(argv=sys.argv[1:]):
 
     test1_action = ExecuteProcess(
         cmd=[os.path.join(
-            os.getenv('TEST_DIR', ''),
-            'spin_tester.py'), '--ros-args', '-p', 'use_sim_time:=True'],
+            os.getenv('TEST_DIR'), 'spin_tester.py'), '--ros-args', '-p', 'use_sim_time:=True'],
         name='tester_node',
         output='screen',
     )

@@ -23,8 +23,6 @@ It provides the basic conversion, get/set,
 and handling semantics found in the costmap 2d C++ API.
 """
 
-
-from nav2_msgs.msg import Costmap
 import numpy as np
 
 
@@ -32,29 +30,30 @@ class PyCostmap2D:
     """
     PyCostmap2D.
 
-    Costmap Python3 API for Costmaps to populate from published messages
+    Costmap Python3 API for OccupancyGrids to populate from published messages
     """
 
-    def __init__(self, occupancy_map: Costmap):
+    def __init__(self, occupancy_map):
         """
         Initialize costmap2D.
 
         Args
         ----
-            occupancy_map (Costmap): 2D OccupancyGrid Map
+            occupancy_map (OccupancyGrid): 2D OccupancyGrid Map
 
         Returns
         -------
             None
 
         """
-        self.size_x = occupancy_map.metadata.size_x
-        self.size_y = occupancy_map.metadata.size_y
-        self.resolution = occupancy_map.metadata.resolution
-        self.origin_x = occupancy_map.metadata.origin.position.x
-        self.origin_y = occupancy_map.metadata.origin.position.y
+        self.size_x = occupancy_map.info.width
+        self.size_y = occupancy_map.info.height
+        self.resolution = occupancy_map.info.resolution
+        self.origin_x = occupancy_map.info.origin.position.x
+        self.origin_y = occupancy_map.info.origin.position.y
         self.global_frame_id = occupancy_map.header.frame_id
         self.costmap_timestamp = occupancy_map.header.stamp
+        # Extract costmap
         self.costmap = np.array(occupancy_map.data, dtype=np.uint8)
 
     def getSizeInCellsX(self):
@@ -67,11 +66,11 @@ class PyCostmap2D:
 
     def getSizeInMetersX(self):
         """Get x axis map size in meters."""
-        return self.size_x * self.resolution
+        return (self.size_x - 1 + 0.5) * self.resolution
 
     def getSizeInMetersY(self):
         """Get y axis map size in meters."""
-        return self.size_y * self.resolution
+        return (self.size_y - 1 + 0.5) * self.resolution
 
     def getOriginX(self):
         """Get the origin x axis of the map [m]."""
@@ -93,7 +92,7 @@ class PyCostmap2D:
         """Get costmap timestamp."""
         return self.costmap_timestamp
 
-    def getCostXY(self, mx: int, my: int):
+    def getCostXY(self, mx: int, my: int) -> np.uint8:
         """
         Get the cost of a cell in the costmap using map coordinate XY.
 
@@ -107,9 +106,9 @@ class PyCostmap2D:
             np.uint8: cost of a cell
 
         """
-        return np.uint8(self.costmap[self.getIndex(mx, my)])
+        return self.costmap[self.getIndex(mx, my)]
 
-    def getCostIdx(self, index: int):
+    def getCostIdx(self, index: int) -> np.uint8:
         """
         Get the cost of a cell in the costmap using Index.
 
@@ -122,9 +121,9 @@ class PyCostmap2D:
             np.uint8: cost of a cell
 
         """
-        return np.uint8(self.costmap[index])
+        return self.costmap[index]
 
-    def setCost(self, mx: int, my: int, cost: np.uint8):
+    def setCost(self, mx: int, my: int, cost: np.uint8) -> None:
         """
         Set the cost of a cell in the costmap using map coordinate XY.
 
@@ -141,7 +140,7 @@ class PyCostmap2D:
         """
         self.costmap[self.getIndex(mx, my)] = cost
 
-    def mapToWorld(self, mx: int, my: int):
+    def mapToWorld(self, mx: int, my: int) -> tuple[float, float]:
         """
         Get the world coordinate XY using map coordinate XY.
 
@@ -186,7 +185,7 @@ class PyCostmap2D:
             return (mx, my)
         return (None, None)
 
-    def getIndex(self, mx: int, my: int):
+    def getIndex(self, mx: int, my: int) -> int:
         """
         Get the index of the cell using map coordinate XY.
 

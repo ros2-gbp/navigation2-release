@@ -31,7 +31,7 @@ namespace opennav_docking_bt
  *
  * Usage in XML:
  * @code
- * <UndockRobot dock_type="{dock_type}" error_code_id={undock_error_code} error_msg={undock_error_msg}/>
+ * <UndockRobot dock_type="{dock_type}" error_code_id={undock_error_code}/>
  * @endcode
  */
 class UndockRobotAction
@@ -93,6 +93,8 @@ public:
 
         BT::OutputPort<ActionResult::_success_type>(
           "success", "If the action was successful"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "Error code"),
       });
   }
 };

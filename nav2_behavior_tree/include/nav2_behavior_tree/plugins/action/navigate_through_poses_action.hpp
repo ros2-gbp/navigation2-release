@@ -18,22 +18,22 @@
 #include <string>
 #include <vector>
 
-#include "nav_msgs/msg/goals.hpp"
+#include "behaviortree_cpp/json_export.h"
+#include "geometry_msgs/msg/point.hpp"
+#include "geometry_msgs/msg/quaternion.hpp"
 #include "nav2_msgs/action/navigate_through_poses.hpp"
 #include "nav2_behavior_tree/bt_action_node.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
 
 namespace nav2_behavior_tree
 {
 
 /**
  * @brief A nav2_behavior_tree::BtActionNode class that wraps nav2_msgs::action::NavigateThroughPoses
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
  * <NavigateThroughPoses goals="{goals}" server_name="NavigateThroughPoses" server_timeout="10"
- *                       error_code_id="{navigate_through_poses_error_code}" error_msg="{navigate_through_poses_error_msg}"
+ *                       error_code_id="{navigate_through_poses_error_code}"
  *                       behavior_tree="<some-path>/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"/>
  * @endcode
  */
@@ -81,13 +81,15 @@ public:
   static BT::PortsList providedPorts()
   {
     // Register JSON definitions for the types used in the ports
-    BT::RegisterJsonDefinition<nav_msgs::msg::Goals>();
+    BT::RegisterJsonDefinition<std::vector<geometry_msgs::msg::PoseStamped>>();
 
     return providedBasicPorts(
       {
-        BT::InputPort<nav_msgs::msg::Goals>(
+        BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
           "goals", "Destinations to plan through"),
         BT::InputPort<std::string>("behavior_tree", "Behavior tree to run"),
+        BT::OutputPort<ActionResult::_error_code_type>(
+          "error_code_id", "The navigate through poses error code"),
       });
   }
 };

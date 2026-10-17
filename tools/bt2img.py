@@ -17,9 +17,7 @@
 # for instructions
 
 import argparse
-import logging
-import os
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree
 
 import graphviz  # pip3 install graphviz
 
@@ -77,112 +75,16 @@ subtree_nodes = [
     'SubTree',
 ]
 
-
-def resolve_ros_package_path(ros_pkg: str, path: str) -> str | None:
-    """
-    Resolve a ROS package path to an actual filesystem path.
-
-    For example, if you have:
-    <include ros_pkg="nav2_bt_navigator" path="behavior_trees/navigate_to_pose.xml"/>
-
-    This function returns the actual filesystem path.
-    """
-    try:
-        from ament_index_python.packages import get_package_share_directory, PackageNotFoundError
-        pkg_share_dir = get_package_share_directory(ros_pkg)
-        return os.path.join(pkg_share_dir, path)
-    except ImportError as e:
-        logging.error(f'Failed to import ament_index_python: {e}')
-        return None
-    except PackageNotFoundError as e:
-        logging.error(f'ROS package "{ros_pkg}" not found: {e}')
-        return None
+global xml_tree
 
 
-def load_includes(
-    xml_element: ET.Element,
-    base_dir: str,
-    processed_files: set[str] | None = None,
-) -> ET.Element:
-    """
-    Recursively load and merge included XML files into the tree.
-
-    For example:
-    <include ros_pkg="nav2_bt_navigator" path="behavior_trees/navigate_to_pose.xml"/>
-
-    This function:
-    1. Finds all <include> tags
-    2. Loads those XML files
-    3. Copies <BehaviorTree> elements from them into our XML
-    4. Removes the <include> tag
-    """
-    if processed_files is None:
-        processed_files = set()
-
-    # Get all <include> elements
-    includes = [elem for elem in xml_element if elem.tag == 'include']
-
-    for include in includes:
-        ros_pkg = include.get('ros_pkg')
-        path = include.get('path')
-
-        # Resolve the path
-        if ros_pkg and path:
-            include_path = resolve_ros_package_path(ros_pkg, path)
-        else:
-            include_path = os.path.join(base_dir, path) if path else None
-
-        if include_path:
-            include_path = os.path.abspath(include_path)
-
-            # Check if we already processed this file (prevent infinite loops)
-            if include_path in processed_files:
-                print(f'Warning: Circular include detected for {include_path}, skipping')
-                if include in xml_element:
-                    xml_element.remove(include)
-                continue
-
-            processed_files.add(include_path)
-
-        # Load file if it exists
-        if include_path and os.path.exists(include_path):
-            try:
-                included_tree = ET.parse(include_path)
-                included_root = included_tree.getroot()
-                # Recursively load includes in this file first
-                included_base_dir = os.path.dirname(include_path)
-                load_includes(included_root, included_base_dir, processed_files)
-                # Copy all <BehaviorTree> elements from this file
-                for behavior_tree in included_root.findall('BehaviorTree'):
-                    xml_element.append(behavior_tree)
-            except (ET.ParseError, OSError) as e:
-                print(f'Warning: Could not load included file {include_path}: {e}')
-        else:
-            if path:
-                if ros_pkg:
-                    file_desc = f'{ros_pkg}/{path}'
-                else:
-                    file_desc = path
-                print(f'Warning: Could not resolve included file {file_desc}')
-
-        # Remove the <include> element
-        if include in xml_element:
-            xml_element.remove(include)
-
-    return xml_element
-
-
-def main() -> None:
+def main():
+    global xml_tree
     args = parse_command_line()
-    xml_tree = ET.parse(args.behavior_tree)
-    root = xml_tree.getroot()
-    # Process includes before parsing the tree structure
-    base_dir = os.path.dirname(os.path.abspath(args.behavior_tree))
-    load_includes(root, base_dir, set())
-
+    xml_tree = xml.etree.ElementTree.parse(args.behavior_tree)
     root_tree_name = find_root_tree_name(xml_tree)
     behavior_tree = find_behavior_tree(xml_tree, root_tree_name)
-    dot = convert2dot(behavior_tree, xml_tree)
+    dot = convert2dot(behavior_tree)
     if args.legend:
         legend = make_legend()
         legend.format = 'png'
@@ -194,7 +96,7 @@ def main() -> None:
     dot.render(args.image_out, view=args.display)
 
 
-def parse_command_line() -> argparse.Namespace:
+def parse_command_line():
     parser = argparse.ArgumentParser(
         description='Convert a behavior tree XML file to an image'
     )
@@ -222,15 +124,11 @@ def parse_command_line() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def find_root_tree_name(xml_tree: ET.ElementTree) -> str:
-    root = xml_tree.getroot()
-    main_tree = root.get('main_tree_to_execute')
-    if main_tree is None:
-        raise RuntimeError('No main_tree_to_execute attribute found in XML root')
-    return main_tree
+def find_root_tree_name(xml_tree):
+    return xml_tree.getroot().get('main_tree_to_execute')
 
 
-def find_behavior_tree(xml_tree: ET.ElementTree, tree_name: str) -> ET.Element:
+def find_behavior_tree(xml_tree, tree_name):
     trees = xml_tree.findall('BehaviorTree')
     if len(trees) == 0:
         raise RuntimeError('No behavior trees were found in the XML file')
@@ -243,70 +141,33 @@ def find_behavior_tree(xml_tree: ET.ElementTree, tree_name: str) -> ET.Element:
 
 
 # Generate a dot description of the root of the behavior tree.
-def convert2dot(behavior_tree: ET.Element, xml_tree: ET.ElementTree) -> graphviz.Digraph:
+def convert2dot(behavior_tree):
     dot = graphviz.Digraph()
     root = behavior_tree
     parent_dot_name = str(hash(root))
     dot.node(parent_dot_name, root.get('ID'), shape='box')
-    convert_subtree(dot, root, parent_dot_name, xml_tree)
+    convert_subtree(dot, root, parent_dot_name)
     return dot
 
 
 # Recursive function. We add the children to the dot file, and then recursively
 # call this function on the children. Nodes are given an ID that is the hash
 # of the node to ensure each is unique.
-def convert_subtree(
-    dot: graphviz.Digraph,
-    parent_node: ET.Element,
-    parent_dot_name: str,
-    xml_tree: ET.ElementTree,
-) -> None:
+def convert_subtree(dot, parent_node, parent_dot_name):
     if parent_node.tag == 'SubTree':
-        add_sub_tree(dot, parent_dot_name, parent_node, xml_tree)
+        add_sub_tree(dot, parent_dot_name, parent_node)
     else:
-        add_nodes(dot, parent_dot_name, parent_node, xml_tree)
+        add_nodes(dot, parent_dot_name, parent_node)
 
 
-def add_sub_tree(
-    dot: graphviz.Digraph,
-    parent_dot_name: str,
-    parent_node: ET.Element,
-    xml_tree: ET.ElementTree,
-) -> None:
-    subtree_id = parent_node.get('ID')
-    if subtree_id is None:
-        raise RuntimeError('SubTree node has no ID attribute')
-
-    # Create a unique dot node for this SubTree element
-    subtree_dot_name = str(hash(parent_node))
-    dot.node(
-        subtree_dot_name,
-        f'SubTree: {subtree_id}',
-        color=node_color('SubTree'),
-        style='filled',
-        shape='box'
-    )
-    dot.edge(parent_dot_name, subtree_dot_name)
-
-    # Try to expand it if present, otherwise leave it as a leaf
-    try:
-        behavior_tree = find_behavior_tree(xml_tree, subtree_id)
-    except RuntimeError:
-        # Subtree definition not found in the loaded XML; it may be missing
-        # entirely or expected from an <include> that was not loaded or does
-        # not contain the requested BehaviorTree.
-        return
-
-    # Recurse into the referenced tree
-    convert_subtree(dot, behavior_tree, subtree_dot_name, xml_tree)
+def add_sub_tree(dot, parent_dot_name, parent_node):
+    root_tree_name = parent_node.get('ID')
+    dot.node(parent_dot_name, root_tree_name, shape='box')
+    behavior_tree = find_behavior_tree(xml_tree, root_tree_name)
+    convert_subtree(dot, behavior_tree, parent_dot_name)
 
 
-def add_nodes(
-    dot: graphviz.Digraph,
-    parent_dot_name: str,
-    parent_node: ET.Element,
-    xml_tree: ET.ElementTree,
-) -> None:
+def add_nodes(dot, parent_dot_name, parent_node):
     for node in list(parent_node):
         label = make_label(node)
         dot.node(
@@ -318,12 +179,12 @@ def add_nodes(
         )
         dot_name = str(hash(node))
         dot.edge(parent_dot_name, dot_name)
-        convert_subtree(dot, node, dot_name, xml_tree)
+        convert_subtree(dot, node, dot_name)
 
 
 # The node label contains the:
 # type, the name if provided, and the parameters.
-def make_label(node: ET.Element) -> str:
+def make_label(node):
     label = "< <table border='0' cellspacing='0' cellpadding='0'>"
     label += f"<tr><td align='text'><i>{node.tag}</i></td></tr>"
     name = node.get('name')
@@ -336,7 +197,7 @@ def make_label(node: ET.Element) -> str:
     return label
 
 
-def node_color(node_type: str) -> str:
+def node_color(node_type):
     if node_type in control_nodes:
         return 'chartreuse4'
     if node_type in action_nodes:
@@ -352,7 +213,7 @@ def node_color(node_type: str) -> str:
 
 
 # creates a legend which can be provided with the other images.
-def make_legend() -> graphviz.Digraph:
+def make_legend():
     legend = graphviz.Digraph(graph_attr={'rankdir': 'LR'})
     legend.attr(label='Legend')
     legend.node('Unknown', shape='box', style='filled', color='grey')

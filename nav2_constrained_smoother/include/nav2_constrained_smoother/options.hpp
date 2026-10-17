@@ -19,8 +19,8 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "nav2_ros_common/lifecycle_node.hpp"
-#include "nav2_ros_common/node_utils.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
+#include "nav2_util/node_utils.hpp"
 #include "ceres/ceres.h"
 
 namespace nav2_constrained_smoother
@@ -44,28 +44,39 @@ struct SmootherParams
    * @param node_ Ptr to node
    * @param name Name of plugin
    */
-  void get(nav2::LifecycleNode * node, const std::string & name)
+  void get(rclcpp_lifecycle::LifecycleNode * node, const std::string & name)
   {
     std::string local_name = name + std::string(".");
 
     // Smoother params
-    double minimum_turning_radius = node->declare_or_get_parameter(
-      name + ".minimum_turning_radius", 0.4);
+    double minimum_turning_radius;
+    nav2_util::declare_parameter_if_not_declared(
+      node, name + ".minimum_turning_radius", rclcpp::ParameterValue(0.4));
+    node->get_parameter(name + ".minimum_turning_radius", minimum_turning_radius);
     max_curvature = 1.0f / minimum_turning_radius;
-    curvature_weight_sqrt = std::sqrt(node->declare_or_get_parameter(local_name + "w_curve", 30.0));
-    costmap_weight_sqrt = std::sqrt(node->declare_or_get_parameter(local_name + "w_cost", 0.015));
-    double cost_cusp_multiplier_sqrt = std::sqrt(
-      node->declare_or_get_parameter(
-        local_name + "w_cost_cusp_multiplier", 3.0));
-    cusp_costmap_weight_sqrt = costmap_weight_sqrt * cost_cusp_multiplier_sqrt;
-    cusp_zone_length = node->declare_or_get_parameter(local_name + "cusp_zone_length", 2.5);
-    distance_weight_sqrt = std::sqrt(node->declare_or_get_parameter(local_name + "w_dist", 0.0));
-    smooth_weight_sqrt = std::sqrt(
-      node->declare_or_get_parameter(
-        local_name + "w_smooth",
-        2000000.0));
-    cost_check_points = node->declare_or_get_parameter(
-      local_name + "cost_check_points", std::vector<double>());
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "w_curve", rclcpp::ParameterValue(30.0));
+    node->get_parameter(local_name + "w_curve", curvature_weight);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "w_cost", rclcpp::ParameterValue(0.015));
+    node->get_parameter(local_name + "w_cost", costmap_weight);
+    double cost_cusp_multiplier;
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "w_cost_cusp_multiplier", rclcpp::ParameterValue(3.0));
+    node->get_parameter(local_name + "w_cost_cusp_multiplier", cost_cusp_multiplier);
+    cusp_costmap_weight = costmap_weight * cost_cusp_multiplier;
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "cusp_zone_length", rclcpp::ParameterValue(2.5));
+    node->get_parameter(local_name + "cusp_zone_length", cusp_zone_length);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "w_dist", rclcpp::ParameterValue(0.0));
+    node->get_parameter(local_name + "w_dist", distance_weight);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "w_smooth", rclcpp::ParameterValue(2000000.0));
+    node->get_parameter(local_name + "w_smooth", smooth_weight);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "cost_check_points", rclcpp::ParameterValue(std::vector<double>()));
+    node->get_parameter(local_name + "cost_check_points", cost_check_points);
     if (cost_check_points.size() % 3 != 0) {
       RCLCPP_ERROR(
         rclcpp::get_logger(
@@ -73,10 +84,6 @@ struct SmootherParams
         "cost_check_points parameter must contain values as follows: "
         "[x1, y1, weight1, x2, y2, weight2, ...]");
       throw std::runtime_error("Invalid parameter: cost_check_points");
-    }
-    // sqrt the costs to account for ceres solver's internal squaring
-    for (size_t i = 2u; i < cost_check_points.size(); i += 3) {
-      cost_check_points[i] = std::sqrt(cost_check_points[i]);
     }
     // normalize check point weights so that their sum == 1.0
     double check_point_weights_sum = 0.0;
@@ -86,23 +93,29 @@ struct SmootherParams
     for (size_t i = 2u; i < cost_check_points.size(); i += 3) {
       cost_check_points[i] /= check_point_weights_sum;
     }
-    path_downsampling_factor = node->declare_or_get_parameter(
-      local_name + "path_downsampling_factor", 1);
-    path_upsampling_factor = node->declare_or_get_parameter(
-      local_name + "path_upsampling_factor", 1);
-    reversing_enabled = node->declare_or_get_parameter(local_name + "reversing_enabled", true);
-    keep_goal_orientation = node->declare_or_get_parameter(
-      local_name + "keep_goal_orientation", true);
-    keep_start_orientation = node->declare_or_get_parameter(
-      local_name + "keep_start_orientation", true);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "path_downsampling_factor", rclcpp::ParameterValue(1));
+    node->get_parameter(local_name + "path_downsampling_factor", path_downsampling_factor);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "path_upsampling_factor", rclcpp::ParameterValue(1));
+    node->get_parameter(local_name + "path_upsampling_factor", path_upsampling_factor);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "reversing_enabled", rclcpp::ParameterValue(true));
+    node->get_parameter(local_name + "reversing_enabled", reversing_enabled);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "keep_goal_orientation", rclcpp::ParameterValue(true));
+    node->get_parameter(local_name + "keep_goal_orientation", keep_goal_orientation);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "keep_start_orientation", rclcpp::ParameterValue(true));
+    node->get_parameter(local_name + "keep_start_orientation", keep_start_orientation);
   }
 
-  double smooth_weight_sqrt{0.0};
-  double costmap_weight_sqrt{0.0};
-  double cusp_costmap_weight_sqrt{0.0};
+  double smooth_weight{0.0};
+  double costmap_weight{0.0};
+  double cusp_costmap_weight{0.0};
   double cusp_zone_length{0.0};
-  double distance_weight_sqrt{0.0};
-  double curvature_weight_sqrt{0.0};
+  double distance_weight{0.0};
+  double curvature_weight{0.0};
   double max_curvature{0.0};
   double max_time{10.0};  // adjusted by action goal, not by parameters
   int path_downsampling_factor{1};
@@ -133,13 +146,14 @@ struct OptimizerParams
    * @param node_ Ptr to node
    * @param name Name of plugin
    */
-  void get(nav2::LifecycleNode * node, const std::string & name)
+  void get(rclcpp_lifecycle::LifecycleNode * node, const std::string & name)
   {
     std::string local_name = name + std::string(".optimizer.");
 
     // Optimizer params
-    linear_solver_type = node->declare_or_get_parameter(
-      local_name + "linear_solver_type", std::string("SPARSE_NORMAL_CHOLESKY"));
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "linear_solver_type", rclcpp::ParameterValue("SPARSE_NORMAL_CHOLESKY"));
+    node->get_parameter(local_name + "linear_solver_type", linear_solver_type);
     if (solver_types.find(linear_solver_type) == solver_types.end()) {
       std::stringstream valid_types_str;
       for (auto type = solver_types.begin(); type != solver_types.end(); type++) {
@@ -153,11 +167,21 @@ struct OptimizerParams
         "Invalid linear_solver_type. Valid values are %s", valid_types_str.str().c_str());
       throw std::runtime_error("Invalid parameter: linear_solver_type");
     }
-    param_tol = node->declare_or_get_parameter(local_name + "param_tol", 1e-15);
-    fn_tol = node->declare_or_get_parameter(local_name + "fn_tol", 1e-7);
-    gradient_tol = node->declare_or_get_parameter(local_name + "gradient_tol", 1e-10);
-    max_iterations = node->declare_or_get_parameter(local_name + "max_iterations", 100);
-    debug = node->declare_or_get_parameter(local_name + "debug_optimizer", false);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "param_tol", rclcpp::ParameterValue(1e-15));
+    node->get_parameter(local_name + "param_tol", param_tol);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "fn_tol", rclcpp::ParameterValue(1e-7));
+    node->get_parameter(local_name + "fn_tol", fn_tol);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "gradient_tol", rclcpp::ParameterValue(1e-10));
+    node->get_parameter(local_name + "gradient_tol", gradient_tol);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "max_iterations", rclcpp::ParameterValue(100));
+    node->get_parameter(local_name + "max_iterations", max_iterations);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "debug_optimizer", rclcpp::ParameterValue(false));
+    node->get_parameter(local_name + "debug_optimizer", debug);
   }
 
   const std::map<std::string, ceres::LinearSolverType> solver_types = {

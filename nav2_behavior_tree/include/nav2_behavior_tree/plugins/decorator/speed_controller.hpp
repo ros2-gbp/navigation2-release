@@ -21,13 +21,13 @@
 #include <vector>
 #include <deque>
 
-#include "behaviortree_cpp/decorator_node.h"
-#include "behaviortree_cpp/json_export.h"
 #include "nav_msgs/msg/odometry.hpp"
 #include "nav2_util/odometry_utils.hpp"
+
+#include "behaviortree_cpp/decorator_node.h"
+#include "behaviortree_cpp/json_export.h"
 #include "nav2_behavior_tree/bt_utils.hpp"
 #include "nav2_behavior_tree/json_utils.hpp"
-
 
 namespace nav2_behavior_tree
 {
@@ -36,7 +36,6 @@ namespace nav2_behavior_tree
  * @brief A BT::DecoratorNode that ticks its child every at a rate proportional to
  * the speed of the robot. If the robot travels faster, this node will tick its child at a
  * higher frequency and reduce the tick frequency if the robot slows down
- * @note It will re-initialize when halted.
  *
  * Usage in XML:
  * @code
@@ -65,14 +64,14 @@ public:
   {
     // Register JSON definitions for the types used in the ports
     BT::RegisterJsonDefinition<geometry_msgs::msg::PoseStamped>();
-    BT::RegisterJsonDefinition<nav_msgs::msg::Goals>();
+    BT::RegisterJsonDefinition<std::vector<geometry_msgs::msg::PoseStamped>>();
 
     return {
       BT::InputPort<double>("min_rate", 0.1, "Minimum rate"),
       BT::InputPort<double>("max_rate", 1.0, "Maximum rate"),
       BT::InputPort<double>("min_speed", 0.0, "Minimum speed"),
       BT::InputPort<double>("max_speed", 0.5, "Maximum speed"),
-      BT::InputPort<nav_msgs::msg::Goals>(
+      BT::InputPort<std::vector<geometry_msgs::msg::PoseStamped>>(
         "goals", "Vector of navigation goals"),
       BT::InputPort<geometry_msgs::msg::PoseStamped>(
         "goal", "Navigation goal"),
@@ -109,7 +108,7 @@ private:
     period_ = 1.0 / rate;
   }
 
-  nav2::LifecycleNode::SharedPtr node_;
+  rclcpp::Node::SharedPtr node_;
 
   // To keep track of time to reset
   rclcpp::Time start_;
@@ -134,7 +133,7 @@ private:
 
   // current goal
   geometry_msgs::msg::PoseStamped goal_;
-  nav_msgs::msg::Goals goals_;
+  std::vector<geometry_msgs::msg::PoseStamped> goals_;
 };
 
 }  // namespace nav2_behavior_tree

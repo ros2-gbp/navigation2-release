@@ -22,7 +22,6 @@
 
 #include "nav2_costmap_2d/denoise_layer.hpp"
 #include "image_tests_helper.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_costmap_2d
 {
@@ -65,14 +64,19 @@ public:
 
   bool reset()
   {
-    denoise_.setCurrent(true);
+    denoise_.current_ = true;
     denoise_.reset();
-    return denoise_.isCurrent();
+    return denoise_.current_;
   }
 
   static void initialize(nav2_costmap_2d::DenoiseLayer & d)
   {
     d.onInitialize();
+  }
+
+  static bool & touchCurrent(nav2_costmap_2d::DenoiseLayer & d)
+  {
+    return d.current_;
   }
 
   static void configure(
@@ -448,11 +452,20 @@ TEST_F(DenoiseLayerTester, updateCosts) {
   ASSERT_EQ(costmap.getCost(0), FREE_SPACE);
 }
 
-std::shared_ptr<nav2_costmap_2d::DenoiseLayer> constructLayer(
-  nav2::LifecycleNode::SharedPtr node =
-  std::make_shared<nav2::LifecycleNode>("test_node"))
+// Copy paste from declare_parameter_test.cpp
+class RclCppFixture
 {
-  auto tf = nav2::create_transform_buffer(node);
+public:
+  RclCppFixture() {rclcpp::init(0, nullptr);}
+  ~RclCppFixture() {rclcpp::shutdown();}
+};
+RclCppFixture rcl_cpp_fixture;
+
+std::shared_ptr<nav2_costmap_2d::DenoiseLayer> constructLayer(
+  std::shared_ptr<nav2_util::LifecycleNode> node =
+  std::make_shared<nav2_util::LifecycleNode>("test_node"))
+{
+  auto tf = std::make_shared<tf2_ros::Buffer>(node->get_clock());
   auto layers = std::make_shared<nav2_costmap_2d::LayeredCostmap>("frame", false, false);
 
   auto deleter = [node, tf, layers](nav2_costmap_2d::DenoiseLayer * ptr)
@@ -476,7 +489,7 @@ TEST_F(DenoiseLayerTester, initializeDefault) {
 }
 
 TEST_F(DenoiseLayerTester, initializeCustom) {
-  auto node = std::make_shared<nav2::LifecycleNode>("test_node");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("test_node");
   auto layer = constructLayer(node);
   node->set_parameter(
     rclcpp::Parameter(layer->getFullName("minimal_group_size"), rclcpp::ParameterValue(5)));
@@ -491,7 +504,7 @@ TEST_F(DenoiseLayerTester, initializeCustom) {
 }
 
 TEST_F(DenoiseLayerTester, initializeInvalid) {
-  auto node = std::make_shared<nav2::LifecycleNode>("test_node");
+  auto node = std::make_shared<nav2_util::LifecycleNode>("test_node");
   auto layer = constructLayer(node);
   node->set_parameter(
     rclcpp::Parameter(layer->getFullName("minimal_group_size"), rclcpp::ParameterValue(-1)));
@@ -503,17 +516,4 @@ TEST_F(DenoiseLayerTester, initializeInvalid) {
   ASSERT_EQ(
     DenoiseLayerTester::getParameters(*layer),
     std::make_tuple(true, ConnectivityType::Way8, 1));
-}
-
-int main(int argc, char ** argv)
-{
-  ::testing::InitGoogleTest(&argc, argv);
-
-  rclcpp::init(0, nullptr);
-
-  int result = RUN_ALL_TESTS();
-
-  rclcpp::shutdown();
-
-  return result;
 }

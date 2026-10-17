@@ -18,9 +18,7 @@
 #include <string>
 
 #include "nav2_map_server/map_saver.hpp"
-#include "rclcpp/executors.hpp"
-#include "rclcpp/logger.hpp"
-#include "rclcpp/utilities.hpp"
+#include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char ** argv)
 {

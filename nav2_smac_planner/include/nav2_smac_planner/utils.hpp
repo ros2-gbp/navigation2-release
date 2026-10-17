@@ -21,17 +21,15 @@
 #include <string>
 
 #include "nlohmann/json.hpp"
+#include "Eigen/Core"
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "geometry_msgs/msg/pose.hpp"
-#include "tf2/utils.hpp"
+#include "tf2/utils.h"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
-#include "nav2_costmap_2d/inflation_layer_interface.hpp"
+#include "nav2_costmap_2d/inflation_layer.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "nav2_smac_planner/types.hpp"
-#include "rclcpp/duration.hpp"
-#include "rclcpp/logger.hpp"
-#include "rclcpp/logging.hpp"
-#include "rclcpp/time.hpp"
+#include <rclcpp/rclcpp.hpp>
 
 namespace nav2_smac_planner
 {
@@ -64,7 +62,7 @@ inline geometry_msgs::msg::Quaternion getWorldOrientation(
 {
   // theta is in radians already
   tf2::Quaternion q;
-  q.setRPY(0.0, 0.0, theta);
+  q.setEuler(0.0, 0.0, theta);
   return tf2::toMsg(q);
 }
 
@@ -81,7 +79,7 @@ inline double findCircumscribedCost(std::shared_ptr<nav2_costmap_2d::Costmap2DRO
   std::vector<std::shared_ptr<nav2_costmap_2d::Layer>>::iterator layer;
 
   // check if the costmap has an inflation layer
-  const auto inflation_layer = nav2_costmap_2d::InflationLayerInterface::getInflationLayer(costmap);
+  const auto inflation_layer = nav2_costmap_2d::InflationLayer::getInflationLayer(costmap);
   if (inflation_layer != nullptr) {
     double circum_radius = costmap->getLayeredCostmap()->getCircumscribedRadius();
     double resolution = costmap->getCostmap()->getResolution();

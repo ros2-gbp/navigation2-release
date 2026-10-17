@@ -20,8 +20,10 @@
 
 #include "nav2_costmap_2d/costmap_subscriber.hpp"
 #include "nav2_costmap_2d/footprint_subscriber.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
-#include "nav2_ros_common/lifecycle_node.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "rclcpp/rclcpp.hpp"
+#include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "pluginlib/class_loader.hpp"
 #include "nav_msgs/msg/path.hpp"
 
@@ -44,8 +46,8 @@ public:
   virtual ~Smoother() {}
 
   virtual void configure(
-    const nav2::LifecycleNode::WeakPtr &,
-    std::string name, nav2::TransformBuffer::SharedPtr,
+    const rclcpp_lifecycle::LifecycleNode::WeakPtr &,
+    std::string name, std::shared_ptr<tf2_ros::Buffer>,
     std::shared_ptr<nav2_costmap_2d::CostmapSubscriber>,
     std::shared_ptr<nav2_costmap_2d::FootprintSubscriber>) = 0;
 

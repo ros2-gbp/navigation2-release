@@ -20,10 +20,8 @@
 #include <string>
 
 #include "sensor_msgs/msg/point_cloud2.hpp"
-#include "point_cloud_transport/point_cloud_transport.hpp"
 
 #include "nav2_collision_monitor/source.hpp"
-#include "nav2_ros_common/tf2_factories.hpp"
 
 namespace nav2_collision_monitor
 {
@@ -47,9 +45,9 @@ public:
    * considering the difference between current time and latest source time
    */
   PointCloud(
-    const nav2::LifecycleNode::WeakPtr & node,
+    const nav2_util::LifecycleNode::WeakPtr & node,
     const std::string & source_name,
-    const nav2::TransformBuffer::SharedPtr tf_buffer,
+    const std::shared_ptr<tf2_ros::Buffer> tf_buffer,
     const std::string & base_frame_id,
     const std::string & global_frame_id,
     const tf2::Duration & transform_tolerance,
@@ -63,9 +61,8 @@ public:
   /**
    * @brief Data source configuration routine. Obtains pointcloud related ROS-parameters
    * and creates pointcloud subscriber.
-   * @return True in case of everything is configured correctly, or false otherwise
    */
-  bool configure();
+  void configure();
 
   /**
    * @brief Adds latest data from pointcloud source to the data array.
@@ -74,9 +71,9 @@ public:
    * Added data is transformed to base_frame_id_ coordinate system at curr_time.
    * @return false if an invalid source should block the robot
    */
-  bool getSourceData(
+  bool getData(
     const rclcpp::Time & curr_time,
-    std::vector<Point> & data) override;
+    std::vector<Point> & data);
 
 protected:
   /**
@@ -91,37 +88,10 @@ protected:
    */
   void dataCallback(sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
 
-  /**
-   * @brief Validate incoming parameter updates before applying them.
-   * This callback is triggered when one or more parameters are about to be updated.
-   * It checks the validity of parameter values and rejects updates that would lead
-   * to invalid or inconsistent configurations
-   * @param parameters List of parameters that are being updated.
-   * @return rcl_interfaces::msg::SetParametersResult Result indicating whether the update is accepted.
-   */
-  rcl_interfaces::msg::SetParametersResult validateParameterUpdatesCallback(
-    const std::vector<rclcpp::Parameter> & parameters);
-
-  /**
-   * @brief Apply parameter updates after validation
-   * This callback is executed when parameters have been successfully updated.
-   * It updates the internal configuration of the node with the new parameter values.
-   * @param parameters List of parameters that have been updated.
-   */
-  void updateParametersCallback(const std::vector<rclcpp::Parameter> & parameters);
-
   // ----- Variables -----
 
   /// @brief PointCloud data subscriber
-  #if RCLCPP_VERSION_GTE(30, 0, 0)
-  std::shared_ptr<point_cloud_transport::PointCloudTransport> pct_;
-  point_cloud_transport::Subscriber data_sub_;
-  #else
-  nav2::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr data_sub_;
-  #endif
-
-  // Transport type used for PointCloud messages (e.g., raw or compressed)
-  std::string transport_type_;
+  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr data_sub_;
 
   // Minimum and maximum height of PointCloud projected to 2D space
   double min_height_, max_height_;

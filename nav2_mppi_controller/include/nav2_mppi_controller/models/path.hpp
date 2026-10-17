@@ -15,7 +15,12 @@
 #ifndef NAV2_MPPI_CONTROLLER__MODELS__PATH_HPP_
 #define NAV2_MPPI_CONTROLLER__MODELS__PATH_HPP_
 
-#include <Eigen/Dense>
+// xtensor creates warnings that needs to be ignored as we are building with -Werror
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+#include <xtensor/xtensor.hpp>
+#pragma GCC diagnostic pop
 
 namespace mppi::models
 {
@@ -26,18 +31,18 @@ namespace mppi::models
  */
 struct Path
 {
-  Eigen::ArrayXf x;
-  Eigen::ArrayXf y;
-  Eigen::ArrayXf yaws;
+  xt::xtensor<float, 1> x;
+  xt::xtensor<float, 1> y;
+  xt::xtensor<float, 1> yaws;
 
   /**
     * @brief Reset path data
     */
   void reset(unsigned int size)
   {
-    x.setZero(size);
-    y.setZero(size);
-    yaws.setZero(size);
+    x = xt::zeros<float>({size});
+    y = xt::zeros<float>({size});
+    yaws = xt::zeros<float>({size});
   }
 };
 

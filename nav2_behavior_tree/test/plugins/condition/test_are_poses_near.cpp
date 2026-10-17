@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,25 +13,54 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
-#include <chrono>
 #include <memory>
-#include <set>
 #include <string>
 
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "rclcpp/rclcpp.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
 
-#include "utils/test_behavior_tree_fixture.hpp"
+#include "behaviortree_cpp/bt_factory.h"
 #include "nav2_behavior_tree/plugins/condition/are_poses_near_condition.hpp"
 
-using namespace std::chrono;  // NOLINT
-using namespace std::chrono_literals;  // NOLINT
-
-class ArePosesNearConditionTestFixture : public nav2_behavior_tree::BehaviorTreeTestFixture
+class ArePosesNearTestFixture : public ::testing::Test
 {
 public:
-  void SetUp()
+  static void SetUpTestCase()
   {
-    node_->declare_parameter("transform_tolerance", rclcpp::ParameterValue{0.1});
+    node_ = std::make_shared<rclcpp::Node>("test_fixture");
+
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node_->get_clock());
+    tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, node_, false);
+
+    factory_ = std::make_shared<BT::BehaviorTreeFactory>();
+    config_ = new BT::NodeConfiguration();
+
+    config_->blackboard = BT::Blackboard::create();
+
+    config_->blackboard->set<rclcpp::Node::SharedPtr>("node", node_);
+    config_->blackboard->set<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer", tf_buffer_);
+
+    factory_->registerNodeType<nav2_behavior_tree::ArePosesNearCondition>("ArePosesNear");
+  }
+
+  static void TearDownTestCase()
+  {
+    delete config_;
+    config_ = nullptr;
+
+    tf_listener_.reset();
+    tf_buffer_.reset();
+    node_.reset();
+    factory_.reset();
+  }
+
+  void SetUp() override
+  {
+    if (!node_->has_parameter("transform_tolerance")) {
+      node_->declare_parameter("transform_tolerance", rclcpp::ParameterValue(0.1));
+    }
 
     geometry_msgs::msg::PoseStamped goal;
     goal.header.stamp = node_->now();
@@ -48,26 +77,38 @@ public:
         </BehaviorTree>
       </root>)";
 
-    factory_->registerNodeType<nav2_behavior_tree::ArePosesNearCondition>("ArePosesNear");
     tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   }
 
-  void TearDown()
+  void TearDown() override
   {
     tree_.reset();
   }
 
 protected:
+  static rclcpp::Node::SharedPtr node_;
+  static std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  static std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+  static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
+  static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-std::shared_ptr<BT::Tree> ArePosesNearConditionTestFixture::tree_ = nullptr;
+rclcpp::Node::SharedPtr ArePosesNearTestFixture::node_ = nullptr;
+std::shared_ptr<tf2_ros::Buffer> ArePosesNearTestFixture::tf_buffer_ = nullptr;
+std::shared_ptr<tf2_ros::TransformListener> ArePosesNearTestFixture::tf_listener_ = nullptr;
+std::shared_ptr<BT::BehaviorTreeFactory> ArePosesNearTestFixture::factory_ = nullptr;
+BT::NodeConfiguration * ArePosesNearTestFixture::config_ = nullptr;
+std::shared_ptr<BT::Tree> ArePosesNearTestFixture::tree_ = nullptr;
 
-TEST_F(ArePosesNearConditionTestFixture, test_behavior)
+TEST_F(ArePosesNearTestFixture, test_behavior)
 {
   geometry_msgs::msg::PoseStamped p2;
   p2.header.stamp = node_->now();
   p2.header.frame_id = "map";
+  p2.pose.position.x = 0.0;
+  p2.pose.position.y = 0.0;
+
   config_->blackboard->set("p2", p2);
   EXPECT_EQ(tree_->tickOnce(), BT::NodeStatus::FAILURE);
 
@@ -85,14 +126,8 @@ TEST_F(ArePosesNearConditionTestFixture, test_behavior)
 int main(int argc, char ** argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
-
-  // initialize ROS
   rclcpp::init(argc, argv);
-
-  bool all_successful = RUN_ALL_TESTS();
-
-  // shutdown ROS
+  int all_successful = RUN_ALL_TESTS();
   rclcpp::shutdown();
-
   return all_successful;
 }

@@ -20,7 +20,7 @@
 
 #include "behaviortree_cpp/bt_factory.h"
 
-#include "nav2_behavior_tree/utils/test_action_server.hpp"
+#include "utils/test_action_server.hpp"
 #include "nav2_behavior_tree/plugins/action/back_up_action.hpp"
 
 class BackUpActionServer : public TestActionServer<nav2_msgs::action::BackUp>
@@ -52,7 +52,7 @@ class BackUpActionTestFixture : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
-    node_ = std::make_shared<nav2::LifecycleNode>("backup_action_test_fixture");
+    node_ = std::make_shared<rclcpp::Node>("backup_action_test_fixture");
     factory_ = std::make_shared<BT::BehaviorTreeFactory>();
     config_ = new BT::NodeConfiguration();
 
@@ -106,13 +106,13 @@ public:
   static std::shared_ptr<BackUpActionServer> action_server_;
 
 protected:
-  static nav2::LifecycleNode::SharedPtr node_;
+  static rclcpp::Node::SharedPtr node_;
   static BT::NodeConfiguration * config_;
   static std::shared_ptr<BT::BehaviorTreeFactory> factory_;
   static std::shared_ptr<BT::Tree> tree_;
 };
 
-nav2::LifecycleNode::SharedPtr BackUpActionTestFixture::node_ = nullptr;
+rclcpp::Node::SharedPtr BackUpActionTestFixture::node_ = nullptr;
 std::shared_ptr<BackUpActionServer> BackUpActionTestFixture::action_server_ = nullptr;
 BT::NodeConfiguration * BackUpActionTestFixture::config_ = nullptr;
 std::shared_ptr<BT::BehaviorTreeFactory> BackUpActionTestFixture::factory_ = nullptr;
@@ -131,20 +131,18 @@ TEST_F(BackUpActionTestFixture, test_ports)
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_dist"), 0.15);
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_speed"), 0.025);
-  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), false);
 
   xml_txt =
     R"(
       <root BTCPP_format="4">
         <BehaviorTree ID="MainTree">
-            <BackUp backup_dist="2" backup_speed="0.26" disable_collision_checks="true" />
+            <BackUp backup_dist="2" backup_speed="0.26" />
         </BehaviorTree>
       </root>)";
 
   tree_ = std::make_shared<BT::Tree>(factory_->createTreeFromText(xml_txt, config_->blackboard));
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_dist"), 2.0);
   EXPECT_EQ(tree_->rootNode()->getInput<double>("backup_speed"), 0.26);
-  EXPECT_EQ(tree_->rootNode()->getInput<bool>("disable_collision_checks"), true);
 }
 
 TEST_F(BackUpActionTestFixture, test_tick)
