@@ -1,0 +1,58 @@
+// Copyright (c) 2020 Samsung Research
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <memory>
+#include <cmath>
+#include "nav2_ros_common/lifecycle_node.hpp"
+#include "nav2_util/robot_utils.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+#include "gtest/gtest.h"
+
+TEST(RobotUtils, LookupExceptionError)
+{
+  rclcpp::init(0, nullptr);
+  auto node = std::make_shared<nav2::LifecycleNode>("name");
+  geometry_msgs::msg::PoseStamped global_pose;
+  nav2::TransformBuffer tf(node->get_clock());
+  ASSERT_FALSE(nav2_util::getCurrentPose(global_pose, tf, "map", "base_link", 0.1));
+  global_pose.header.frame_id = "base_link";
+  ASSERT_FALSE(nav2_util::transformPoseInTargetFrame(global_pose, global_pose, tf, "map", 0.1));
+  rclcpp::shutdown();
+}
+
+TEST(RobotUtils, validateTwist)
+{
+  geometry_msgs::msg::Twist msg;
+  EXPECT_TRUE(nav2_util::validateTwist(msg));
+
+  msg.linear.x = NAN;
+  EXPECT_FALSE(nav2_util::validateTwist(msg));
+  msg.linear.x = 1;
+  msg.linear.y = NAN;
+  EXPECT_FALSE(nav2_util::validateTwist(msg));
+  msg.linear.y = 1;
+  msg.linear.z = NAN;
+  EXPECT_FALSE(nav2_util::validateTwist(msg));
+
+  msg.linear.z = 1;
+  msg.angular.x = NAN;
+  EXPECT_FALSE(nav2_util::validateTwist(msg));
+  msg.angular.x = 1;
+  msg.angular.y = NAN;
+  EXPECT_FALSE(nav2_util::validateTwist(msg));
+  msg.angular.y = 1;
+  msg.angular.z = NAN;
+  EXPECT_FALSE(nav2_util::validateTwist(msg));
+}
