@@ -75,7 +75,6 @@ ResultStatus AssistedTeleop::onCycleUpdate()
 
   rclcpp::Duration time_remaining = end_time_ - this->clock_->now();
   if (time_remaining.seconds() < 0.0 && command_time_allowance_.seconds() > 0.0) {
-    stopRobot();
     std::string error_msg = "Exceeded time allowance before reaching the " + behavior_name_ +
       "goal - Exiting " + behavior_name_;
     RCLCPP_WARN_STREAM(logger_, error_msg.c_str());
@@ -146,11 +145,11 @@ geometry_msgs::msg::Pose AssistedTeleop::projectPose(
   double theta = tf2::getYaw(pose.orientation);
 
   projected_pose.position.x += projection_time * (
-    twist.linear.x * cos(theta) +
+    twist.linear.x * cos(theta) -
     twist.linear.y * sin(theta));
 
   projected_pose.position.y += projection_time * (
-    twist.linear.x * sin(theta) -
+    twist.linear.x * sin(theta) +
     twist.linear.y * cos(theta));
 
   double new_theta = theta + projection_time * twist.angular.z;
