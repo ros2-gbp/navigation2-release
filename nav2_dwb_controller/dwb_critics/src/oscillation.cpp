@@ -1,0 +1,205 @@
+/*
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2017, Locus Robotics
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of the copyright holder nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include "dwb_critics/oscillation.hpp"
+#include <chrono>
+#include <cmath>
+#include <string>
+#include <vector>
+#include "dwb_core/exceptions.hpp"
+#include "pluginlib/class_list_macros.hpp"
+#include "angles/angles.h"
+
+PLUGINLIB_EXPORT_CLASS(dwb_critics::OscillationCritic, dwb_core::TrajectoryCritic)
+
+namespace dwb_critics
+{
+
+
+OscillationCritic::CommandTrend::CommandTrend()
+{
+  reset();
+}
+
+void OscillationCritic::CommandTrend::reset()
+{
+  sign_ = Sign::ZERO;
+  positive_only_ = false;
+  negative_only_ = false;
+}
+
+bool OscillationCritic::CommandTrend::update(double velocity)
+{
+  bool flag_set = false;
+  if (velocity < 0.0) {
+    if (sign_ == Sign::POSITIVE) {
+      negative_only_ = true;
+      flag_set = true;
+    }
+    sign_ = Sign::NEGATIVE;
+  } else if (velocity > 0.0) {
+    if (sign_ == Sign::NEGATIVE) {
+      positive_only_ = true;
+      flag_set = true;
+    }
+    sign_ = Sign::POSITIVE;
+  }
+  return flag_set;
+}
+
+bool OscillationCritic::CommandTrend::isOscillating(double velocity)
+{
+  return (positive_only_ && velocity < 0.0) || (negative_only_ && velocity > 0.0);
+}
+
+bool OscillationCritic::CommandTrend::hasSignFlipped()
+{
+  return positive_only_ || negative_only_;
+}
+
+void OscillationCritic::onInit()
+{
+  auto node = node_.lock();
+  if (!node) {
+    throw std::runtime_error{"Failed to lock node"};
+  }
+
+  clock_ = node->get_clock();
+
+  oscillation_reset_dist_ = node->declare_or_get_parameter(
+    dwb_plugin_name_ + "." + name_ +
+    ".oscillation_reset_dist", 0.05);
+  oscillation_reset_dist_sq_ = oscillation_reset_dist_ * oscillation_reset_dist_;
+  oscillation_reset_angle_ = node->declare_or_get_parameter(
+    dwb_plugin_name_ + "." + name_ + ".oscillation_reset_angle", 0.2);
+  oscillation_reset_time_ = rclcpp::Duration::from_seconds(
+    node->declare_or_get_parameter(
+      dwb_plugin_name_ + "." + name_ + ".oscillation_reset_time", -1.0));
+
+  x_only_threshold_ = node->declare_or_get_parameter(
+    dwb_plugin_name_ + "." + name_ + ".x_only_threshold", 0.05);
+
+  reset();
+}
+
+bool OscillationCritic::prepare(
+  const geometry_msgs::msg::Pose & pose,
+  const nav_2d_msgs::msg::Twist2D &,
+  const geometry_msgs::msg::Pose &,
+  const nav_msgs::msg::Path &)
+{
+  pose_ = pose;
+  return true;
+}
+
+void OscillationCritic::debrief(const nav_2d_msgs::msg::Twist2D & cmd_vel)
+{
+  if (setOscillationFlags(cmd_vel)) {
+    prev_stationary_pose_ = pose_;
+    prev_reset_time_ = clock_->now();
+  }
+
+  // if we've got restrictions... check if we can reset any oscillation flags
+  if (x_trend_.hasSignFlipped() || y_trend_.hasSignFlipped() || theta_trend_.hasSignFlipped()) {
+    // Reset flags if enough time or distance has passed
+    if (resetAvailable()) {
+      reset();
+    }
+  }
+}
+bool OscillationCritic::resetAvailable()
+{
+  if (oscillation_reset_dist_ >= 0.0) {
+    double x_diff = pose_.position.x - prev_stationary_pose_.position.x;
+    double y_diff = pose_.position.y - prev_stationary_pose_.position.y;
+    double sq_dist = x_diff * x_diff + y_diff * y_diff;
+    if (sq_dist > oscillation_reset_dist_sq_) {
+      return true;
+    }
+  }
+  if (oscillation_reset_angle_ >= 0.0) {
+    tf2::Quaternion pose_q, prev_stationary_pose_q;
+    tf2::fromMsg(pose_.orientation, pose_q);
+    tf2::fromMsg(prev_stationary_pose_.orientation, prev_stationary_pose_q);
+
+    double th_diff = angles::shortest_angular_distance(
+      tf2::getYaw(pose_q), tf2::getYaw(prev_stationary_pose_q));
+
+    if (fabs(th_diff) > oscillation_reset_angle_) {
+      return true;
+    }
+  }
+  if (oscillation_reset_time_ >= rclcpp::Duration::from_seconds(0.0)) {
+    auto t_diff = (clock_->now() - prev_reset_time_);
+    if (t_diff > oscillation_reset_time_) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void OscillationCritic::reset()
+{
+  x_trend_.reset();
+  y_trend_.reset();
+  theta_trend_.reset();
+}
+
+bool OscillationCritic::setOscillationFlags(const nav_2d_msgs::msg::Twist2D & cmd_vel)
+{
+  bool flag_set = false;
+  // set oscillation flags for moving forward and backward
+  flag_set |= x_trend_.update(cmd_vel.x);
+
+  // we'll only set flags for strafing and rotating when we're not moving forward at all
+  if (x_only_threshold_ < 0.0 || fabs(cmd_vel.x) <= x_only_threshold_) {
+    flag_set |= y_trend_.update(cmd_vel.y);
+    flag_set |= theta_trend_.update(cmd_vel.theta);
+  }
+  return flag_set;
+}
+
+double OscillationCritic::scoreTrajectory(const dwb_msgs::msg::Trajectory2D & traj)
+{
+  if (x_trend_.isOscillating(traj.velocity.x) ||
+    y_trend_.isOscillating(traj.velocity.y) ||
+    theta_trend_.isOscillating(traj.velocity.theta))
+  {
+    throw dwb_core::
+          IllegalTrajectoryException(name_, "Trajectory is oscillating.");
+  }
+  return 0.0;
+}
+
+}  // namespace dwb_critics
