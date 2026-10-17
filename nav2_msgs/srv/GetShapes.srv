@@ -1,5 +1,0 @@
-# Get vector objects which are now being applied on map
-
----
-CircleObject[] circles
-PolygonObject[] polygons
