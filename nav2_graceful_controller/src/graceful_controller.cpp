@@ -1,0 +1,639 @@
+// Copyright (c) 2023 Alberto J. Tudela Roldán
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include <memory>
+#include <mutex>
+
+#include "angles/angles.h"
+#include "nav2_core/controller_exceptions.hpp"
+#include "nav2_util/geometry_utils.hpp"
+#include "nav2_util/controller_utils.hpp"
+#include "nav2_util/path_utils.hpp"
+#include "nav2_graceful_controller/graceful_controller.hpp"
+#include "nav2_costmap_2d/costmap_filters/filter_values.hpp"
+#include "nav2_ros_common/tf2_factories.hpp"
+
+namespace nav2_graceful_controller
+{
+
+void GracefulController::configure(
+  const nav2::LifecycleNode::WeakPtr & parent,
+  std::string name, const nav2::TransformBuffer::SharedPtr tf,
+  const std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros)
+{
+  nav2::LifecycleNode::SharedPtr node = parent.lock();
+  if (!node) {
+    throw nav2_core::ControllerException("Unable to lock node!");
+  }
+
+  costmap_ros_ = costmap_ros;
+  tf_buffer_ = tf;
+  plugin_name_ = name;
+  logger_ = node->get_logger();
+
+  // Handles storage and dynamic configuration of parameters.
+  // Returns pointer to data current param settings.
+  param_handler_ = std::make_unique<ParameterHandler>(
+    node, plugin_name_, logger_);
+  params_ = param_handler_->getParams();
+
+  // Handles the control law to generate the velocity commands
+  control_law_ = std::make_unique<SmoothControlLaw>(
+    params_->k_phi, params_->k_delta, params_->beta, params_->lambda,
+    params_->slowdown_radius, params_->deceleration_max,
+    params_->v_linear_min, params_->v_linear_max, params_->v_angular_max);
+
+  // Initialize footprint collision checker
+  if (params_->use_collision_detection) {
+    collision_checker_ = std::make_unique<nav2_costmap_2d::
+        FootprintCollisionChecker<nav2_costmap_2d::Costmap2D *>>(costmap_ros_->getCostmap());
+  }
+
+  double max_valid_cost = costmap_ros_->getUseRadius() ?
+    static_cast<double>(nav2_costmap_2d::MAX_NON_OBSTACLE) :
+    static_cast<double>(nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
+  if (max_valid_cost - static_cast<double>(params_->obstacle_cost_margin) < 0.0) {
+    RCLCPP_WARN(
+      logger_, "obstacle_cost_margin (%d) is higher than max cost (%d).",
+      params_->obstacle_cost_margin, nav2_costmap_2d::MAX_NON_OBSTACLE);
+    throw nav2_core::ControllerException("obstacle_cost_margin is higher than max cost.");
+  }
+
+  // Publishers
+  local_plan_pub_ = node->create_publisher<nav_msgs::msg::Path>("local_plan");
+  motion_target_pub_ = node->create_publisher<geometry_msgs::msg::PoseStamped>("motion_target");
+  slowdown_pub_ = node->create_publisher<visualization_msgs::msg::Marker>("slowdown");
+
+  RCLCPP_INFO(logger_, "Configured Graceful Motion Controller: %s", plugin_name_.c_str());
+}
+
+void GracefulController::cleanup()
+{
+  RCLCPP_INFO(
+    logger_,
+    "Cleaning up controller: %s of type graceful_controller::GracefulController",
+    plugin_name_.c_str());
+  local_plan_pub_.reset();
+  motion_target_pub_.reset();
+  slowdown_pub_.reset();
+  collision_checker_.reset();
+  param_handler_.reset();
+  control_law_.reset();
+}
+
+void GracefulController::activate()
+{
+  RCLCPP_INFO(
+    logger_,
+    "Activating controller: %s of type nav2_graceful_controller::GracefulController",
+    plugin_name_.c_str());
+  local_plan_pub_->on_activate();
+  motion_target_pub_->on_activate();
+  slowdown_pub_->on_activate();
+  param_handler_->activate();
+}
+
+void GracefulController::deactivate()
+{
+  RCLCPP_INFO(
+    logger_,
+    "Deactivating controller: %s of type nav2_graceful_controller::GracefulController",
+    plugin_name_.c_str());
+  local_plan_pub_->on_deactivate();
+  motion_target_pub_->on_deactivate();
+  slowdown_pub_->on_deactivate();
+  param_handler_->deactivate();
+}
+
+geometry_msgs::msg::TwistStamped GracefulController::computeVelocityCommands(
+  const geometry_msgs::msg::PoseStamped & pose,
+  const geometry_msgs::msg::Twist & velocity,
+  nav2_core::GoalChecker * goal_checker,
+  const nav_msgs::msg::Path & transformed_global_plan,
+  const geometry_msgs::msg::PoseStamped & global_goal)
+{
+  std::lock_guard<std::mutex> param_lock(param_handler_->getMutex());
+
+  geometry_msgs::msg::TwistStamped cmd_vel;
+  cmd_vel.header = pose.header;
+
+  // Transform the plan from costmap's global frame to robot base frame
+  nav_msgs::msg::Path transformed_plan;
+  if (!nav2_util::transformPathInTargetFrame(
+      transformed_global_plan, transformed_plan, *tf_buffer_,
+      costmap_ros_->getBaseFrameID(), costmap_ros_->getTransformTolerance()))
+  {
+    throw nav2_core::ControllerTFError(
+    "Unable to transform plan pose into local frame");
+  }
+
+  // Update the smooth control law with the new params
+  control_law_->setCurvatureConstants(
+    params_->k_phi, params_->k_delta, params_->beta, params_->lambda);
+  control_law_->setSlowdownRadius(params_->slowdown_radius);
+  control_law_->setMaxDeceleration(params_->deceleration_max);
+  control_law_->setSpeedLimit(params_->v_linear_min, params_->v_linear_max, params_->v_angular_max);
+  // Add proper orientations to plan, if needed
+  validateOrientations(transformed_plan.poses);
+
+  // Transform local frame to global frame to use in collision checking
+  geometry_msgs::msg::TransformStamped costmap_transform;
+  try {
+    costmap_transform = tf_buffer_->lookupTransform(
+      costmap_ros_->getGlobalFrameID(), costmap_ros_->getBaseFrameID(),
+      tf2::TimePointZero);
+  } catch (tf2::TransformException & ex) {
+    RCLCPP_ERROR(
+      logger_, "Could not transform %s to %s: %s",
+      costmap_ros_->getBaseFrameID().c_str(), costmap_ros_->getGlobalFrameID().c_str(),
+      ex.what());
+    throw ex;
+  }
+
+  // Compute distance to goal as the path's integrated distance to account for path curvatures
+  double dist_to_goal = nav2_util::geometry_utils::calculate_path_length(transformed_plan);
+
+  // If we've reached the XY goal tolerance, just rotate.
+  // Feed the goal checker the GLOBAL-frame plan (same frame as `pose` / `global_goal`), not the
+  // base_link-frame `transformed_plan` used for control.
+  if (goal_checker->isGoalXYReached(pose.pose, global_goal.pose, velocity,
+      transformed_global_plan))
+  {
+    double angle_to_goal = tf2::getYaw(transformed_plan.poses.back().pose.orientation);
+    // Check for collisions between our current pose and goal pose
+    size_t num_steps = fabs(angle_to_goal) / params_->in_place_collision_resolution;
+    // Need to check at least the end pose
+    num_steps = std::max(static_cast<size_t>(1), num_steps);
+    bool collision_free = true;
+    for (size_t i = 1; i <= num_steps; ++i) {
+      double step = static_cast<double>(i) / static_cast<double>(num_steps);
+      double yaw = step * angle_to_goal;
+      geometry_msgs::msg::PoseStamped next_pose;
+      next_pose.header.frame_id = costmap_ros_->getBaseFrameID();
+      next_pose.pose.orientation = nav2_util::geometry_utils::orientationAroundZAxis(yaw);
+      geometry_msgs::msg::PoseStamped costmap_pose;
+      tf2::doTransform(next_pose, costmap_pose, costmap_transform);
+      if (params_->use_collision_detection && inCollision(
+          costmap_pose.pose.position.x, costmap_pose.pose.position.y,
+          tf2::getYaw(costmap_pose.pose.orientation)))
+      {
+        collision_free = false;
+        break;
+      }
+    }
+    // Compute velocity if rotation is possible
+    if (collision_free) {
+      cmd_vel.twist = rotateToTarget(angle_to_goal);
+      return cmd_vel;
+    }
+    // Else, fall through and see if we should follow control law longer
+  }
+
+  // Find a valid target pose and its trajectory
+  nav_msgs::msg::Path local_plan;
+  geometry_msgs::msg::PoseStamped target_pose;
+
+  double dist_to_target;
+  std::vector<double> target_distances;
+  computeDistanceAlongPath(transformed_plan.poses, target_distances);
+
+  bool is_first_iteration = true;
+  for (int i = transformed_plan.poses.size() - 1; i >= 0; --i) {
+    if (is_first_iteration) {
+      // Calculate target pose through lookahead interpolation to get most accurate
+      // lookahead point, if possible
+      dist_to_target = params_->max_lookahead;
+      // Interpolate after goal false for graceful controller
+      // Requires interpolating the orientation which is not yet implemented
+      // Updates dist_to_target for target_pose returned if using the point on the path
+      target_pose = nav2_util::getLookAheadPoint(dist_to_target, transformed_plan, false);
+      is_first_iteration = false;
+    } else {
+      // Underlying control law needs a single target pose, which should:
+      //  * Be as far away as possible from the robot (for smoothness)
+      //  * But no further than the max_lookahed_ distance
+      //  * Be feasible to reach in a collision free manner
+      dist_to_target = target_distances[i];
+      target_pose = transformed_plan.poses[i];
+    }
+
+    // Compute velocity at this moment if valid target pose is found
+    if (
+      validateTargetPoseOnApproach(target_pose, dist_to_target, dist_to_goal, local_plan,
+        costmap_transform, cmd_vel) ||
+      validateTargetPose(target_pose, dist_to_target, local_plan, costmap_transform, cmd_vel))
+    {
+      // Publish the selected target_pose
+      motion_target_pub_->publish(std::make_unique<geometry_msgs::msg::PoseStamped>(target_pose));
+      // Publish marker for slowdown radius around motion target for debugging / visualization
+      auto slowdown_marker = nav2_graceful_controller::createSlowdownMarker(
+        target_pose, params_->slowdown_radius);
+      slowdown_pub_->publish(std::make_unique<visualization_msgs::msg::Marker>(slowdown_marker));
+      // Publish the local plan
+      local_plan.header = transformed_plan.header;
+      local_plan_pub_->publish(std::make_unique<nav_msgs::msg::Path>(local_plan));
+      // Successfully found velocity command
+      return cmd_vel;
+    }
+  }
+
+  throw nav2_core::NoValidControl("Collision detected in trajectory");
+}
+
+void GracefulController::newPathReceived(const nav_msgs::msg::Path & /*raw_global_path*/)
+{
+  do_initial_rotation_ = true;
+  safe_approach_angle_.reset();
+}
+
+void GracefulController::setSpeedLimit(
+  const double & speed_limit, const bool & percentage)
+{
+  std::lock_guard<std::mutex> param_lock(param_handler_->getMutex());
+
+  if (speed_limit == nav2_costmap_2d::NO_SPEED_LIMIT) {
+    params_->v_linear_max = params_->v_linear_max_initial;
+    params_->v_angular_max = params_->v_angular_max_initial;
+  } else {
+    if (percentage) {
+      // Speed limit is expressed in % from maximum speed of robot
+      params_->v_linear_max = std::max(
+        params_->v_linear_max_initial * speed_limit / 100.0, params_->v_linear_min);
+      params_->v_angular_max = params_->v_angular_max_initial * speed_limit / 100.0;
+    } else {
+      // Speed limit is expressed in m/s
+      params_->v_linear_max = std::max(speed_limit, params_->v_linear_min);
+      // Limit the angular velocity to be proportional to the linear velocity
+      params_->v_angular_max = params_->v_angular_max_initial *
+        speed_limit / params_->v_linear_max_initial;
+    }
+  }
+}
+
+bool GracefulController::validateTargetPose(
+  geometry_msgs::msg::PoseStamped & target_pose, double dist_to_target,
+  nav_msgs::msg::Path & trajectory, geometry_msgs::msg::TransformStamped & costmap_transform,
+  geometry_msgs::msg::TwistStamped & cmd_vel)
+{
+  // Continue if target_pose is too far away from robot
+  if (dist_to_target > params_->max_lookahead) {
+    return false;
+  }
+
+  // Flip the orientation of the motion target if the robot is moving backwards
+  bool reversing = false;
+  if (params_->allow_backward && target_pose.pose.position.x < 0.0) {
+    reversing = true;
+    target_pose.pose.orientation = nav2_util::geometry_utils::orientationAroundZAxis(
+      tf2::getYaw(target_pose.pose.orientation) + M_PI);
+  }
+
+  // Actually simulate the path
+  double sim_linear_velocity = params_->v_linear_max;
+  do {
+    control_law_->setSpeedLimit(params_->v_linear_min, sim_linear_velocity, params_->v_angular_max);
+    if (simulateTrajectory(target_pose, costmap_transform, trajectory, cmd_vel, reversing)) {
+      // Successfully simulated to target_pose
+      return true;
+    }
+    // Reduce velocity and try again for same target_pose
+    sim_linear_velocity -= params_->footprint_scaling_step;
+  } while (sim_linear_velocity >= params_->footprint_scaling_linear_vel);
+
+  // Validation not successful
+  return false;
+}
+
+bool GracefulController::validateTargetPoseOnApproach(
+  geometry_msgs::msg::PoseStamped & target_pose, double dist_to_target, double dist_to_goal,
+  nav_msgs::msg::Path & trajectory, geometry_msgs::msg::TransformStamped & costmap_transform,
+  geometry_msgs::msg::TwistStamped & cmd_vel)
+{
+  // Not approaching goal with large lookahead and don't evaluate shortcut trajectories
+  // when we do not prefer rotating to goal at the end.
+  if (dist_to_goal >= params_->max_lookahead || !params_->prefer_final_rotation) {
+    return false;
+  }
+  // Avoid instability and big sweeping turns at the end of paths by
+  // ignoring final heading
+  double yaw = std::atan2(target_pose.pose.position.y, target_pose.pose.position.x);
+  target_pose.pose.orientation =
+    nav2_util::geometry_utils::orientationAroundZAxis(yaw);
+
+  if (validateTargetPose(target_pose, dist_to_target, trajectory, costmap_transform, cmd_vel)) {
+    // Determine the maximum valid cost based on robot footprint type
+    double max_valid_cost =
+      costmap_ros_->getUseRadius() ? static_cast<double>(nav2_costmap_2d::MAX_NON_OBSTACLE) :
+      static_cast<double>(nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE);
+
+    // Check if the final rotation path is risky
+    double safety_threshold = max_valid_cost - static_cast<double>(params_->obstacle_cost_margin);
+    if (getMaxCost(trajectory, costmap_transform) >= safety_threshold) {
+      // Try to find a better approach by searching spiral curves
+      findBestApproachTrajectory(
+            target_pose, dist_to_target, costmap_transform, max_valid_cost, trajectory, cmd_vel);
+    }
+    return true;
+  }
+  return false;
+}
+
+bool GracefulController::simulateTrajectory(
+  const geometry_msgs::msg::PoseStamped & motion_target,
+  const geometry_msgs::msg::TransformStamped & costmap_transform,
+  nav_msgs::msg::Path & trajectory,
+  geometry_msgs::msg::TwistStamped & cmd_vel,
+  bool backward)
+{
+  trajectory.poses.clear();
+
+  // First pose is robot current pose
+  geometry_msgs::msg::PoseStamped next_pose;
+  next_pose.header.frame_id = costmap_ros_->getBaseFrameID();
+  next_pose.pose.orientation.w = 1.0;
+
+  // Should we simulate rotation initially?
+  bool sim_initial_rotation = do_initial_rotation_ && params_->initial_rotation;
+  double angle_to_target =
+    std::atan2(motion_target.pose.position.y, motion_target.pose.position.x);
+  if (fabs(angle_to_target) < params_->initial_rotation_tolerance) {
+    sim_initial_rotation = false;
+    do_initial_rotation_ = false;
+  }
+
+  double distance = std::numeric_limits<double>::max();
+  double resolution = costmap_ros_->getCostmap()->getResolution();
+  double dt = (params_->v_linear_max > 0.0) ? resolution / params_->v_linear_max : 0.0;
+
+  // Set max iter to avoid infinite loop
+  unsigned int max_iter = 3 *
+    std::hypot(motion_target.pose.position.x, motion_target.pose.position.y) / resolution;
+
+  // Generate path
+  do{
+    if (sim_initial_rotation) {
+      // Compute rotation velocity
+      double next_pose_yaw = tf2::getYaw(next_pose.pose.orientation);
+      auto cmd = rotateToTarget(angle_to_target - next_pose_yaw);
+
+      // If this is first iteration, this is our current target velocity
+      if (trajectory.poses.empty()) {cmd_vel.twist = cmd;}
+
+      // Are we done simulating initial rotation?
+      if (fabs(angle_to_target - next_pose_yaw) < params_->initial_rotation_tolerance) {
+        sim_initial_rotation = false;
+      }
+
+      // Forward simulate rotation command
+      next_pose_yaw += cmd_vel.twist.angular.z * dt;
+      next_pose.pose.orientation = nav2_util::geometry_utils::orientationAroundZAxis(next_pose_yaw);
+    } else {
+      // If this is first iteration, this is our current target velocity
+      if (trajectory.poses.empty()) {
+        cmd_vel.twist = control_law_->calculateRegularVelocity(
+          motion_target.pose, next_pose.pose, backward);
+      }
+
+      // Apply velocities to calculate next pose
+      next_pose.pose = control_law_->calculateNextPose(
+        dt, motion_target.pose, next_pose.pose, backward);
+    }
+
+    // Add the pose to the trajectory for visualization
+    trajectory.poses.push_back(next_pose);
+
+    // Compute footprint scaling
+    double footprint_scaling = 1.0;
+    if (cmd_vel.twist.linear.x > params_->footprint_scaling_linear_vel) {
+      // Scaling = (vel_x - scaling_vel_x) / (max_vel_x - scaling_vel_x)
+      double ratio = params_->v_linear_max - params_->footprint_scaling_linear_vel;
+      // Avoid divide by zero
+      if (ratio > 0) {
+        ratio = (cmd_vel.twist.linear.x - params_->footprint_scaling_linear_vel) / ratio;
+        footprint_scaling += ratio * params_->footprint_scaling_factor;
+      }
+    }
+
+    // Check for collision
+    geometry_msgs::msg::PoseStamped global_pose;
+    tf2::doTransform(next_pose, global_pose, costmap_transform);
+    if (params_->use_collision_detection && inCollision(
+        global_pose.pose.position.x, global_pose.pose.position.y,
+        tf2::getYaw(global_pose.pose.orientation), footprint_scaling))
+    {
+      return false;
+    }
+
+    // Check if we reach the goal
+    distance = nav2_util::geometry_utils::euclidean_distance(motion_target.pose, next_pose.pose);
+  }while(distance > resolution && trajectory.poses.size() < max_iter);
+
+  return true;
+}
+
+geometry_msgs::msg::Twist GracefulController::rotateToTarget(double angle_to_target)
+{
+  geometry_msgs::msg::Twist vel;
+  vel.linear.x = 0.0;
+  vel.angular.z = params_->rotation_scaling_factor * angle_to_target * params_->v_angular_max;
+  vel.angular.z = std::copysign(1.0, vel.angular.z) * std::max(
+    abs(vel.angular.z),
+    params_->v_angular_min_in_place);
+  return vel;
+}
+
+double GracefulController::getMaxCost(
+  const nav_msgs::msg::Path & path, geometry_msgs::msg::TransformStamped & costmap_transform)
+{
+  double max_cost = 0.0;
+
+  for (const auto & pose : path.poses) {
+    geometry_msgs::msg::PoseStamped costmap_pose;
+    tf2::doTransform(pose, costmap_pose, costmap_transform);
+    unsigned int mx, my;
+    if (costmap_ros_->getCostmap()->worldToMap(costmap_pose.pose.position.x,
+        costmap_pose.pose.position.y, mx, my))
+    {
+      max_cost = std::max(max_cost, collision_checker_->pointCost(mx, my));
+    }
+  }
+
+  return max_cost;
+}
+
+bool GracefulController::inCollision(
+  const double & x, const double & y, const double & theta,
+  double inflation_scale)
+{
+  unsigned int mx, my;
+  if (!costmap_ros_->getCostmap()->worldToMap(x, y, mx, my)) {
+    RCLCPP_WARN(
+      logger_, "The path is not in the costmap. Cannot check for collisions. "
+      "Proceed at your own risk, slow the robot, or increase your costmap size.");
+    return false;
+  }
+
+  if (inflation_scale < 1.0) {
+    RCLCPP_WARN(logger_, "Inflation ratio cannot be less than 1.0");
+    throw nav2_core::NoValidControl("Inflation ratio less than 1.0");
+  }
+
+  // Calculate the cost of the footprint at the robot's current position depending
+  // on the shape of the footprint
+  bool is_tracking_unknown =
+    costmap_ros_->getLayeredCostmap()->isTrackingUnknown();
+  bool consider_footprint = !costmap_ros_->getUseRadius();
+
+  double footprint_cost;
+  if (consider_footprint) {
+    std::vector<geometry_msgs::msg::Point> spec = costmap_ros_->getRobotFootprint();
+    if (spec.size() > 3) {
+      for (auto & point : spec) {
+        point.x *= inflation_scale;
+        point.y *= inflation_scale;
+      }
+    }
+    footprint_cost = collision_checker_->footprintCostAtPose(x, y, theta, spec);
+  } else {
+    footprint_cost = collision_checker_->pointCost(mx, my);
+  }
+
+  switch (static_cast<unsigned char>(footprint_cost)) {
+    case (nav2_costmap_2d::LETHAL_OBSTACLE):
+      return true;
+    case (nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE):
+      return consider_footprint ? false : true;
+    case (nav2_costmap_2d::NO_INFORMATION):
+      return is_tracking_unknown ? false : true;
+  }
+
+  return false;
+}
+
+void GracefulController::computeDistanceAlongPath(
+  const std::vector<geometry_msgs::msg::PoseStamped> & poses,
+  std::vector<double> & distances)
+{
+  distances.resize(poses.size());
+  // Do the first pose from robot
+  double d = std::hypot(poses[0].pose.position.x, poses[0].pose.position.y);
+  distances[0] = d;
+  // Compute remaining poses
+  for (size_t i = 1; i < poses.size(); ++i) {
+    d += nav2_util::geometry_utils::euclidean_distance(poses[i - 1].pose, poses[i].pose);
+    distances[i] = d;
+  }
+}
+
+void GracefulController::validateOrientations(
+  std::vector<geometry_msgs::msg::PoseStamped> & path)
+{
+  // We never change the orientation of the first & last pose
+  // So we need at least three poses to do anything here
+  if (path.size() < 3) {return;}
+
+  // Check if we actually need to add orientations
+  double initial_yaw = tf2::getYaw(path[1].pose.orientation);
+  for (size_t i = 2; i < path.size() - 1; ++i) {
+    double this_yaw = tf2::getYaw(path[i].pose.orientation);
+    if (angles::shortest_angular_distance(this_yaw, initial_yaw) > 1e-6) {return;}
+  }
+
+  // For each pose, point at the next one
+  // NOTE: control loop will handle reversing logic
+  for (size_t i = 0; i < path.size() - 1; ++i) {
+    // Get relative yaw angle
+    double dx = path[i + 1].pose.position.x - path[i].pose.position.x;
+    double dy = path[i + 1].pose.position.y - path[i].pose.position.y;
+    double yaw = std::atan2(dy, dx);
+    path[i].pose.orientation = nav2_util::geometry_utils::orientationAroundZAxis(yaw);
+  }
+}
+
+bool GracefulController::findBestApproachTrajectory(
+  geometry_msgs::msg::PoseStamped & target_pose, double dist_to_target,
+  geometry_msgs::msg::TransformStamped & costmap_transform, double safety_cost,
+  nav_msgs::msg::Path & best_trajectory, geometry_msgs::msg::TwistStamped & best_cmd_vel)
+{
+  bool found_valid = false;
+  double best_eta = std::numeric_limits<double>::max();
+
+  for (int i = 0; i < 2 * M_PI / params_->final_rotation_search_step; ++i) {
+    double angle = static_cast<double>(i) * params_->final_rotation_search_step;
+    // Prioritize previously selected approach angles
+    if (safe_approach_angle_.has_value()) {
+      angle += safe_approach_angle_.value();
+    }
+
+    // Create candidate pose
+    auto candidate_pose = target_pose;
+    candidate_pose.pose.orientation = nav2_util::geometry_utils::orientationAroundZAxis(angle);
+
+    nav_msgs::msg::Path candidate_path = best_trajectory;
+    geometry_msgs::msg::TwistStamped candidate_cmd_vel = best_cmd_vel;
+
+    // Validate the candidate
+    if (validateTargetPose(
+          candidate_pose, dist_to_target, candidate_path, costmap_transform,
+          candidate_cmd_vel))
+    {
+      double candidate_cost = getMaxCost(candidate_path, costmap_transform);
+
+      bool reversing = false;
+      if (params_->allow_backward && target_pose.pose.position.x < 0.0) {
+        reversing = true;
+      }
+      // Calculate ETA
+      double eta = 0.0;
+      for (size_t j = 1; j < candidate_path.poses.size(); ++j) {
+        auto current_pose = candidate_path.poses[j - 1];
+        auto next_pose = candidate_path.poses[j];
+        auto cmd = control_law_->calculateRegularVelocity(candidate_pose.pose, current_pose.pose,
+          reversing);
+        double speed = std::abs(cmd.linear.x);
+        // Avoid division by zero
+        speed = std::max(speed, 1e-3);
+        double step_dist = nav2_util::geometry_utils::euclidean_distance(
+          current_pose.pose, next_pose.pose);
+        double step_time = step_dist / speed;
+        eta += step_time;
+      }
+
+      // Selection logic: Pick the fastest among the safe ones
+      if (eta < best_eta) {
+        best_eta = eta;
+        if (candidate_cost < safety_cost) {
+          best_trajectory = candidate_path;
+          best_cmd_vel = candidate_cmd_vel;
+          target_pose = candidate_pose;
+          found_valid = true;
+          // Reuse known safe approach angle if still valid
+          if (safe_approach_angle_.value_or(1e3 /*Never in (-PI, PI]*/) == angle) {
+            break;
+          }
+          safe_approach_angle_ = angle;
+        }
+      }
+    }
+  }
+
+  return found_valid;
+}
+
+}  // namespace nav2_graceful_controller
+
+// Register this controller as a nav2_core plugin
+PLUGINLIB_EXPORT_CLASS(
+  nav2_graceful_controller::GracefulController,
+  nav2_core::Controller)
