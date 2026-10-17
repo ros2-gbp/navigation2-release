@@ -1,0 +1,12 @@
+Source: ros-lyrical-nav2-dwb-controller
+Section: misc
+Priority: optional
+Maintainer: "Carl Delsey" <carl.r.delsey@intel.com>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-ament-cmake, ros-lyrical-backward-ros, ros-lyrical-nav2-common, ros-lyrical-ros-workspace
+Homepage: https://index.ros.org/p/nav2_dwb_controller/#lyrical
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-nav2-dwb-controller
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-backward-ros, ros-lyrical-costmap-queue, ros-lyrical-dwb-core, ros-lyrical-dwb-critics, ros-lyrical-dwb-msgs, ros-lyrical-dwb-plugins, ros-lyrical-nav-2d-msgs, ros-lyrical-nav-2d-utils, ros-lyrical-ros-workspace
+Description: ROS2 controller (DWB) metapackage
