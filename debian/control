@@ -1,0 +1,12 @@
+Source: ros-jazzy-opennav-following
+Section: misc
+Priority: optional
+Maintainer: "Alberto Tudela" <ajtudela@gmail.com>
+Build-Depends: debhelper (>= 9.0.0), ros-jazzy-ament-cmake, ros-jazzy-ament-cmake-gtest <!nocheck>, ros-jazzy-ament-cmake-pytest <!nocheck>, ros-jazzy-ament-cmake-ros <!nocheck>, ros-jazzy-ament-lint-auto <!nocheck>, ros-jazzy-ament-lint-common <!nocheck>, ros-jazzy-angles, ros-jazzy-geometry-msgs, ros-jazzy-nav2-common, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-opennav-docking, ros-jazzy-opennav-docking-core, ros-jazzy-rclcpp, ros-jazzy-rclcpp-components, ros-jazzy-rclcpp-lifecycle, ros-jazzy-tf2, ros-jazzy-tf2-geometry-msgs, ros-jazzy-tf2-ros, ros-jazzy-ros-workspace
+Homepage: https://index.ros.org/p/opennav_following/#jazzy
+Standards-Version: 3.9.2
+
+Package: ros-jazzy-opennav-following
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-jazzy-geometry-msgs, ros-jazzy-nav2-msgs, ros-jazzy-nav2-util, ros-jazzy-opennav-docking, ros-jazzy-opennav-docking-core, ros-jazzy-rclcpp, ros-jazzy-rclcpp-components, ros-jazzy-rclcpp-lifecycle, ros-jazzy-tf2, ros-jazzy-tf2-geometry-msgs, ros-jazzy-tf2-ros, ros-jazzy-ros-workspace
+Description: A Task Server for dynamic following object
